@@ -14,18 +14,8 @@ def _get_config() -> dict:
     if _DB_CONFIG is not None:
         return _DB_CONFIG
 
-    secrets = {}
-    try:
-        import streamlit as st  # noqa: F401
-
-        secrets = st.secrets
-    except ModuleNotFoundError:
-        secrets = {}
-    except Exception:
-        secrets = {}
-
     def _resolve(key: str):
-        return secrets.get(key) or os.environ.get(key)
+        return os.environ.get(key)
 
     config = {
         "host": _resolve("PGHOST"),

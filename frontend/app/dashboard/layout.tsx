@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import type { ReactNode } from "react";
 import {
   ClipboardList,
   LayoutDashboard,
   LogOut,
   Package,
-  Search,
+  Tag,
 } from "lucide-react";
-import type { ReactNode } from "react";
 
 type DashboardLayoutProps = {
   children: ReactNode;
@@ -17,9 +17,9 @@ type DashboardLayoutProps = {
 
 const navItems = [
   { href: "/dashboard", label: "Resumo", icon: LayoutDashboard },
-  { href: "/dashboard/estoque", label: "Registro de Estoque", icon: Package },
-  { href: "/dashboard/caixas", label: "Caixas Lojas", icon: ClipboardList },
-  { href: "/dashboard/precos", label: "Busca de Precos", icon: Search },
+  { href: "/dashboard/estoque", label: "Estoque", icon: Package },
+  { href: "/dashboard/caixas", label: "Caixas", icon: ClipboardList },
+  { href: "/dashboard/precos", label: "Precos", icon: Tag },
 ];
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {

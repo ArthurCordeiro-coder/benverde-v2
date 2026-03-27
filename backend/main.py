@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import os
 import uuid
 from pathlib import Path
@@ -9,8 +13,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from api_auth import get_current_user, router as auth_router
 from data_processor import (
     calcular_estoque,
-    extrair_bananas_pdf_upload,
     deletar_movimentacao_manual,
+    extrair_bananas_pdf_upload,
+    listar_precos_consolidados,
     load_movimentacoes_manuais,
     load_registros_caixas,
     salvar_movimentacao_manual,
@@ -84,6 +89,13 @@ def post_caixas(payload: dict, current_user: dict = Depends(get_current_user)):
         )
     salvar_registro_caixas(payload)
     return {"success": True}
+
+
+@app.get("/api/precos")
+def get_precos(current_user: dict = Depends(get_current_user)):
+    pasta_precos = Path(__file__).resolve().parent / "dados" / "precos"
+    precos = listar_precos_consolidados(str(pasta_precos))
+    return jsonable_encoder(precos)
 
 
 @app.post("/api/upload/pdf")

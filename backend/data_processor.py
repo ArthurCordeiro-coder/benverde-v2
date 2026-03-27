@@ -724,6 +724,48 @@ def load_precos(pasta_precos: str = "") -> dict:
     ))
 
 
+def listar_precos_consolidados(pasta_precos: str = "") -> list[dict]:
+    """Retorna lista simplificada de precos com base no CSV mais recente."""
+    dados = load_precos(pasta_precos)
+    if not dados:
+        return []
+
+    _, df = next(iter(dados.items()))
+    if df is None or df.empty:
+        return []
+
+    colunas = list(df.columns)
+    if not colunas:
+        return []
+
+    produto_col = next((c for c in colunas if "produto" in c.lower()), None)
+    if produto_col is None:
+        produto_col = colunas[0]
+
+    preco_col = next((c for c in colunas if ("preco" in c.lower() or "preÃ§o" in c.lower())), None)
+    if preco_col is None:
+        colunas_numericas = [c for c in colunas if pd.api.types.is_numeric_dtype(df[c])]
+        if colunas_numericas:
+            preco_col = colunas_numericas[0]
+
+    if preco_col is None:
+        return []
+
+    resumo = df[[produto_col, preco_col]].copy()
+    resumo[produto_col] = resumo[produto_col].astype(str).str.strip()
+    resumo[preco_col] = pd.to_numeric(resumo[preco_col], errors="coerce")
+    resumo = resumo[(resumo[produto_col] != "") & (resumo[preco_col].notna())]
+    resumo = resumo.sort_values(produto_col, ascending=True).reset_index(drop=True)
+
+    return [
+        {
+            "Produto": row[produto_col],
+            "Preco": float(row[preco_col]),
+        }
+        for _, row in resumo.iterrows()
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 2. load_metas_vendas (mantido para compatibilidade)
 # ---------------------------------------------------------------------------
