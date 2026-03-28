@@ -47,7 +47,17 @@ def login(payload: LoginRequest):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token = create_access_token({"sub": payload.username})
+    user = get_user(payload.username)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario nao encontrado.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token = create_access_token(
+        {"sub": payload.username, "role": user.get("role", "operacional")}
+    )
     return {"access_token": access_token, "token_type": "bearer"}
 
 

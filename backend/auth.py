@@ -25,6 +25,12 @@ def _hash_senha(salt: str, senha: str) -> str:
     return hashlib.sha256((salt + senha).encode()).hexdigest()
 
 
+def _normalizar_role(role: str | None, is_admin: bool | None = False) -> str:
+    if role in {"admin", "operacional"}:
+        return role
+    return "admin" if is_admin else "operacional"
+
+
 # ---------------------------------------------------------------------------
 # Leitura / escrita pública
 # ---------------------------------------------------------------------------
@@ -35,7 +41,7 @@ def carregar_users() -> list[dict]:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade
+                    SELECT username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade, role
                     FROM users ORDER BY username
                     """
                 )
@@ -48,6 +54,7 @@ def carregar_users() -> list[dict]:
                         "is_admin": row[4],
                         "criado_em": row[5],
                         "funcionalidade": row[6],
+                        "role": _normalizar_role(row[7], row[4]),
                     }
                     for row in cur.fetchall()
                 ]
@@ -59,20 +66,24 @@ def salvar_users(users: list[dict]) -> None:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM users")
                 for user in users:
+                    role = _normalizar_role(
+                        user.get("role"), bool(user.get("is_admin", False))
+                    )
                     cur.execute(
                         """
                         INSERT INTO users (
-                            username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade, role
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         (
                             user.get("username"),
                             user.get("nome"),
                             user.get("salt"),
                             user.get("senha_hash"),
-                            user.get("is_admin", False),
+                            role == "admin",
                             user.get("criado_em"),
                             user.get("funcionalidade", "administracao geral"),
+                            role,
                         ),
                     )
 
@@ -159,6 +170,10 @@ def get_user(username: str) -> dict | None:
     user = next((u for u in carregar_users() if u["username"] == username), None)
     if user:
         user.setdefault("funcionalidade", "administracao geral")
+        user["role"] = _normalizar_role(
+            user.get("role"), bool(user.get("is_admin", False))
+        )
+        user["is_admin"] = user["role"] == "admin"
     return user
 
 
@@ -274,8 +289,8 @@ def registrar_usuario(
                     cur.execute(
                         """
                         INSERT INTO users (
-                            username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade
-                        ) VALUES (%s, %s, %s, %s, TRUE, %s, %s)
+                            username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade, role
+                        ) VALUES (%s, %s, %s, %s, TRUE, %s, %s, 'admin')
                         """,
                         (
                             username,
@@ -323,8 +338,8 @@ def aprovar_usuario(username: str) -> bool:
                 cur.execute(
                     """
                     INSERT INTO users (
-                        username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade
-                    ) VALUES (%s, %s, %s, %s, FALSE, %s, %s)
+                        username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade, role
+                    ) VALUES (%s, %s, %s, %s, FALSE, %s, %s, 'operacional')
                     """,
                     (
                         entry[0],
