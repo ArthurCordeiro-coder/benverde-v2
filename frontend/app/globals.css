@@ -1,3 +1,36 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+  @apply bg-gradient-to-br from-benverde-base via-benverde-dark to-black text-gray-100 min-h-screen selection:bg-benverde-accent/30;
+}
+
+/* Orbes de luz de fundo (Efeito Glassmorphism) */
+body::before {
+  content: "";
+  position: fixed;
+  top: -10%;
+  left: -10%;
+  width: 400px;
+  height: 400px;
+  background: rgba(16, 185, 129, 0.15);
+  border-radius: 50%;
+  filter: blur(120px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  bottom: -10%;
+  right: -5%;
+  width: 500px;
+  height: 500px;
+  background: rgba(6, 78, 59, 0.2);
+  border-radius: 50%;
+  filter: blur(150px);
+  pointer-events: none;
+  z-index: -1;
+}

@@ -1,8 +1,8 @@
 {
   "ExpandedNodes": [
     "",
-    "\\backend"
+    "\\frontend"
   ],
-  "SelectedNode": "\\backend",
+  "SelectedNode": "\\frontend\\tsconfig.json",
   "PreviewInSolutionExplorer": false
 }
