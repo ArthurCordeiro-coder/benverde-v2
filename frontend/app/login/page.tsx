@@ -50,9 +50,10 @@ export default function LoginPage() {
       router.push(payload?.role === "operacional" ? "/registro" : "/dashboard");
     } catch (err: any) {
       const errorMessage = err?.response?.data?.detail;
-      const finalMessage =
-        typeof errorMessage === "string"
-          ? errorMessage
+      const finalMessage = typeof errorMessage === "string"
+        ? errorMessage
+        : err?.request
+          ? "Nao foi possivel conectar ao servidor de autenticacao."
           : "Usuario ou senha invalidos.";
       setError(finalMessage);
     } finally {

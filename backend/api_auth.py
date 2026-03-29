@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import os
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,7 +9,7 @@ from pydantic import BaseModel
 
 from auth import get_user, registrar_usuario, verificar_login
 
-SECRET_KEY = "temp-secret-key-change-me"
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "temp-secret-key-change-me")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 

@@ -1,8 +1,21 @@
 import axios from "axios";
 import Cookies from "js-cookie";
 
+function resolveApiBaseUrl(): string {
+  const configuredUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  return "http://localhost:8000";
+}
+
 const api = axios.create({
-  baseURL: "http://localhost:8000",
+  baseURL: resolveApiBaseUrl(),
 });
 
 api.interceptors.request.use((config) => {

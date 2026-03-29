@@ -31,9 +31,23 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Benverde API")
 
+
+def _parse_allowed_origins() -> list[str]:
+    configured = os.environ.get("ALLOWED_ORIGINS", "")
+    origins = [origin.strip() for origin in configured.split(",") if origin.strip()]
+    if origins:
+        return origins
+    return [
+        "http://localhost:3000",
+        "https://benverde.vercel.app",
+        "https://benverde-v2.vercel.app",
+        "https://benverde-v2-arthurcordeiro-coders-projects.vercel.app",
+        "https://benverde-v2-git-master-arthurcordeiro-coders-projects.vercel.app",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_parse_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
