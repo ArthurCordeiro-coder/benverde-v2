@@ -69,6 +69,7 @@ def _ensure_tables():
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
             nome TEXT,
+            email TEXT,
             salt TEXT,
             senha_hash TEXT,
             is_admin BOOLEAN,
@@ -81,6 +82,7 @@ def _ensure_tables():
         CREATE TABLE IF NOT EXISTS pending (
             username TEXT PRIMARY KEY,
             nome TEXT,
+            email TEXT,
             salt TEXT,
             senha_hash TEXT,
             solicitado_em TIMESTAMPTZ,
@@ -231,6 +233,8 @@ def _ensure_auth_columns():
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT")
+            cur.execute("ALTER TABLE pending ADD COLUMN IF NOT EXISTS email TEXT")
             cur.execute(
                 """
                 UPDATE users
