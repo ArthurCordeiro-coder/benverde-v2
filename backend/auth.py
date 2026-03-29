@@ -41,7 +41,7 @@ def carregar_users() -> list[dict]:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade, role
+                    SELECT username, nome, email, salt, senha_hash, is_admin, criado_em, funcionalidade, role
                     FROM users ORDER BY username
                     """
                 )
@@ -49,12 +49,13 @@ def carregar_users() -> list[dict]:
                     {
                         "username": row[0],
                         "nome": row[1],
-                        "salt": row[2],
-                        "senha_hash": row[3],
-                        "is_admin": row[4],
-                        "criado_em": row[5],
-                        "funcionalidade": row[6],
-                        "role": _normalizar_role(row[7], row[4]),
+                        "email": row[2],
+                        "salt": row[3],
+                        "senha_hash": row[4],
+                        "is_admin": row[5],
+                        "criado_em": row[6],
+                        "funcionalidade": row[7],
+                        "role": _normalizar_role(row[8], row[5]),
                     }
                     for row in cur.fetchall()
                 ]
@@ -72,12 +73,13 @@ def salvar_users(users: list[dict]) -> None:
                     cur.execute(
                         """
                         INSERT INTO users (
-                            username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade, role
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                            username, nome, email, salt, senha_hash, is_admin, criado_em, funcionalidade, role
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         (
                             user.get("username"),
                             user.get("nome"),
+                            user.get("email"),
                             user.get("salt"),
                             user.get("senha_hash"),
                             role == "admin",
@@ -94,7 +96,7 @@ def carregar_pending() -> list[dict]:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT username, nome, salt, senha_hash, solicitado_em, funcionalidade
+                    SELECT username, nome, email, salt, senha_hash, solicitado_em, funcionalidade
                     FROM pending ORDER BY username
                     """
                 )
@@ -102,10 +104,11 @@ def carregar_pending() -> list[dict]:
                     {
                         "username": row[0],
                         "nome": row[1],
-                        "salt": row[2],
-                        "senha_hash": row[3],
-                        "solicitado_em": row[4],
-                        "funcionalidade": row[5],
+                        "email": row[2],
+                        "salt": row[3],
+                        "senha_hash": row[4],
+                        "solicitado_em": row[5],
+                        "funcionalidade": row[6],
                     }
                     for row in cur.fetchall()
                 ]
@@ -120,12 +123,13 @@ def salvar_pending(pending: list[dict]) -> None:
                     cur.execute(
                         """
                         INSERT INTO pending (
-                            username, nome, salt, senha_hash, solicitado_em, funcionalidade
-                        ) VALUES (%s, %s, %s, %s, %s, %s)
+                            username, nome, email, salt, senha_hash, solicitado_em, funcionalidade
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                         """,
                         (
                             entry.get("username"),
                             entry.get("nome"),
+                            entry.get("email"),
                             entry.get("salt"),
                             entry.get("senha_hash"),
                             entry.get("solicitado_em"),
@@ -259,6 +263,7 @@ def verificar_login(username: str, senha: str) -> tuple[bool, str]:
 def registrar_usuario(
     username: str,
     nome: str,
+    email: str,
     senha: str,
     funcionalidade: str = "administracao geral",
 ) -> tuple[bool, str]:
@@ -268,12 +273,15 @@ def registrar_usuario(
     """
     if not re.fullmatch(r"[a-zA-Z0-9_]{3,20}", username):
         return False, "Username deve ter 3–20 caracteres (letras, números e _)"
+    if not email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email.strip()):
+        return False, "E-mail invalido"
     if len(senha) < 6:
         return False, "Senha deve ter pelo menos 6 caracteres"
 
     with _LOCK:
         salt = secrets.token_hex(32)
         hash_ = _hash_senha(salt, senha)
+        email_normalizado = email.strip().lower()
         agora_iso = datetime.now(timezone.utc).isoformat()
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -289,12 +297,13 @@ def registrar_usuario(
                     cur.execute(
                         """
                         INSERT INTO users (
-                            username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade, role
-                        ) VALUES (%s, %s, %s, %s, TRUE, %s, %s, 'admin')
+                            username, nome, email, salt, senha_hash, is_admin, criado_em, funcionalidade, role
+                        ) VALUES (%s, %s, %s, %s, %s, TRUE, %s, %s, 'admin')
                         """,
                         (
                             username,
                             nome,
+                            email_normalizado,
                             salt,
                             hash_,
                             agora_iso,
@@ -305,12 +314,13 @@ def registrar_usuario(
                 cur.execute(
                     """
                     INSERT INTO pending (
-                        username, nome, salt, senha_hash, solicitado_em, funcionalidade
-                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                        username, nome, email, salt, senha_hash, solicitado_em, funcionalidade
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         username,
                         nome,
+                        email_normalizado,
                         salt,
                         hash_,
                         agora_iso,
@@ -327,7 +337,7 @@ def aprovar_usuario(username: str) -> bool:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT username, nome, salt, senha_hash, funcionalidade
+                    SELECT username, nome, email, salt, senha_hash, funcionalidade
                     FROM pending WHERE username = %s
                     """,
                     (username,),
@@ -338,16 +348,17 @@ def aprovar_usuario(username: str) -> bool:
                 cur.execute(
                     """
                     INSERT INTO users (
-                        username, nome, salt, senha_hash, is_admin, criado_em, funcionalidade, role
-                    ) VALUES (%s, %s, %s, %s, FALSE, %s, %s, 'operacional')
+                        username, nome, email, salt, senha_hash, is_admin, criado_em, funcionalidade, role
+                    ) VALUES (%s, %s, %s, %s, %s, FALSE, %s, %s, 'operacional')
                     """,
                     (
                         entry[0],
                         entry[1],
                         entry[2],
                         entry[3],
+                        entry[4],
                         datetime.now(timezone.utc).isoformat(),
-                        entry[4] or "administracao geral",
+                        entry[5] or "administracao geral",
                     ),
                 )
                 cur.execute("DELETE FROM pending WHERE username = %s", (username,))
