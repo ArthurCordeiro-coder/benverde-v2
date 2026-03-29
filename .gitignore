@@ -1,0 +1,21 @@
+# Node
+node_modules/
+
+# Next
+.next/
+out/
+
+# TypeScript
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+
+# Env
+.env
+.env.local
+.env.*
+
+# Visual Studio
+.vs/
