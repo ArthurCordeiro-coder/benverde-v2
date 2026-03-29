@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 import { Buffer } from "buffer";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 type JwtPayload = {
   role?: string;
@@ -24,7 +24,7 @@ function decodeJwtPayload(token: string): JwtPayload | null {
   }
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const token = request.cookies.get("benverde_token")?.value;
   const isDashboardRoute = pathname.startsWith("/dashboard");
