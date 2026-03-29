@@ -1,85 +1,110 @@
 "use client";
-
+import React from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import {
-  ClipboardList,
-  LayoutDashboard,
+  Leaf,
+  BarChart3,
+  Banana,
+  Tags,
+  PackageSearch,
   LogOut,
-  Package,
-  Tag,
+  Users,
 } from "lucide-react";
 
-type DashboardLayoutProps = {
-  children: ReactNode;
-};
-
-const navItems = [
-  { href: "/dashboard", label: "Resumo", icon: LayoutDashboard },
-  { href: "/dashboard/estoque", label: "Estoque", icon: Package },
-  { href: "/dashboard/caixas", label: "Caixas", icon: ClipboardList },
-  { href: "/dashboard/precos", label: "Precos", icon: Tag },
-];
-
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
-  const router = useRouter();
 
-  const handleLogout = () => {
-    document.cookie = "benverde_token=; Max-Age=0; path=/; SameSite=Lax";
-    router.replace("/login");
+  const NavItem = ({ href, icon, label, isHighlight = false }: any) => {
+    const isActive = pathname === href;
+    return (
+      <Link
+        href={href}
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 font-medium text-sm
+        ${
+          isActive
+            ? "bg-gradient-to-r from-green-500/20 to-emerald-500/10 text-green-300 border border-green-500/20 shadow-[0_0_20px_rgba(16,185,129,0.1)]"
+            : "text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent"
+        }
+        ${
+          isHighlight && !isActive
+            ? "bg-emerald-900/20 border-emerald-500/10 text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/40"
+            : ""
+        }
+      `}
+      >
+        <span className={isActive ? "text-green-400" : ""}>{icon}</span>
+        {label}
+      </Link>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl">
-        <aside className="w-72 border-r border-slate-200 bg-white/90 p-5">
-          <div className="mb-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Benverde
-            </p>
-            <h1 className="mt-2 text-2xl font-bold">Painel</h1>
+    <div className="flex h-screen overflow-hidden">
+      {/* SIDEBAR - Liquid Glass */}
+      <aside className="w-72 m-4 rounded-3xl bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-2xl flex flex-col relative overflow-hidden z-10">
+        {/* Header da Sidebar */}
+        <div className="p-8 flex items-center gap-3 border-b border-white/5">
+          <div className="p-2 bg-gradient-to-br from-green-400 to-green-600 rounded-xl shadow-lg shadow-green-500/30">
+            <Leaf size={24} className="text-white" />
           </div>
-
-          <nav className="space-y-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                    active
-                      ? "bg-emerald-100 text-emerald-800"
-                      : "text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
-
-        <div className="flex min-h-screen flex-1 flex-col">
-          <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
-            <p className="text-sm text-slate-600">Area logada</p>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-            >
-              <LogOut className="h-4 w-4" />
-              Sair
-            </button>
-          </header>
-
-          <main className="flex-1 p-6">{children}</main>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-white">Benverde</h1>
+            <p className="text-xs text-green-400 font-medium">Gestao Inteligente</p>
+          </div>
         </div>
-      </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          <p className="px-4 text-[10px] font-bold uppercase tracking-wider text-gray-500 mt-4 mb-2">
+            Painel Gerencial
+          </p>
+          <NavItem href="/dashboard" icon={<BarChart3 size={18} />} label="Resumo & Metas" />
+          <NavItem
+            href="/dashboard/estoque"
+            icon={<Banana size={18} />}
+            label="Estoque de Bananas"
+          />
+          <NavItem
+            href="/dashboard/caixas"
+            icon={<PackageSearch size={18} />}
+            label="Caixas das Lojas"
+          />
+          <NavItem
+            href="/dashboard/precos"
+            icon={<Tags size={18} />}
+            label="Precos Concorrentes"
+          />
+
+          <p className="px-4 text-[10px] font-bold uppercase tracking-wider text-gray-500 mt-8 mb-2">
+            Acesso Operacional
+          </p>
+          <NavItem
+            href="/registro"
+            icon={<Users size={18} />}
+            label="Registro de Estoque"
+            isHighlight={true}
+          />
+        </nav>
+
+        {/* Footer da Sidebar */}
+        <div className="p-4 border-t border-white/5">
+          <Link
+            href="/login"
+            className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 rounded-2xl transition-all duration-300 group"
+          >
+            <LogOut size={18} className="group-hover:text-red-400 transition-colors" />
+            Sair do Sistema
+          </Link>
+        </div>
+      </aside>
+
+      {/* MAIN CONTENT AREA */}
+      <main className="flex-1 p-8 h-screen overflow-y-auto z-10 relative">{children}</main>
     </div>
   );
 }

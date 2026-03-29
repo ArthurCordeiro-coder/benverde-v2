@@ -29,12 +29,11 @@ from db import (
     fetch_cache,
     fetch_caixas,
     fetch_movimentacoes,
-    fetch_pedidos_importados,
     insert_caixa,
     insert_movimentacoes,
     load_metas,
     replace_metas,
-    save_pedidos_importados,
+    save_cache_pedidos_relacional,
     upsert_cache,
 )
 
@@ -116,12 +115,11 @@ _RE_LOJA_PREFIXO = re.compile(r'(?:loja|lj)\s*(\d{1,2})', re.IGNORECASE)
 _RE_LOJA_NUMERO  = re.compile(r'^\s*(\d{1,2})\b')
 _RE_MES_COLADO   = re.compile(r'(\d)([a-záàãâéêíóôõúç])', re.IGNORECASE)
 _RE_MES_COLADO2  = re.compile(r'([a-záàãâéêíóôõúç])(\d)', re.IGNORECASE)
+_RE_UPLOAD_TEMP_PREFIXO = re.compile(r"^[0-9a-f]{32}_(.+)$", re.IGNORECASE)
 _PAT_MES_TEXTO   = re.compile(
     r'^(\d{1,2})\s+(' + '|'.join(_MESES_PT.keys()) + r')\b(.*)',
     re.IGNORECASE,
 )
-
-
 # ---------------------------------------------------------------------------
 # Helpers numéricos
 # ---------------------------------------------------------------------------
@@ -213,6 +211,63 @@ def _extrair_data_saida_pdf(caminho_pdf: str) -> Optional[datetime]:
     except Exception as exc:
         logger.debug("Falha ao extrair DATA DA SAÍDA de '%s': %s", caminho_pdf, exc)
     return None
+
+
+def _texto_primeira_pagina_pdf(caminho_pdf: str) -> str:
+    try:
+        with pdfplumber.open(caminho_pdf) as pdf:
+            if not pdf.pages:
+                return ""
+            return pdf.pages[0].extract_text(x_tolerance=3, y_tolerance=3) or ""
+    except Exception as exc:
+        logger.debug("Falha ao ler a primeira pagina de '%s': %s", caminho_pdf, exc)
+        return ""
+
+
+def extrair_metadados_pdf(texto_pagina: str):
+    data_emissao = datetime.now()
+    loja = "Loja ?"
+    municipio = "Desconhecido"
+
+    if not texto_pagina:
+        return data_emissao, loja, municipio
+
+    match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_pagina)
+    if match_data:
+        try:
+            data_emissao = datetime.strptime(match_data.group(1), "%d/%m/%Y")
+        except ValueError:
+            pass
+
+    match_loja = re.search(r"(?:LJ|LOJA)\s*(\d{1,2})", texto_pagina, re.IGNORECASE)
+    if match_loja:
+        try:
+            numero_loja = int(match_loja.group(1))
+            loja = f"Loja {numero_loja:02d}"
+        except ValueError:
+            pass
+
+    match_municipio = re.search(
+        r"MUNIC[IÍ]PIO[\r\n]+([A-ZÀ-Ú\s]+)",
+        texto_pagina,
+        re.IGNORECASE,
+    )
+    if match_municipio:
+        municipio_cru = match_municipio.group(1).strip().split("\n")[0].strip()
+        if municipio_cru:
+            municipio = municipio_cru
+
+    return data_emissao, loja, municipio
+
+
+def _extrair_metadados_pdf(caminho_pdf: str) -> dict:
+    texto_bruto = _texto_primeira_pagina_pdf(caminho_pdf)
+    data_emissao, loja, municipio = extrair_metadados_pdf(texto_bruto)
+    return {
+        "data": data_emissao,
+        "loja": loja,
+        "localizacao": municipio,
+    }
 
 
 def parse_data_arquivo(nome_arq: str) -> Optional[datetime]:
@@ -567,12 +622,12 @@ def _extrair_pedido_semar(caminho_pdf: str) -> list:
 def _worker_pedido(caminho_pdf: str) -> tuple:
     """Worker para load_pedidos_pdfs."""
     nome_arq = os.path.basename(caminho_pdf)
-    dt_nome, loja = _parse_nome_arquivo_nfe(nome_arq)
-    dt = _extrair_data_saida_pdf(caminho_pdf)
-    if dt is None:
-        dt = dt_nome
+    metadados = _extrair_metadados_pdf(caminho_pdf)
+    dt = metadados.get("data")
+    loja = metadados.get("loja") or "Loja ?"
+    localizacao = metadados.get("localizacao") or ""
     produtos = _extrair_todos_produtos_pdf(caminho_pdf)
-    return (nome_arq, dt, loja, produtos)
+    return (nome_arq, dt, loja, localizacao, produtos)
 
 
 def _processar_pdf_worker(args: tuple) -> list:
@@ -865,9 +920,6 @@ def calcular_estoque(
         for pdf in glob.glob(os.path.join(pasta, "*.pdf")):
             tarefas.append((pdf, tipo))
 
-    if not tarefas:
-        return 0.0, []
-
     tarefas_novas = []
     for caminho_pdf, tipo in tarefas:
         nome_arq  = os.path.basename(caminho_pdf)
@@ -969,6 +1021,32 @@ def calcular_estoque(
             cache.update(pendente)
             _salvar_cache(cache, caminho_cache, "cache_estoque")
 
+    manuais = fetch_movimentacoes()
+    for manual in manuais:
+        data_manual = manual.get("data")
+        if isinstance(data_manual, str):
+            try:
+                data_manual = datetime.fromisoformat(data_manual)
+            except ValueError:
+                data_manual = None
+        elif not isinstance(data_manual, datetime):
+            data_manual = None
+
+        quant_manual = _parse_numero(manual.get("quant"))
+        historico.append(
+            {
+                "data": data_manual,
+                "tipo": str(manual.get("tipo") or "entrada").strip().lower(),
+                "produto": str(manual.get("produto") or "").strip().upper(),
+                "quant": quant_manual if quant_manual is not None else 0.0,
+                "unidade": str(manual.get("unidade") or "KG").strip().upper(),
+                "valor_unit": _parse_numero(manual.get("valor_unit")) or 0.0,
+                "valor_total": _parse_numero(manual.get("valor_total")) or 0.0,
+                "arquivo": "manual",
+                "loja": str(manual.get("loja") or "").strip(),
+            }
+        )
+
     historico.sort(key=lambda x: (x["data"] is None, x["data"] or datetime.min, x["tipo"]))
     saldo = sum(i["quant"] if i["tipo"] == "entrada" else -i["quant"] for i in historico)
     logger.info("Saldo: %.2f kg | %d registros.", saldo, len(historico))
@@ -1008,6 +1086,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                 registros.append({
                     "Data":        datetime.fromisoformat(reg["data"]) if reg.get("data") else None,
                     "Loja":        reg["loja"],
+                    "Localizacao": reg.get("localizacao", ""),
                     "Produto":     reg["produto"],
                     "UNID":        reg["unidade"],
                     "QUANT":       reg["quant"],
@@ -1032,7 +1111,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
             futuros = {executor.submit(_worker_pedido, p): p for p in pdfs_novos}
             for futuro in as_completed(futuros):
                 try:
-                    nome_arq, dt, loja, produtos = futuro.result()
+                    nome_arq, dt, loja, localizacao, produtos = futuro.result()
                 except BrokenProcessPool:
                     caminho_falhou = futuros[futuro]
                     logger.warning(
@@ -1053,6 +1132,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                     registros.append({
                         "Data":        dt,
                         "Loja":        loja,
+                        "Localizacao": localizacao,
                         "Produto":     p["produto"],
                         "UNID":        p["unidade"],
                         "QUANT":       p["quant"],
@@ -1062,6 +1142,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                     pendente[cache_key].append({
                         "data":        dt.isoformat() if dt else None,
                         "loja":        loja,
+                        "localizacao": localizacao,
                         "produto":     p["produto"],
                         "unidade":     p["unidade"],
                         "quant":       p["quant"],
@@ -1079,7 +1160,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
         # Fallback sequencial para PDFs não processados após crash do pool
         for caminho_pdf in pdfs_sequencial:
             try:
-                nome_arq, dt, loja, produtos = _worker_pedido(caminho_pdf)
+                nome_arq, dt, loja, localizacao, produtos = _worker_pedido(caminho_pdf)
             except Exception as exc:
                 logger.error("Erro sequencial '%s': %s", caminho_pdf, exc)
                 concluidos += 1
@@ -1091,6 +1172,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                 registros.append({
                     "Data":        dt,
                     "Loja":        loja,
+                    "Localizacao": localizacao,
                     "Produto":     p["produto"],
                     "UNID":        p["unidade"],
                     "QUANT":       p["quant"],
@@ -1100,6 +1182,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                 pendente[cache_key].append({
                     "data":        dt.isoformat() if dt else None,
                     "loja":        loja,
+                    "localizacao": localizacao,
                     "produto":     p["produto"],
                     "unidade":     p["unidade"],
                     "quant":       p["quant"],
@@ -1125,6 +1208,156 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
     df["VALOR UNIT"]  = pd.to_numeric(df["VALOR UNIT"],  errors="coerce")
     df["Produto"]     = df["Produto"].astype(str).str.strip().str.upper()
     return df.sort_values("Data", ascending=False).reset_index(drop=True)
+
+
+def _serializar_data_pedido(valor) -> Optional[str]:
+    if valor is None:
+        return None
+    if isinstance(valor, datetime):
+        return valor.isoformat()
+    try:
+        data_normalizada = pd.to_datetime(valor, errors="coerce")
+    except Exception:
+        data_normalizada = pd.NaT
+    if pd.isna(data_normalizada):
+        texto = str(valor).strip()
+        return texto or None
+    if hasattr(data_normalizada, "to_pydatetime"):
+        data_normalizada = data_normalizada.to_pydatetime()
+    return data_normalizada.isoformat()
+
+
+def _normalizar_nome_arquivo_upload(nome_arquivo: str) -> str:
+    basename = os.path.basename(str(nome_arquivo or "").strip())
+    if not basename:
+        return "pedido_upload.pdf"
+    match = _RE_UPLOAD_TEMP_PREFIXO.match(basename)
+    return match.group(1).strip() if match else basename
+
+
+def _item_pedido_valido(produto, quant) -> bool:
+    nome_produto = str(produto or "").strip().upper()
+    if not nome_produto or len(nome_produto) <= 2:
+        return False
+
+    somente_digitos = re.sub(r"\s+", "", nome_produto)
+    if somente_digitos.isdigit():
+        return False
+
+    quantidade = _parse_numero(quant) or 0.0
+    return quantidade > 0
+
+
+def _montar_item_cache_pedido(
+    *,
+    data,
+    loja,
+    localizacao,
+    produto,
+    unidade,
+    quant,
+    valor_total,
+    valor_unit,
+):
+    nome_produto = str(produto or "").strip().upper()
+    quantidade = _parse_numero(quant) or 0.0
+    if not _item_pedido_valido(nome_produto, quantidade):
+        return None
+
+    return {
+        "data": _serializar_data_pedido(data) or datetime.now().isoformat(),
+        "loja": str(loja or "Loja ?").strip() or "Loja ?",
+        "localizacao": str(localizacao or "").strip() or "Desconhecido",
+        "produto": nome_produto,
+        "unidade": str(unidade or "KG").strip().upper() or "KG",
+        "quant": float(quantidade),
+        "valor_total": float(_parse_numero(valor_total) or 0.0),
+        "valor_unit": float(_parse_numero(valor_unit) or 0.0),
+    }
+
+
+def processar_pedidos_upload(caminhos_pdf: list[str]) -> dict:
+    registros_validos: list[dict] = []
+    arquivos_processados = 0
+    registros_novos_salvos = 0
+
+    for caminho_pdf in caminhos_pdf:
+        if not str(caminho_pdf).lower().endswith(".pdf"):
+            continue
+
+        try:
+            arquivos_processados += 1
+            texto_primeira_pagina = _texto_primeira_pagina_pdf(caminho_pdf).lower()
+            nome_arquivo = _normalizar_nome_arquivo_upload(caminho_pdf)
+            cache_key = f"pedido::{nome_arquivo}"
+            itens_validos: list[dict] = []
+
+            if "pedido de compra" in texto_primeira_pagina:
+                df_pdf = extrair_pedido_semar(caminho_pdf)
+                for _, row in df_pdf.iterrows():
+                    loja = str(row.get("Loja") or "Loja ?").strip() or "Loja ?"
+                    localizacao = loja.split(" - ", 1)[1].strip() if " - " in loja else ""
+                    item = _montar_item_cache_pedido(
+                        data=row.get("Data"),
+                        loja=loja,
+                        localizacao=localizacao,
+                        produto=row.get("Produto"),
+                        unidade=row.get("UNID"),
+                        quant=row.get("QUANT"),
+                        valor_total=row.get("VALOR TOTAL"),
+                        valor_unit=row.get("VALOR UNIT"),
+                    )
+                    if item:
+                        itens_validos.append(item)
+            else:
+                _, dt, loja, localizacao, produtos = _worker_pedido(caminho_pdf)
+                for produto in produtos:
+                    item = _montar_item_cache_pedido(
+                        data=dt,
+                        loja=loja,
+                        localizacao=localizacao,
+                        produto=produto.get("produto"),
+                        unidade=produto.get("unidade", "KG"),
+                        quant=produto.get("quant"),
+                        valor_total=produto.get("valor_total"),
+                        valor_unit=produto.get("valor_unit"),
+                    )
+                    if item:
+                        itens_validos.append(item)
+
+            if not itens_validos:
+                logger.warning("Upload de pedido sem itens validos: '%s'", nome_arquivo)
+                continue
+
+            for item in itens_validos:
+                registros_validos.append(
+                    {
+                        "arquivo_pdf": cache_key,
+                        "data": item.get("data"),
+                        "loja": item.get("loja"),
+                        "produto": item.get("produto", "").upper(),
+                        "unidade": item.get("unidade", "KG"),
+                        "quant": float(item.get("quant", 0)),
+                        "valor_total": float(item.get("valor_total", 0)),
+                        "valor_unit": float(item.get("valor_unit", 0)),
+                    }
+                )
+                registros_novos_salvos += 1
+        except Exception as exc:
+            logger.error("Falha ao processar upload de pedido '%s': %s", caminho_pdf, exc)
+
+    if registros_validos:
+        save_cache_pedidos_relacional(registros_validos)
+
+    cache_atual = fetch_cache("cache_pedidos")
+    total_registros = sum(
+        len(valor) for valor in cache_atual.values() if isinstance(valor, list)
+    )
+    return {
+        "processed_files": arquivos_processados,
+        "saved_records": registros_novos_salvos,
+        "total_records": total_registros,
+    }
 
 
 # ---------------------------------------------------------------------------

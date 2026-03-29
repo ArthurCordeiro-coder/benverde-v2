@@ -6,6 +6,28 @@ import Cookies from "js-cookie";
 
 import api from "../../lib/api";
 
+type JwtPayload = {
+  role?: string;
+};
+
+function decodeJwtPayload(token: string): JwtPayload | null {
+  try {
+    const payloadChunk = token.split(".")[1];
+    if (!payloadChunk) {
+      return null;
+    }
+
+    const normalizedPayload = payloadChunk.replace(/-/g, "+").replace(/_/g, "/");
+    const paddedPayload = normalizedPayload.padEnd(
+      Math.ceil(normalizedPayload.length / 4) * 4,
+      "=",
+    );
+    return JSON.parse(window.atob(paddedPayload));
+  } catch {
+    return null;
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
@@ -21,13 +43,17 @@ export default function LoginPage() {
     try {
       const response = await api.post("/api/login", { username, password });
 
-      Cookies.set("benverde_token", response.data.access_token);
-      router.push("/dashboard");
+      const accessToken = response.data.access_token;
+      Cookies.set("benverde_token", accessToken);
+
+      const payload = decodeJwtPayload(accessToken);
+      router.push(payload?.role === "operacional" ? "/registro" : "/dashboard");
     } catch (err: any) {
       const errorMessage = err?.response?.data?.detail;
-      const finalMessage =
-        typeof errorMessage === "string"
-          ? errorMessage
+      const finalMessage = typeof errorMessage === "string"
+        ? errorMessage
+        : err?.request
+          ? "Nao foi possivel conectar ao servidor de autenticacao."
           : "Usuario ou senha invalidos.";
       setError(finalMessage);
     } finally {
