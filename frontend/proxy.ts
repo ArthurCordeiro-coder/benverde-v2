@@ -1,4 +1,3 @@
-import { Buffer } from "buffer";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -18,7 +17,7 @@ function decodeJwtPayload(token: string): JwtPayload | null {
       Math.ceil(normalizedPayload.length / 4) * 4,
       "=",
     );
-    return JSON.parse(Buffer.from(paddedPayload, "base64").toString());
+    return JSON.parse(atob(paddedPayload));
   } catch {
     return null;
   }
