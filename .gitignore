@@ -1,8 +1,11 @@
 # Node
 node_modules/
+frontend/node_modules/
+backend/node_modules/
 
 # Next
 .next/
+frontend/.next/
 out/
 
 # TypeScript
@@ -11,11 +14,18 @@ out/
 # Python
 __pycache__/
 *.pyc
+backend/venv/
 
 # Env
 .env
 .env.local
 .env.*
 
-# Visual Studio
+# IDE / OS
 .vs/
+desktop.ini
+
+# Local snapshots and build outputs
+_deliver/
+_rewrite/
+backend/temp_uploads/

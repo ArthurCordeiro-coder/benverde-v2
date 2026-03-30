@@ -1,5 +1,6 @@
 "use client";
-import React, { ChangeEvent, useEffect, useState } from "react";
+
+import React, { useEffect, useState } from "react";
 import {
   AlertCircle,
   Banana,
@@ -11,9 +12,9 @@ import {
   Sparkles,
   Tags,
   TrendingUp,
-  UploadCloud,
   X,
 } from "lucide-react";
+
 import api from "@/lib/api";
 
 type PendingUser = {
@@ -24,17 +25,44 @@ type PendingUser = {
   solicitado_em: string;
 };
 
-function GlassCard({ title, value, subtitle, icon, trend }: any) {
+type GlassCardProps = {
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  trend: "up" | "down" | "neutral";
+};
+
+type ApiError = {
+  message?: string;
+  request?: unknown;
+  response?: {
+    status?: number;
+    data?: {
+      detail?: string;
+    };
+  };
+};
+
+function getErrorDetail(error: unknown): string | undefined {
+  return (error as ApiError | undefined)?.response?.data?.detail;
+}
+
+function getErrorStatus(error: unknown): number | undefined {
+  return (error as ApiError | undefined)?.response?.status;
+}
+
+function GlassCard({ title, value, subtitle, icon, trend }: GlassCardProps) {
   return (
     <div className="relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition-all hover:bg-white/[0.05]">
-      <div className="pointer-events-none absolute left-0 top-0 h-full w-full bg-gradient-to-br from-white/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100"></div>
+      <div className="pointer-events-none absolute left-0 top-0 h-full w-full bg-gradient-to-br from-white/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
 
       <div className="mb-4 flex items-start justify-between">
         <div className="rounded-2xl border border-white/5 bg-white/5 p-3 shadow-inner">{icon}</div>
-        {trend === "up" && <TrendingUp size={20} className="text-green-400" />}
-        {trend === "down" && (
+        {trend === "up" ? <TrendingUp size={20} className="text-green-400" /> : null}
+        {trend === "down" ? (
           <TrendingUp size={20} className="rotate-180 transform text-red-400" />
-        )}
+        ) : null}
       </div>
 
       <div>
@@ -67,7 +95,8 @@ export default function DashboardHome() {
   const [saldoEstoque, setSaldoEstoque] = useState<number | null>(null);
   const [caixasDisponiveis, setCaixasDisponiveis] = useState<number | null>(null);
   const [precoMedio, setPrecoMedio] = useState<number | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [caixasRegistradas, setCaixasRegistradas] = useState(0);
+  const [precosRegistrados, setPrecosRegistrados] = useState(0);
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -89,7 +118,8 @@ export default function DashboardHome() {
       setSaldoEstoque(Number.isFinite(saldo) ? saldo : 0);
 
       const caixas = Array.isArray(caixasResponse.data) ? caixasResponse.data : [];
-      const totalCaixas = caixas.reduce((acc: number, item: any) => {
+      setCaixasRegistradas(caixas.length);
+      const totalCaixas = caixas.reduce((acc: number, item: Record<string, unknown>) => {
         const quantidade = Number(
           item?.Quantidade ??
             item?.quantidade ??
@@ -103,8 +133,9 @@ export default function DashboardHome() {
       setCaixasDisponiveis(totalCaixas);
 
       const precos = Array.isArray(precosResponse.data) ? precosResponse.data : [];
+      setPrecosRegistrados(precos.length);
       const valoresValidos = precos
-        .map((item: any) => Number(item?.Preco ?? item?.preco ?? 0))
+        .map((item: Record<string, unknown>) => Number(item.Preco ?? item.preco ?? 0))
         .filter((valor: number) => Number.isFinite(valor));
       const media =
         valoresValidos.length > 0
@@ -137,12 +168,12 @@ export default function DashboardHome() {
         ? pendingResponse.data.items
         : [];
       setPendingUsers(pendingItems);
-    } catch (error: any) {
-      if (error?.response?.status === 403) {
+    } catch (error: unknown) {
+      if (getErrorStatus(error) === 403) {
         setIsAdmin(false);
         setPendingUsers([]);
       } else {
-        const detail = error?.response?.data?.detail;
+        const detail = getErrorDetail(error);
         setPendingError(
           typeof detail === "string"
             ? detail
@@ -167,50 +198,13 @@ export default function DashboardHome() {
           : `Solicitacao de ${username} rejeitada.`,
       );
       await carregarPendentes();
-    } catch (error: any) {
-      const detail = error?.response?.data?.detail;
+    } catch (error: unknown) {
+      const detail = getErrorDetail(error);
       setPendingError(
         typeof detail === "string" ? detail : "Nao foi possivel processar essa solicitacao.",
       );
     } finally {
       setPendingActionKey(null);
-    }
-  };
-
-  const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) {
-      return;
-    }
-
-    const formData = new FormData();
-    Array.from(files).forEach((file) => {
-      formData.append("files", file);
-    });
-
-    setUploading(true);
-    try {
-      const response = await api.post("/api/upload/pedidos", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      const processedFiles = Number(response.data?.processed_files ?? files.length);
-      const savedRecords = Number(response.data?.saved_records ?? 0);
-      await carregarDados();
-      window.alert(
-        `Importacao concluida com sucesso. ${processedFiles} arquivo(s) processado(s) e ${savedRecords} registro(s) salvo(s).`,
-      );
-    } catch (error: any) {
-      console.error("Erro ao importar pedidos:", error);
-      const detail = error?.response?.data?.detail ?? error?.message;
-      window.alert(
-        typeof detail === "string" ? detail : "Nao foi possivel importar os arquivos.",
-      );
-    } finally {
-      setUploading(false);
-      event.target.value = "";
     }
   };
 
@@ -253,32 +247,10 @@ export default function DashboardHome() {
       <div className="flex flex-col items-start gap-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-amber-200 shadow-[0_8px_32px_rgba(245,158,11,0.05)] backdrop-blur-xl md:flex-row md:items-center">
         <AlertCircle size={24} className="shrink-0 text-amber-400" />
         <p className="text-sm font-medium">
-          Sem dados de progresso recentes. Cadastre metas e clique em Atualizar Dados para gerar os
-          graficos.
+          Este resumo consolida estoque, caixas e precos ja registrados. Para lancamentos e
+          importacoes suportadas, use as telas especificas do dashboard.
         </p>
       </div>
-
-      <input
-        type="file"
-        multiple
-        accept=".pdf,.zip"
-        className="hidden"
-        id="upload-pedidos"
-        onChange={handleUpload}
-      />
-      <label
-        htmlFor="upload-pedidos"
-        className={`group flex w-full flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.03] py-5 text-gray-300 shadow-sm backdrop-blur-xl transition-all hover:bg-white/[0.06] hover:text-white hover:shadow-lg ${
-          uploading ? "pointer-events-none cursor-wait opacity-70" : "cursor-pointer"
-        }`}
-      >
-        <div className="rounded-full bg-white/5 p-3 transition-colors group-hover:bg-green-500/20 group-hover:text-green-400">
-          <UploadCloud size={24} />
-        </div>
-        <span className="font-medium">
-          {uploading ? "Enviando..." : "Importar Novo Pedido / Progresso"}
-        </span>
-      </label>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <GlassCard
@@ -286,23 +258,23 @@ export default function DashboardHome() {
           value={
             saldoEstoque !== null ? `${saldoEstoque.toLocaleString("pt-BR")} kg` : "Carregando..."
           }
-          subtitle="+12% em relacao a ontem"
+          subtitle="Calculado a partir das movimentacoes registradas."
           icon={<Banana className="text-yellow-400" size={24} />}
           trend="up"
         />
         <GlassCard
           title="Caixas Disponiveis"
           value={caixasDisponiveis !== null ? `${caixasDisponiveis} un` : "Carregando..."}
-          subtitle="Estoque critico na Loja 1"
+          subtitle={`${caixasRegistradas} registro(s) considerado(s) no consolidado.`}
           icon={<PackageSearch className="text-blue-400" size={24} />}
-          trend="down"
+          trend="neutral"
         />
         <GlassCard
           title="Preco Medio"
           value={
             precoMedio !== null ? `R$ ${precoMedio.toFixed(2).replace(".", ",")}` : "Carregando..."
           }
-          subtitle="Concorrencia: R$ 82,90"
+          subtitle={`${precosRegistrados} item(ns) com preco valido na base atual.`}
           icon={<Tags className="text-emerald-400" size={24} />}
           trend="neutral"
         />
@@ -360,10 +332,10 @@ export default function DashboardHome() {
                     <div>
                       <p className="font-semibold text-white">{pendingUser.nome}</p>
                       <p className="text-sm text-slate-300">
-                        @{pendingUser.username} · {pendingUser.email}
+                        @{pendingUser.username} - {pendingUser.email}
                       </p>
                       <p className="text-xs text-slate-400">
-                        Funcao: {pendingUser.funcionalidade} · Solicitado em:{" "}
+                        Funcao: {pendingUser.funcionalidade} - Solicitado em:{" "}
                         {formatSolicitadoEm(pendingUser.solicitado_em)}
                       </p>
                     </div>

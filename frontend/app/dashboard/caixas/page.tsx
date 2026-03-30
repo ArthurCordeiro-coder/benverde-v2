@@ -78,37 +78,37 @@ export default function CaixasPage() {
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-100">Caixas Lojas</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Caixas Lojas</h1>
         <button
           type="button"
           onClick={() => setModalAberto(true)}
-          className="bg-benverde-accent/20 hover:bg-benverde-accent/30 text-benverde-accent border border-benverde-accent/30 hover:border-benverde-accent/50 px-4 py-2 rounded-xl transition-all font-medium"
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
         >
           Novo Registro de Caixa
         </button>
       </div>
 
-      <div className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)] rounded-3xl p-6">
+      <div className="rounded-lg bg-white p-4 shadow-md">
         <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse bg-transparent text-sm">
+          <table className="min-w-full border-collapse text-sm">
             <thead>
-              <tr className="text-left">
-                <th className="px-3 text-gray-400 border-b border-white/10 pb-3 font-medium">Data</th>
-                <th className="px-3 text-gray-400 border-b border-white/10 pb-3 font-medium">Loja</th>
-                <th className="px-3 text-gray-400 border-b border-white/10 pb-3 font-medium">Quantidade</th>
-                <th className="px-3 text-gray-400 border-b border-white/10 pb-3 font-medium">Total</th>
+              <tr className="border-b text-left text-slate-600">
+                <th className="px-3 py-2">Data</th>
+                <th className="px-3 py-2">Loja</th>
+                <th className="px-3 py-2">Quantidade</th>
+                <th className="px-3 py-2">Total</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td className="px-3 border-b border-white/5 py-4 text-gray-400" colSpan={4}>
+                  <td className="px-3 py-4 text-slate-500" colSpan={4}>
                     Carregando...
                   </td>
                 </tr>
               ) : registros.length === 0 ? (
                 <tr>
-                  <td className="px-3 border-b border-white/5 py-4 text-gray-400" colSpan={4}>
+                  <td className="px-3 py-4 text-slate-500" colSpan={4}>
                     Nenhum registro encontrado.
                   </td>
                 </tr>
@@ -117,11 +117,11 @@ export default function CaixasPage() {
                   const quantidadeExibida = Number(registro.caixas_benverde ?? registro.total ?? 0);
                   const totalExibido = Number(registro.total ?? 0);
                   return (
-                    <tr key={`${registro.data || "sem-data"}-${registro.loja || "sem-loja"}-${index}`}>
-                      <td className="px-3 border-b border-white/5 py-4 text-gray-200">{formatarData(registro.data)}</td>
-                      <td className="px-3 border-b border-white/5 py-4 text-gray-200">{registro.loja || "-"}</td>
-                      <td className="px-3 border-b border-white/5 py-4 text-gray-200">{quantidadeExibida.toLocaleString("pt-BR")}</td>
-                      <td className="px-3 border-b border-white/5 py-4 text-gray-200">{totalExibido.toLocaleString("pt-BR")}</td>
+                    <tr key={`${registro.data || "sem-data"}-${registro.loja || "sem-loja"}-${index}`} className="border-b">
+                      <td className="px-3 py-2 text-slate-700">{formatarData(registro.data)}</td>
+                      <td className="px-3 py-2 text-slate-700">{registro.loja || "-"}</td>
+                      <td className="px-3 py-2 text-slate-700">{quantidadeExibida.toLocaleString("pt-BR")}</td>
+                      <td className="px-3 py-2 text-slate-700">{totalExibido.toLocaleString("pt-BR")}</td>
                     </tr>
                   );
                 })
@@ -132,42 +132,42 @@ export default function CaixasPage() {
       </div>
 
       {modalAberto ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)] rounded-3xl p-6">
-            <h2 className="text-lg font-semibold text-gray-100">Novo Registro de Caixa</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-slate-900">Novo Registro de Caixa</h2>
             <form className="mt-4 space-y-4" onSubmit={handleSalvar}>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-400">Loja</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Loja</label>
                 <input
                   type="text"
                   value={loja}
                   onChange={(e) => setLoja(e.target.value)}
                   placeholder="Ex: Loja 01"
-                  className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-benverde-accent focus:ring-1 focus:ring-benverde-accent transition-all"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-400">Data</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Data</label>
                 <input
                   type="date"
                   value={data}
                   onChange={(e) => setData(e.target.value)}
-                  className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-benverde-accent focus:ring-1 focus:ring-benverde-accent transition-all"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-400">Quantidade</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Quantidade</label>
                 <input
                   type="number"
                   min="0"
                   step="1"
                   value={quantidade}
                   onChange={(e) => setQuantidade(e.target.value)}
-                  className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-benverde-accent focus:ring-1 focus:ring-benverde-accent transition-all"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
                   required
                 />
               </div>
@@ -176,14 +176,14 @@ export default function CaixasPage() {
                 <button
                   type="button"
                   onClick={() => setModalAberto(false)}
-                  className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 px-4 py-2 rounded-xl transition-all font-medium"
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={salvando}
-                  className="bg-benverde-accent/20 hover:bg-benverde-accent/30 text-benverde-accent border border-benverde-accent/30 hover:border-benverde-accent/50 px-4 py-2 rounded-xl transition-all font-medium disabled:cursor-not-allowed disabled:opacity-70"
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {salvando ? "Salvando..." : "Salvar"}
                 </button>

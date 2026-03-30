@@ -1,13 +1,13 @@
 """
 data_processor.py
-Módulo de processamento de dados para sistema de gerenciamento de empresa hortifrúti.
-Lida com CSVs de preços, JSON de metas/vendas e PDFs de notas fiscais (DANFEs e Pedidos Semar).
+MÃ³dulo de processamento de dados para sistema de gerenciamento de empresa hortifrÃºti.
+Lida com CSVs de preÃ§os, JSON de metas/vendas e PDFs de notas fiscais (DANFEs e Pedidos Semar).
 
-Otimizações para E5-2620 v3 (6 cores / 12 threads):
-    - Extração via extract_text() + regex (5-10x mais rápida que extract_tables())
-    - ProcessPoolExecutor com workers reais (usa todos os núcleos físicos)
-    - Cache incremental com salvamento a cada lote (resiliente a interrupções)
-    - Regex compilados em nível de módulo (sem recompilação a cada chamada)
+OtimizaÃ§Ãµes para E5-2620 v3 (6 cores / 12 threads):
+    - ExtraÃ§Ã£o via extract_text() + regex (5-10x mais rÃ¡pida que extract_tables())
+    - ProcessPoolExecutor com workers reais (usa todos os nÃºcleos fÃ­sicos)
+    - Cache incremental com salvamento a cada lote (resiliente a interrupÃ§Ãµes)
+    - Regex compilados em nÃ­vel de mÃ³dulo (sem recompilaÃ§Ã£o a cada chamada)
 """
 
 import os
@@ -29,11 +29,12 @@ from db import (
     fetch_cache,
     fetch_caixas,
     fetch_movimentacoes,
+    fetch_pedidos_importados,
     insert_caixa,
     insert_movimentacoes,
     load_metas,
     replace_metas,
-    save_cache_pedidos_relacional,
+    save_pedidos_importados,
     upsert_cache,
 )
 
@@ -47,13 +48,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Regex compilados em nível de módulo (performance)
+# Regex compilados em nÃ­vel de mÃ³dulo (performance)
 # ---------------------------------------------------------------------------
 
-# Produto em linha DANFE: CÓD DESCRIÇÃO NCM(8d) CST(3d) CFOP(4d) UNID QUANT V.UNIT V.TOTAL
+# Produto em linha DANFE: COD DESCRICAO NCM(8d) CST(3d) CFOP(4d) UNID QUANT V.UNIT V.TOTAL
 _RE_DANFE_LINHA = re.compile(
     r'^\s*\d+\s+'
-    r'([A-ZÁÀÃÂÉÊÍÓÔÕÚÇ\w][^\n\d]{2,60}?)\s+'
+    r'([A-Z\u00C1\u00C0\u00C3\u00C2\u00C9\u00CA\u00CD\u00D3\u00D4\u00D5\u00DA\u00C7\w][^\n\d]{2,60}?)\s+'
     r'\d{8}\s+\d{3}\s+\d{4}\s+'
     r'(KG|UN|CX|FD|PCT|SC|BAG)\s+'
     r'([\d.,]+)\s+'
@@ -68,36 +69,36 @@ _RE_BANANA = re.compile(r'BANANA[\s\-]', re.IGNORECASE)
 # Unidade + quantidade no campo NCM mesclado
 _RE_UN_QT_NCM = re.compile(r'\b(KG|UN|CX|FD|PCT|SC|BAG)\s+([\d.,]+)', re.IGNORECASE)
 
-# Linha de código de barras
-_RE_COD_BARRAS = re.compile(r'^c[oó]d\.?\s*(?:de\s*)?barras?[\s:]*[\d\s]+$', re.IGNORECASE)
+# Linha de cÃ³digo de barras
+_RE_COD_BARRAS = re.compile(r'^c[oÃ³]d\.?\s*(?:de\s*)?barras?[\s:]*[\d\s]+$', re.IGNORECASE)
 
-# Só dígitos/espaços (NCM, EAN solto)
+# SÃ³ dÃ­gitos/espaÃ§os (NCM, EAN solto)
 _RE_SO_DIGITOS = re.compile(r'^[\d\s]{8,}$')
 
-# NCM válido na célula (sub-linha real de produto)
+# NCM vÃ¡lido na cÃ©lula (sub-linha real de produto)
 _RE_TEM_NCM = re.compile(r'\b(KG|UN|CX|FD|PCT|SC|BAG)\s+[\d.,]+', re.IGNORECASE)
 
-# Lixo nas células de descrição
+# Lixo nas cÃ©lulas de descriÃ§Ã£o
 _RE_LIXO_DESC = re.compile(
-    r'^(c[oó]d\.?\s*(?:de\s*)?barras?[\s:]*[\d\s]+|[\d]{6,}|\s*)$',
+    r'^(c[oÃ³]d\.?\s*(?:de\s*)?barras?[\s:]*[\d\s]+|[\d]{6,}|\s*)$',
     re.IGNORECASE,
 )
 
 # Produto Semar
-_RE_PROD_SEMAR  = re.compile(r'^([A-ZÁÀÃÂÉÊÍÓÔÕÚÇ][A-ZÁÀÃÂÉÊÍÓÔÕÚÇ\s]+?)\s+kg\b', re.IGNORECASE)
-_RE_DATA_SEMAR  = re.compile(r'Data de emiss[aã]o[:\s]+(\d{2}/\d{2}/\d{4})', re.IGNORECASE)
+_RE_PROD_SEMAR  = re.compile(r'^([A-Z\u00C1\u00C0\u00C3\u00C2\u00C9\u00CA\u00CD\u00D3\u00D4\u00D5\u00DA\u00C7][A-Z\u00C1\u00C0\u00C3\u00C2\u00C9\u00CA\u00CD\u00D3\u00D4\u00D5\u00DA\u00C7\s]+?)\s+kg\b', re.IGNORECASE)
+_RE_DATA_SEMAR  = re.compile(r'Data de emiss[aÃ£]o[:\s]+(\d{2}/\d{2}/\d{4})', re.IGNORECASE)
 _RE_CUSTO_SEMAR = re.compile(r'(\d+[.,]\d+)')
 _RE_LOJA_SEMAR  = re.compile(r'LOJA\s+(\d+)', re.IGNORECASE)
 _RE_QUANT_SEMAR = re.compile(r'^[\d.,]+$')
 
-# Peso por caixa embutido no nome: "BETERRABA KG CX 20" → 20 kg/cx
+# Peso por caixa embutido no nome: "BETERRABA KG CX 20" -> 20 kg/cx
 _RE_KG_CX = re.compile(r'\bKG\s+CX\s+([\d]+(?:[.,]\d+)?)\b', re.IGNORECASE)
 
 # Meses PT
 _MESES_PT = {
     "jan": 1,  "janeiro":   1,
     "fev": 2,  "fevereiro": 2,
-    "mar": 3,  "marco":     3,  "março": 3,
+    "mar": 3,  "marco":     3,  "marÃ§o": 3,
     "abr": 4,  "abril":     4,
     "mai": 5,  "maio":      5,
     "jun": 6,  "junho":     6,
@@ -113,19 +114,20 @@ _LOJAS_ESPECIAIS = {"libra": "Frutas/Legumes", "suzano": "Frutas/Legumes"}
 
 _RE_LOJA_PREFIXO = re.compile(r'(?:loja|lj)\s*(\d{1,2})', re.IGNORECASE)
 _RE_LOJA_NUMERO  = re.compile(r'^\s*(\d{1,2})\b')
-_RE_MES_COLADO   = re.compile(r'(\d)([a-záàãâéêíóôõúç])', re.IGNORECASE)
-_RE_MES_COLADO2  = re.compile(r'([a-záàãâéêíóôõúç])(\d)', re.IGNORECASE)
-_RE_UPLOAD_TEMP_PREFIXO = re.compile(r"^[0-9a-f]{32}_(.+)$", re.IGNORECASE)
+_RE_MES_COLADO   = re.compile(r'(\d)([a-zÃ¡Ã Ã£Ã¢Ã©ÃªÃ­Ã³Ã´ÃµÃºÃ§])', re.IGNORECASE)
+_RE_MES_COLADO2  = re.compile(r'([a-zÃ¡Ã Ã£Ã¢Ã©ÃªÃ­Ã³Ã´ÃµÃºÃ§])(\d)', re.IGNORECASE)
 _PAT_MES_TEXTO   = re.compile(
     r'^(\d{1,2})\s+(' + '|'.join(_MESES_PT.keys()) + r')\b(.*)',
     re.IGNORECASE,
 )
+
+
 # ---------------------------------------------------------------------------
-# Helpers numéricos
+# Helpers numÃ©ricos
 # ---------------------------------------------------------------------------
 
 def _parse_br(val) -> float:
-    """Converte string BR (vírgula decimal, ponto milhar) para float."""
+    """Converte string BR (vÃ­rgula decimal, ponto milhar) para float."""
     s = str(val or "").strip().replace(" ", "")
     if not s or s.lower() in ("none", "nan", "-", ""):
         return 0.0
@@ -161,16 +163,16 @@ def _parse_numero(valor) -> Optional[float]:
 
 
 # ---------------------------------------------------------------------------
-# Conversão CX → KG para produtos com peso/caixa no nome
+# ConversÃ£o CX ï¿½?' KG para produtos com peso/caixa no nome
 # ---------------------------------------------------------------------------
 
 def _resolver_cx_para_kg(produto: str, quant: float, unidade: str):
-    """Converte caixas → KG quando o nome indica 'KG CX N'.
+    """Converte caixas ï¿½?' KG quando o nome indica 'KG CX N'.
 
     Ex: "BETERRABA KG CX 20", unidade="CX", quant=5
-        → ("BETERRABA", 100.0, "KG")
+        ï¿½?' ("BETERRABA", 100.0, "KG")
 
-    Produtos com outras unidades ou sem o padrão no nome não são alterados.
+    Produtos com outras unidades ou sem o padrÃ£o no nome nÃ£o sÃ£o alterados.
     """
     if unidade.upper() != "CX":
         return produto, quant, unidade
@@ -189,13 +191,13 @@ def _resolver_cx_para_kg(produto: str, quant: float, unidade: str):
 # ---------------------------------------------------------------------------
 
 def _extrair_data_saida_pdf(caminho_pdf: str) -> Optional[datetime]:
-    """Lê a DATA DA SAÍDA diretamente do texto de um DANFE (NF-e).
+    """LÃª a DATA DA SAÃDA diretamente do texto de um DANFE (NF-e).
 
-    Procura pelo rótulo 'DATA DA SAÍDA' e captura o primeiro DD/MM/AAAA após ele.
-    Retorna None se não encontrar ou falhar.
+    Procura pelo rÃ³tulo 'DATA DA SAÃDA' e captura o primeiro DD/MM/AAAA apÃ³s ele.
+    Retorna None se nÃ£o encontrar ou falhar.
     """
     _RE = re.compile(
-        r'DATA\s+DA\s+SA[IÍ]DA.{0,150}?(\d{2}/\d{2}/\d{4})',
+        r'DATA\s+DA\s+SA[IÃ]DA.{0,150}?(\d{2}/\d{2}/\d{4})',
         re.IGNORECASE | re.DOTALL,
     )
     try:
@@ -209,69 +211,12 @@ def _extrair_data_saida_pdf(caminho_pdf: str) -> Optional[datetime]:
                     except ValueError:
                         pass
     except Exception as exc:
-        logger.debug("Falha ao extrair DATA DA SAÍDA de '%s': %s", caminho_pdf, exc)
+        logger.debug("Falha ao extrair DATA DA SAÃDA de '%s': %s", caminho_pdf, exc)
     return None
 
 
-def _texto_primeira_pagina_pdf(caminho_pdf: str) -> str:
-    try:
-        with pdfplumber.open(caminho_pdf) as pdf:
-            if not pdf.pages:
-                return ""
-            return pdf.pages[0].extract_text(x_tolerance=3, y_tolerance=3) or ""
-    except Exception as exc:
-        logger.debug("Falha ao ler a primeira pagina de '%s': %s", caminho_pdf, exc)
-        return ""
-
-
-def extrair_metadados_pdf(texto_pagina: str):
-    data_emissao = datetime.now()
-    loja = "Loja ?"
-    municipio = "Desconhecido"
-
-    if not texto_pagina:
-        return data_emissao, loja, municipio
-
-    match_data = re.search(r"(\d{2}/\d{2}/\d{4})", texto_pagina)
-    if match_data:
-        try:
-            data_emissao = datetime.strptime(match_data.group(1), "%d/%m/%Y")
-        except ValueError:
-            pass
-
-    match_loja = re.search(r"(?:LJ|LOJA)\s*(\d{1,2})", texto_pagina, re.IGNORECASE)
-    if match_loja:
-        try:
-            numero_loja = int(match_loja.group(1))
-            loja = f"Loja {numero_loja:02d}"
-        except ValueError:
-            pass
-
-    match_municipio = re.search(
-        r"MUNIC[IÍ]PIO[\r\n]+([A-ZÀ-Ú\s]+)",
-        texto_pagina,
-        re.IGNORECASE,
-    )
-    if match_municipio:
-        municipio_cru = match_municipio.group(1).strip().split("\n")[0].strip()
-        if municipio_cru:
-            municipio = municipio_cru
-
-    return data_emissao, loja, municipio
-
-
-def _extrair_metadados_pdf(caminho_pdf: str) -> dict:
-    texto_bruto = _texto_primeira_pagina_pdf(caminho_pdf)
-    data_emissao, loja, municipio = extrair_metadados_pdf(texto_bruto)
-    return {
-        "data": data_emissao,
-        "loja": loja,
-        "localizacao": municipio,
-    }
-
-
 def parse_data_arquivo(nome_arq: str) -> Optional[datetime]:
-    """Extrai data do nome de arquivo (padrões DD_MM ou DDMM)."""
+    """Extrai data do nome de arquivo (padrÃµes DD_MM ou DDMM)."""
     basename = os.path.splitext(os.path.basename(nome_arq))[0]
     ano = datetime.now().year
 
@@ -360,7 +305,7 @@ def _montar_data(dia: int, mes: int, nome_arq: str = "") -> Optional[datetime]:
             dt = datetime(ano - 1, mes, dia)
         return dt
     except ValueError:
-        logger.error("Data inválida em '%s': dia=%d mes=%d", nome_arq, dia, mes)
+        logger.error("Data invÃ¡lida em '%s': dia=%d mes=%d", nome_arq, dia, mes)
         return None
 
 
@@ -393,13 +338,13 @@ def _parse_nome_arquivo_nfe(nome_arq: str) -> tuple:
         dia, mes = int(m.group(1)), int(m.group(2))
         return _montar_data(dia, mes, nome_arq), _identificar_loja(m.group(3))
 
-    # 2) DD MM (espaço, cobre DD,MM após normalização)
+    # 2) DD MM (espaÃ§o, cobre DD,MM apÃ³s normalizaÃ§Ã£o)
     m = re.match(r'^(\d{1,2})\s+(\d{2})\s*(.*)', b_norm)
     if m:
         dia, mes = int(m.group(1)), int(m.group(2))
         return _montar_data(dia, mes, nome_arq), _identificar_loja(m.group(3))
 
-    # 3) DDMMLL (6 dígitos colados)
+    # 3) DDMMLL (6 dÃ­gitos colados)
     m = re.match(r'^(\d{2})(\d{2})(\d{2})(?:\D|$)', basename)
     if m:
         dia, mes = int(m.group(1)), int(m.group(2))
@@ -411,12 +356,12 @@ def _parse_nome_arquivo_nfe(nome_arq: str) -> tuple:
         dia, mes = int(m.group(1)), int(m.group(2))
         return _montar_data(dia, mes, nome_arq), _identificar_loja(m.group(3))
 
-    logger.warning("Nome de arquivo NF-e fora de qualquer padrão reconhecido: '%s'", nome_arq)
+    logger.warning("Nome de arquivo NF-e fora de qualquer padrÃ£o reconhecido: '%s'", nome_arq)
     return None, "Loja ?"
 
 
 # ---------------------------------------------------------------------------
-# Índice de coluna
+# Ãndice de coluna
 # ---------------------------------------------------------------------------
 
 def _indice_coluna(cabecalho: list, candidatos: list) -> Optional[int]:
@@ -428,11 +373,11 @@ def _indice_coluna(cabecalho: list, candidatos: list) -> Optional[int]:
 
 
 # ---------------------------------------------------------------------------
-# Extrator DANFE: texto+regex (primário) + tabelas (fallback)
+# Extrator DANFE: texto+regex (primÃ¡rio) + tabelas (fallback)
 # ---------------------------------------------------------------------------
 
 def _extrair_produtos_texto(texto: str) -> list:
-    """Extrai produtos de texto bruto via regex — método primário (rápido)."""
+    """Extrai produtos de texto bruto via regex ï¿½?" mÃ©todo primÃ¡rio (rÃ¡pido)."""
     registros = []
     for m in _RE_DANFE_LINHA.finditer(texto):
         desc    = m.group(1).strip().upper()
@@ -460,15 +405,15 @@ def _sub_linhas(celula) -> list:
 
 
 def _extrair_produtos_tabela(tabela: list) -> list:
-    """Extrai produtos de uma tabela pdfplumber — método fallback."""
+    """Extrai produtos de uma tabela pdfplumber ï¿½?" mÃ©todo fallback."""
     if not tabela or len(tabela) < 2:
         return []
 
     cab = [str(c or "").strip().upper() for c in tabela[0]]
-    idx_desc  = _indice_coluna(cab, ["DESCRIÇÃO DO PRODUTO", "DESCRICAO DO PRODUTO",
-                                      "DESCRIÇÃO", "DESCRICAO", "PRODUTO"])
+    idx_desc  = _indice_coluna(cab, ["DESCRIï¿½?ï¿½fO DO PRODUTO", "DESCRICAO DO PRODUTO",
+                                      "DESCRIï¿½?ï¿½fO", "DESCRICAO", "PRODUTO"])
     idx_ncm   = _indice_coluna(cab, ["NCM", "NCM/SH", "CST", "CFOP", "UNID"])
-    idx_vals  = _indice_coluna(cab, ["VALOR UNIT", "VL UNIT", "VALOR UNITÁRIO", "V.UNIT", "VL.UNIT"])
+    idx_vals  = _indice_coluna(cab, ["VALOR UNIT", "VL UNIT", "VALOR UNITÃRIO", "V.UNIT", "VL.UNIT"])
     idx_total = _indice_coluna(cab, ["VALOR TOTAL", "VL TOTAL", "TOTAL"])
 
     if idx_desc is None:
@@ -546,8 +491,8 @@ def _extrair_produtos_tabela(tabela: list) -> list:
 def _extrair_todos_produtos_pdf(caminho_pdf: str) -> list:
     """Extrai todos os produtos de um DANFE.
 
-    Estratégia:
-        1. extract_text() + regex (rápido, método primário)
+    EstratÃ©gia:
+        1. extract_text() + regex (rÃ¡pido, mÃ©todo primÃ¡rio)
         2. extract_tables() como fallback
     """
     arquivo_nome = os.path.basename(caminho_pdf)
@@ -556,7 +501,7 @@ def _extrair_todos_produtos_pdf(caminho_pdf: str) -> list:
     try:
         with pdfplumber.open(caminho_pdf) as pdf:
             for num_pag, pagina in enumerate(pdf.pages, start=1):
-                # Método 1: texto + regex
+                # MÃ©todo 1: texto + regex
                 try:
                     texto = pagina.extract_text(x_tolerance=2, y_tolerance=2) or ""
                     prods = _extrair_produtos_texto(texto)
@@ -564,14 +509,14 @@ def _extrair_todos_produtos_pdf(caminho_pdf: str) -> list:
                         registros.extend(prods)
                         continue
                 except Exception as e:
-                    logger.debug("[PDF] Texto falhou pág %d '%s': %s", num_pag, arquivo_nome, e)
+                    logger.debug("[PDF] Texto falhou pÃ¡g %d '%s': %s", num_pag, arquivo_nome, e)
 
-                # Método 2: tabelas fallback
+                # MÃ©todo 2: tabelas fallback
                 try:
                     for tabela in (pagina.extract_tables() or []):
                         registros.extend(_extrair_produtos_tabela(tabela))
                 except Exception as e:
-                    logger.warning("[PDF] Tabela falhou pág %d '%s': %s", num_pag, arquivo_nome, e)
+                    logger.warning("[PDF] Tabela falhou pÃ¡g %d '%s': %s", num_pag, arquivo_nome, e)
 
     except Exception as e:
         logger.error("[PDF] Falha ao abrir '%s': %s", arquivo_nome, e)
@@ -585,7 +530,7 @@ def _extrair_todos_produtos_pdf(caminho_pdf: str) -> list:
             vistos.add(chave)
             unicos.append(r)
 
-    logger.info("[PDF] '%s' → %d produto(s).", arquivo_nome, len(unicos))
+    logger.info("[PDF] '%s' ï¿½?' %d produto(s).", arquivo_nome, len(unicos))
     return unicos
 
 
@@ -597,7 +542,7 @@ def _extrair_pedido_semar(caminho_pdf: str) -> list:
     """Extrai produtos e quantidades por loja de um Pedido de Compra Semar.
 
     Delega para extrair_pedido_semar() e converte resultado para lista de dicts
-    com chaves minúsculas (interface esperada por _processar_pdf_worker).
+    com chaves minÃºsculas (interface esperada por _processar_pdf_worker).
     """
     df = extrair_pedido_semar(caminho_pdf)
     if df.empty:
@@ -616,18 +561,18 @@ def _extrair_pedido_semar(caminho_pdf: str) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Workers de nível de módulo (obrigatório para ProcessPoolExecutor no Windows)
+# Workers de nÃ­vel de mÃ³dulo (obrigatÃ³rio para ProcessPoolExecutor no Windows)
 # ---------------------------------------------------------------------------
 
 def _worker_pedido(caminho_pdf: str) -> tuple:
     """Worker para load_pedidos_pdfs."""
     nome_arq = os.path.basename(caminho_pdf)
-    metadados = _extrair_metadados_pdf(caminho_pdf)
-    dt = metadados.get("data")
-    loja = metadados.get("loja") or "Loja ?"
-    localizacao = metadados.get("localizacao") or ""
+    dt_nome, loja = _parse_nome_arquivo_nfe(nome_arq)
+    dt = _extrair_data_saida_pdf(caminho_pdf)
+    if dt is None:
+        dt = dt_nome
     produtos = _extrair_todos_produtos_pdf(caminho_pdf)
-    return (nome_arq, dt, loja, localizacao, produtos)
+    return (nome_arq, dt, loja, produtos)
 
 
 def _processar_pdf_worker(args: tuple) -> list:
@@ -719,13 +664,13 @@ def _extrair_bananas_pdf(caminho_pdf: str) -> list:
 # ---------------------------------------------------------------------------
 
 def load_precos(pasta_precos: str = "") -> dict:
-    """Carrega CSVs de preços de uma pasta."""
+    """Carrega CSVs de preÃ§os de uma pasta."""
     resultado: dict = {}
     if not pasta_precos or not os.path.isdir(pasta_precos):
-        logger.error("Pasta de preços inexistente: '%s'", pasta_precos)
+        logger.error("Pasta de preÃ§os inexistente: '%s'", pasta_precos)
         return resultado
 
-    arquivos = glob.glob(os.path.join(pasta_precos, "preços_*.csv"))
+    arquivos = glob.glob(os.path.join(pasta_precos, "preÃ§os_*.csv"))
     if not arquivos:
         arquivos = glob.glob(os.path.join(pasta_precos, "precos_*.csv"))
     if not arquivos:
@@ -749,13 +694,13 @@ def load_precos(pasta_precos: str = "") -> dict:
             status_cols = [c for c in df.columns if c.lower().startswith("status")]
             if status_cols:
                 mask_nenhuma_loja = pd.concat(
-                    [df[c].astype(str).str.strip().str.lower().isin({"não encontrado", "sem match"})
+                    [df[c].astype(str).str.strip().str.lower().isin({"nÃ£o encontrado", "sem match"})
                      for c in status_cols],
                     axis=1,
                 ).all(axis=1)
                 df = df[~mask_nenhuma_loja]
 
-            for col in [c for c in df.columns if "preço" in c.lower() or "preco" in c.lower()]:
+            for col in [c for c in df.columns if "preÃ§o" in c.lower() or "preco" in c.lower()]:
                 df[col] = (
                     df[col].astype(str)
                     .str.replace(r"[^\d,\.]", "", regex=True)
@@ -768,9 +713,9 @@ def load_precos(pasta_precos: str = "") -> dict:
 
             df["Data"] = dt
             resultado[chave] = df
-            logger.info("Preços carregados: %s → %d linhas.", chave, len(df))
+            logger.info("PreÃ§os carregados: %s ï¿½?' %d linhas.", chave, len(df))
         except Exception as exc:
-            logger.error("Erro ao carregar preços '%s': %s", caminho, exc)
+            logger.error("Erro ao carregar preÃ§os '%s': %s", caminho, exc)
 
     return dict(sorted(
         resultado.items(),
@@ -797,7 +742,7 @@ def listar_precos_consolidados(pasta_precos: str = "") -> list[dict]:
     if produto_col is None:
         produto_col = colunas[0]
 
-    preco_col = next((c for c in colunas if ("preco" in c.lower() or "preÃ§o" in c.lower())), None)
+    preco_col = next((c for c in colunas if ("preco" in c.lower() or "preï¿½fÂ§o" in c.lower())), None)
     if preco_col is None:
         colunas_numericas = [c for c in colunas if pd.api.types.is_numeric_dtype(df[c])]
         if colunas_numericas:
@@ -835,7 +780,7 @@ def _excel_serial_to_datetime(serial) -> Optional[datetime]:
 def load_metas_vendas(arquivo_excel: str = "") -> tuple:
     """Carrega sheets Progresso/Pedidos/Metas do Excel legado."""
     if not arquivo_excel or not os.path.isfile(arquivo_excel):
-        raise FileNotFoundError(f"Arquivo Excel não encontrado: '{arquivo_excel}'")
+        raise FileNotFoundError(f"Arquivo Excel nÃ£o encontrado: '{arquivo_excel}'")
 
     xl = pd.ExcelFile(arquivo_excel, engine="openpyxl")
     faltando = {"Progresso", "Pedidos", "Metas"} - set(xl.sheet_names)
@@ -920,6 +865,9 @@ def calcular_estoque(
         for pdf in glob.glob(os.path.join(pasta, "*.pdf")):
             tarefas.append((pdf, tipo))
 
+    if not tarefas:
+        return 0.0, []
+
     tarefas_novas = []
     for caminho_pdf, tipo in tarefas:
         nome_arq  = os.path.basename(caminho_pdf)
@@ -957,7 +905,7 @@ def calcular_estoque(
                 except BrokenProcessPool:
                     tarefa_falhou = futuros[futuro]
                     logger.warning(
-                        "Pool encerrado ao processar '%s'. Restantes serão processados sequencialmente.",
+                        "Pool encerrado ao processar '%s'. Restantes serÃ£o processados sequencialmente.",
                         tarefa_falhou[0],
                     )
                     tarefas_sequencial = [t for f, t in futuros.items() if not f.done()]
@@ -991,7 +939,7 @@ def calcular_estoque(
                     pendente = {}
                     logger.info("Estoque: %d/%d PDFs.", concluidos, len(tarefas_novas))
 
-        # Fallback sequencial para tarefas não processadas após crash do pool
+        # Fallback sequencial para tarefas nÃ£o processadas apÃ³s crash do pool
         for tarefa in tarefas_sequencial:
             try:
                 itens = _processar_pdf_worker(tarefa)
@@ -1021,32 +969,6 @@ def calcular_estoque(
             cache.update(pendente)
             _salvar_cache(cache, caminho_cache, "cache_estoque")
 
-    manuais = fetch_movimentacoes()
-    for manual in manuais:
-        data_manual = manual.get("data")
-        if isinstance(data_manual, str):
-            try:
-                data_manual = datetime.fromisoformat(data_manual)
-            except ValueError:
-                data_manual = None
-        elif not isinstance(data_manual, datetime):
-            data_manual = None
-
-        quant_manual = _parse_numero(manual.get("quant"))
-        historico.append(
-            {
-                "data": data_manual,
-                "tipo": str(manual.get("tipo") or "entrada").strip().lower(),
-                "produto": str(manual.get("produto") or "").strip().upper(),
-                "quant": quant_manual if quant_manual is not None else 0.0,
-                "unidade": str(manual.get("unidade") or "KG").strip().upper(),
-                "valor_unit": _parse_numero(manual.get("valor_unit")) or 0.0,
-                "valor_total": _parse_numero(manual.get("valor_total")) or 0.0,
-                "arquivo": "manual",
-                "loja": str(manual.get("loja") or "").strip(),
-            }
-        )
-
     historico.sort(key=lambda x: (x["data"] is None, x["data"] or datetime.min, x["tipo"]))
     saldo = sum(i["quant"] if i["tipo"] == "entrada" else -i["quant"] for i in historico)
     logger.info("Saldo: %.2f kg | %d registros.", saldo, len(historico))
@@ -1060,14 +982,14 @@ def calcular_estoque(
 def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataFrame:
     """Carrega NF-e PDFs com ProcessPoolExecutor e cache incremental."""
     if not pasta_pdfs:
-        logger.warning("Pasta de pedidos NF-e não informada.")
+        logger.warning("Pasta de pedidos NF-e nÃ£o informada.")
         return pd.DataFrame()
     if not os.path.isdir(pasta_pdfs):
         try:
             os.makedirs(pasta_pdfs, exist_ok=True)
         except Exception:
             pass
-        logger.warning("Pasta de pedidos NF-e não encontrada: '%s'", pasta_pdfs)
+        logger.warning("Pasta de pedidos NF-e nÃ£o encontrada: '%s'", pasta_pdfs)
         return pd.DataFrame()
 
     cache     = _carregar_cache(caminho_cache, "cache_pedidos")
@@ -1086,7 +1008,6 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                 registros.append({
                     "Data":        datetime.fromisoformat(reg["data"]) if reg.get("data") else None,
                     "Loja":        reg["loja"],
-                    "Localizacao": reg.get("localizacao", ""),
                     "Produto":     reg["produto"],
                     "UNID":        reg["unidade"],
                     "QUANT":       reg["quant"],
@@ -1097,7 +1018,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
             pdfs_novos.append(caminho_pdf)
 
     if pdfs_novos:
-        # E5-2620 v3: 6 núcleos / 12 threads — 10 workers é o ponto ótimo
+        # E5-2620 v3: 6 nÃºcleos / 12 threads ï¿½?" 10 workers Ã© o ponto Ã³timo
         N_WORKERS   = min(len(pdfs_novos), 10)
         SALVAR_CADA = 25
         logger.info("Processando %d PDF(s) novo(s) com %d workers...", len(pdfs_novos), N_WORKERS)
@@ -1111,11 +1032,11 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
             futuros = {executor.submit(_worker_pedido, p): p for p in pdfs_novos}
             for futuro in as_completed(futuros):
                 try:
-                    nome_arq, dt, loja, localizacao, produtos = futuro.result()
+                    nome_arq, dt, loja, produtos = futuro.result()
                 except BrokenProcessPool:
                     caminho_falhou = futuros[futuro]
                     logger.warning(
-                        "Pool encerrado ao processar '%s'. Restantes serão processados sequencialmente.",
+                        "Pool encerrado ao processar '%s'. Restantes serÃ£o processados sequencialmente.",
                         caminho_falhou,
                     )
                     pdfs_sequencial = [p for f, p in futuros.items() if not f.done()]
@@ -1132,7 +1053,6 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                     registros.append({
                         "Data":        dt,
                         "Loja":        loja,
-                        "Localizacao": localizacao,
                         "Produto":     p["produto"],
                         "UNID":        p["unidade"],
                         "QUANT":       p["quant"],
@@ -1142,7 +1062,6 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                     pendente[cache_key].append({
                         "data":        dt.isoformat() if dt else None,
                         "loja":        loja,
-                        "localizacao": localizacao,
                         "produto":     p["produto"],
                         "unidade":     p["unidade"],
                         "quant":       p["quant"],
@@ -1157,10 +1076,10 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                     pendente = {}
                     logger.info("Progresso: %d/%d PDFs | cache salvo.", concluidos, len(pdfs_novos))
 
-        # Fallback sequencial para PDFs não processados após crash do pool
+        # Fallback sequencial para PDFs nÃ£o processados apÃ³s crash do pool
         for caminho_pdf in pdfs_sequencial:
             try:
-                nome_arq, dt, loja, localizacao, produtos = _worker_pedido(caminho_pdf)
+                nome_arq, dt, loja, produtos = _worker_pedido(caminho_pdf)
             except Exception as exc:
                 logger.error("Erro sequencial '%s': %s", caminho_pdf, exc)
                 concluidos += 1
@@ -1172,7 +1091,6 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                 registros.append({
                     "Data":        dt,
                     "Loja":        loja,
-                    "Localizacao": localizacao,
                     "Produto":     p["produto"],
                     "UNID":        p["unidade"],
                     "QUANT":       p["quant"],
@@ -1182,7 +1100,6 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                 pendente[cache_key].append({
                     "data":        dt.isoformat() if dt else None,
                     "loja":        loja,
-                    "localizacao": localizacao,
                     "produto":     p["produto"],
                     "unidade":     p["unidade"],
                     "quant":       p["quant"],
@@ -1196,7 +1113,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
             cache.update(pendente)
             _salvar_cache(cache, caminho_cache, "cache_pedidos")
 
-        logger.info("Concluído: %d/%d PDFs.", concluidos, len(pdfs_novos))
+        logger.info("ConcluÃ­do: %d/%d PDFs.", concluidos, len(pdfs_novos))
 
     if not registros:
         return pd.DataFrame()
@@ -1208,156 +1125,6 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
     df["VALOR UNIT"]  = pd.to_numeric(df["VALOR UNIT"],  errors="coerce")
     df["Produto"]     = df["Produto"].astype(str).str.strip().str.upper()
     return df.sort_values("Data", ascending=False).reset_index(drop=True)
-
-
-def _serializar_data_pedido(valor) -> Optional[str]:
-    if valor is None:
-        return None
-    if isinstance(valor, datetime):
-        return valor.isoformat()
-    try:
-        data_normalizada = pd.to_datetime(valor, errors="coerce")
-    except Exception:
-        data_normalizada = pd.NaT
-    if pd.isna(data_normalizada):
-        texto = str(valor).strip()
-        return texto or None
-    if hasattr(data_normalizada, "to_pydatetime"):
-        data_normalizada = data_normalizada.to_pydatetime()
-    return data_normalizada.isoformat()
-
-
-def _normalizar_nome_arquivo_upload(nome_arquivo: str) -> str:
-    basename = os.path.basename(str(nome_arquivo or "").strip())
-    if not basename:
-        return "pedido_upload.pdf"
-    match = _RE_UPLOAD_TEMP_PREFIXO.match(basename)
-    return match.group(1).strip() if match else basename
-
-
-def _item_pedido_valido(produto, quant) -> bool:
-    nome_produto = str(produto or "").strip().upper()
-    if not nome_produto or len(nome_produto) <= 2:
-        return False
-
-    somente_digitos = re.sub(r"\s+", "", nome_produto)
-    if somente_digitos.isdigit():
-        return False
-
-    quantidade = _parse_numero(quant) or 0.0
-    return quantidade > 0
-
-
-def _montar_item_cache_pedido(
-    *,
-    data,
-    loja,
-    localizacao,
-    produto,
-    unidade,
-    quant,
-    valor_total,
-    valor_unit,
-):
-    nome_produto = str(produto or "").strip().upper()
-    quantidade = _parse_numero(quant) or 0.0
-    if not _item_pedido_valido(nome_produto, quantidade):
-        return None
-
-    return {
-        "data": _serializar_data_pedido(data) or datetime.now().isoformat(),
-        "loja": str(loja or "Loja ?").strip() or "Loja ?",
-        "localizacao": str(localizacao or "").strip() or "Desconhecido",
-        "produto": nome_produto,
-        "unidade": str(unidade or "KG").strip().upper() or "KG",
-        "quant": float(quantidade),
-        "valor_total": float(_parse_numero(valor_total) or 0.0),
-        "valor_unit": float(_parse_numero(valor_unit) or 0.0),
-    }
-
-
-def processar_pedidos_upload(caminhos_pdf: list[str]) -> dict:
-    registros_validos: list[dict] = []
-    arquivos_processados = 0
-    registros_novos_salvos = 0
-
-    for caminho_pdf in caminhos_pdf:
-        if not str(caminho_pdf).lower().endswith(".pdf"):
-            continue
-
-        try:
-            arquivos_processados += 1
-            texto_primeira_pagina = _texto_primeira_pagina_pdf(caminho_pdf).lower()
-            nome_arquivo = _normalizar_nome_arquivo_upload(caminho_pdf)
-            cache_key = f"pedido::{nome_arquivo}"
-            itens_validos: list[dict] = []
-
-            if "pedido de compra" in texto_primeira_pagina:
-                df_pdf = extrair_pedido_semar(caminho_pdf)
-                for _, row in df_pdf.iterrows():
-                    loja = str(row.get("Loja") or "Loja ?").strip() or "Loja ?"
-                    localizacao = loja.split(" - ", 1)[1].strip() if " - " in loja else ""
-                    item = _montar_item_cache_pedido(
-                        data=row.get("Data"),
-                        loja=loja,
-                        localizacao=localizacao,
-                        produto=row.get("Produto"),
-                        unidade=row.get("UNID"),
-                        quant=row.get("QUANT"),
-                        valor_total=row.get("VALOR TOTAL"),
-                        valor_unit=row.get("VALOR UNIT"),
-                    )
-                    if item:
-                        itens_validos.append(item)
-            else:
-                _, dt, loja, localizacao, produtos = _worker_pedido(caminho_pdf)
-                for produto in produtos:
-                    item = _montar_item_cache_pedido(
-                        data=dt,
-                        loja=loja,
-                        localizacao=localizacao,
-                        produto=produto.get("produto"),
-                        unidade=produto.get("unidade", "KG"),
-                        quant=produto.get("quant"),
-                        valor_total=produto.get("valor_total"),
-                        valor_unit=produto.get("valor_unit"),
-                    )
-                    if item:
-                        itens_validos.append(item)
-
-            if not itens_validos:
-                logger.warning("Upload de pedido sem itens validos: '%s'", nome_arquivo)
-                continue
-
-            for item in itens_validos:
-                registros_validos.append(
-                    {
-                        "arquivo_pdf": cache_key,
-                        "data": item.get("data"),
-                        "loja": item.get("loja"),
-                        "produto": item.get("produto", "").upper(),
-                        "unidade": item.get("unidade", "KG"),
-                        "quant": float(item.get("quant", 0)),
-                        "valor_total": float(item.get("valor_total", 0)),
-                        "valor_unit": float(item.get("valor_unit", 0)),
-                    }
-                )
-                registros_novos_salvos += 1
-        except Exception as exc:
-            logger.error("Falha ao processar upload de pedido '%s': %s", caminho_pdf, exc)
-
-    if registros_validos:
-        save_cache_pedidos_relacional(registros_validos)
-
-    cache_atual = fetch_cache("cache_pedidos")
-    total_registros = sum(
-        len(valor) for valor in cache_atual.values() if isinstance(valor, list)
-    )
-    return {
-        "processed_files": arquivos_processados,
-        "saved_records": registros_novos_salvos,
-        "total_records": total_registros,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -1385,7 +1152,7 @@ def salvar_metas_local(lista_metas: list, caminho_json: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 6. Movimentações manuais (registro avulso de estoque)
+# 6. MovimentaÃ§Ãµes manuais (registro avulso de estoque)
 # ---------------------------------------------------------------------------
 
 def salvar_movimentacao_manual(registros: list, caminho_json: str) -> None:
@@ -1398,17 +1165,17 @@ def salvar_movimentacao_manual(registros: list, caminho_json: str) -> None:
         reg.setdefault("loja", "")
     try:
         insert_movimentacoes(registros)
-        logger.info("Movimentações manuais: %d registro(s) salvos.", len(registros))
+        logger.info("MovimentaÃ§Ãµes manuais: %d registro(s) salvos.", len(registros))
     except Exception as exc:
-        logger.error("Falha ao salvar movimentações manuais '%s': %s", caminho_json, exc)
+        logger.error("Falha ao salvar movimentaÃ§Ãµes manuais '%s': %s", caminho_json, exc)
 
 
 def load_movimentacoes_manuais(caminho_json: str) -> list:
-    """Carrega lista de movimentações manuais persistidas no banco."""
+    """Carrega lista de movimentaÃ§Ãµes manuais persistidas no banco."""
     try:
         return fetch_movimentacoes()
     except Exception as exc:
-        logger.error("Falha ao carregar movimentações manuais '%s': %s", caminho_json, exc)
+        logger.error("Falha ao carregar movimentaÃ§Ãµes manuais '%s': %s", caminho_json, exc)
         return []
 
 
@@ -1417,7 +1184,7 @@ def deletar_movimentacao_manual(entry_id: int, caminho_json: str) -> None:
     try:
         delete_movimentacao(entry_id)
     except Exception as exc:
-        logger.error("Falha ao deletar movimentação manual '%s': %s", caminho_json, exc)
+        logger.error("Falha ao deletar movimentaÃ§Ã£o manual '%s': %s", caminho_json, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -1425,7 +1192,7 @@ def deletar_movimentacao_manual(entry_id: int, caminho_json: str) -> None:
 # ---------------------------------------------------------------------------
 
 def extrair_bananas_pdf_upload(caminho_pdf: str, nome_original: str = "") -> list:
-    """Extrai apenas linhas de BANANA de um DANFE (uso na página de registro).
+    """Extrai apenas linhas de BANANA de um DANFE (uso na pÃ¡gina de registro).
 
     Returns:
         Lista de dicts com {produto, quant, unidade, valor_unit, valor_total}
@@ -1450,7 +1217,7 @@ def salvar_registro_caixas(registro: dict, caminho_json: str = _DEFAULT_CAIXAS_J
 
 
 def load_registros_caixas(caminho_json: str = _DEFAULT_CAIXAS_JSON) -> pd.DataFrame:
-    """Carrega todos os registros de caixas. Retorna DataFrame vazio se não existir."""
+    """Carrega todos os registros de caixas. Retorna DataFrame vazio se nÃ£o existir."""
     _colunas = [
         "data",
         "loja",
@@ -1496,16 +1263,16 @@ def load_registros_caixas(caminho_json: str = _DEFAULT_CAIXAS_JSON) -> pd.DataFr
 
 def resumo_precos_para_prompt(dados_precos: dict, max_dias: int = 3) -> str:
     if not dados_precos:
-        return "Nenhum dado de preços disponível."
+        return "Nenhum dado de preÃ§os disponÃ­vel."
     linhas = []
     for data_str, df in list(dados_precos.items())[:max_dias]:
-        linhas.append(f"\n=== Preços em {data_str} ===")
+        linhas.append(f"\n=== PreÃ§os em {data_str} ===")
         linhas.append(df.to_string(index=False, max_rows=50))
     return "\n".join(linhas)
 
 
 def resumo_estoque_para_prompt(saldo: float, historico: list, ultimos_n: int = 20) -> str:
-    linhas = [f"Saldo atual de bananas: {saldo:.2f} kg\n", "Últimas movimentações:"]
+    linhas = [f"Saldo atual de bananas: {saldo:.2f} kg\n", "ï¿½sltimas movimentaÃ§Ãµes:"]
     for item in historico[-ultimos_n:]:
         data_fmt = item["data"].strftime("%d/%m/%Y") if item["data"] else "?"
         linhas.append(
@@ -1516,22 +1283,22 @@ def resumo_estoque_para_prompt(saldo: float, historico: list, ultimos_n: int = 2
 
 
 # ---------------------------------------------------------------------------
-# 10. Pedidos Semar — formato compatível com load_pedidos_pdfs
+# 10. Pedidos Semar ï¿½?" formato compatÃ­vel com load_pedidos_pdfs
 # ---------------------------------------------------------------------------
 
 def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
     """Extrai Pedido de Compra Semar e retorna no mesmo formato de load_pedidos_pdfs().
 
-    Colunas retornadas (idênticas ao DataFrame de NF-e para concatenação direta):
+    Colunas retornadas (idÃªnticas ao DataFrame de NF-e para concatenaÃ§Ã£o direta):
       Data (datetime) | Loja (str) | Produto (str) | UNID (str) |
       QUANT (float) | VALOR TOTAL (float) | VALOR UNIT (float)
 
-    Estrutura real do PDF (página 1):
-      Uma única tabela grande com todas os produtos. Por produto:
-        - Linha de cabeçalho  : col 0 = "BANANA X kg - Embalagem..."
+    Estrutura real do PDF (pÃ¡gina 1):
+      Uma Ãºnica tabela grande com todas os produtos. Por produto:
+        - Linha de cabeÃ§alho  : col 0 = "BANANA X kg - Embalagem..."
         - Linha de custo      : col 0 = "Custo Emb. Custo Unit. ...\\nV1 V2 ..." (col2=Custo Unit.)
         - Linha(s) de lojas   : cols 1-N = "LOJA 10 - TAUBATE" etc.
-        - Linha(s) de qtds    : cols 1-N = quantidades numéricas
+        - Linha(s) de qtds    : cols 1-N = quantidades numÃ©ricas
         - Linha "Total:"      : ignorada
       Lojas com mais de 12 aparecem em grupos adicionais (overflow).
     """
@@ -1541,7 +1308,7 @@ def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
 
     try:
         with pdfplumber.open(caminho_pdf) as pdf:
-            # Data de emissão (página 1)
+            # Data de emissÃ£o (pÃ¡gina 1)
             texto_p1 = pdf.pages[0].extract_text() or ""
             data_pedido = None
             m_data = _RE_DATA_SEMAR.search(texto_p1)
@@ -1551,26 +1318,26 @@ def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
                 except ValueError:
                     pass
 
-            # Processar apenas página 1 — produtos/lojas/quantidades estão aqui.
-            # Página 2 contém totais e endereços de entrega (não usados aqui).
+            # Processar apenas pÃ¡gina 1 ï¿½?" produtos/lojas/quantidades estÃ£o aqui.
+            # PÃ¡gina 2 contÃ©m totais e endereÃ§os de entrega (nÃ£o usados aqui).
             for tabela in (pdf.pages[0].extract_tables() or []):
                 if not tabela:
                     continue
-                # Só processar tabelas com pelo menos 3 colunas
+                # SÃ³ processar tabelas com pelo menos 3 colunas
                 n_cols = max((len(r) for r in tabela if r), default=0)
                 if n_cols < 3:
                     continue
 
                 produto_atual = None
                 custo_atual   = 0.0
-                lojas_atuais: dict = {}   # col_index → nome normalizado da loja
+                lojas_atuais: dict = {}   # col_index ï¿½?' nome normalizado da loja
 
                 for row in tabela:
                     if not row:
                         continue
                     col0 = str(row[0] or "").strip()
 
-                    # ── Cabeçalho de produto ──────────────────────────────────
+                    # ï¿½"?ï¿½"? CabeÃ§alho de produto ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?
                     # Ex: "BANANA NANICA kg - Embalagem com 1.0 KG * ..."
                     m_prod = _RE_PROD_SEMAR.match(col0)
                     if m_prod:
@@ -1579,9 +1346,9 @@ def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
                         lojas_atuais  = {}
                         continue
 
-                    # ── Linha de custo ────────────────────────────────────────
+                    # ï¿½"?ï¿½"? Linha de custo ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?
                     # Ex: "Custo Emb. Custo Unit. ...\n2,7000 2,7000 0,0000 ..."
-                    # O 2º número é o Custo Unit.
+                    # O 2Âº nÃºmero Ã© o Custo Unit.
                     if "custo unit" in col0.lower():
                         nums = re.findall(r'(\d+[.,]\d+)', col0)
                         if len(nums) >= 2:
@@ -1590,19 +1357,19 @@ def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
                             custo_atual = _parse_br(nums[0])
                         continue
 
-                    # ── Cabeçalho de lojas ────────────────────────────────────
-                    # Qualquer célula (exceto col 0) contém "LOJA \d+"
+                    # ï¿½"?ï¿½"? CabeÃ§alho de lojas ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?
+                    # Qualquer cÃ©lula (exceto col 0) contÃ©m "LOJA \d+"
                     celulas = [str(c or "").strip() for c in row]
                     if any(_RE_LOJA_SEMAR.search(c) for c in celulas[1:]):
                         lojas_atuais = {}
                         for idx, cell in enumerate(row):
                             cell_str = str(cell or "").strip()
                             if _RE_LOJA_SEMAR.search(cell_str):
-                                # Normaliza quebras: "LOJA 10 -\nTAUBATE" → "LOJA 10 - TAUBATE"
+                                # Normaliza quebras: "LOJA 10 -\nTAUBATE" ï¿½?' "LOJA 10 - TAUBATE"
                                 lojas_atuais[idx] = " ".join(cell_str.split())
                         continue
 
-                    # ── Linha de quantidades ──────────────────────────────────
+                    # ï¿½"?ï¿½"? Linha de quantidades ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?
                     if produto_atual and lojas_atuais:
                         for idx, cell in enumerate(row):
                             val = str(cell or "").strip()
@@ -1634,31 +1401,31 @@ def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
     df["VALOR TOTAL"] = pd.to_numeric(df["VALOR TOTAL"], errors="coerce")
     df["VALOR UNIT"]  = pd.to_numeric(df["VALOR UNIT"],  errors="coerce")
     df["Produto"]     = df["Produto"].astype(str).str.strip().str.upper()
-    logger.info("[SEMAR] '%s' → %d linha(s).", arquivo_nome, len(df))
+    logger.info("[SEMAR] '%s' ï¿½?' %d linha(s).", arquivo_nome, len(df))
     return df.reset_index(drop=True)
 
 
 def load_pedidos_semar(pasta: str, caminho_cache: str = "") -> pd.DataFrame:
     """Varre pasta de PDFs Semar, extrai todos com cache incremental.
 
-    Usa o mesmo padrão de cache de load_pedidos_pdfs():
+    Usa o mesmo padrÃ£o de cache de load_pedidos_pdfs():
       cache_key = f"semar::{nome_arquivo}"
 
     Retorna DataFrame com as mesmas colunas de load_pedidos_pdfs()
     (Data | Loja | Produto | UNID | QUANT | VALOR TOTAL | VALOR UNIT).
-    Retorna DataFrame vazio se pasta inválida ou sem PDFs.
+    Retorna DataFrame vazio se pasta invÃ¡lida ou sem PDFs.
     """
     _colunas = ["Data", "Loja", "Produto", "UNID", "QUANT", "VALOR TOTAL", "VALOR UNIT"]
 
     if not pasta:
-        logger.warning("[SEMAR] Pasta não informada.")
+        logger.warning("[SEMAR] Pasta nÃ£o informada.")
         return pd.DataFrame(columns=_colunas)
     if not os.path.isdir(pasta):
         try:
             os.makedirs(pasta, exist_ok=True)
         except Exception:
             pass
-        logger.warning("[SEMAR] Pasta inválida ou inexistente: '%s'", pasta)
+        logger.warning("[SEMAR] Pasta invÃ¡lida ou inexistente: '%s'", pasta)
         return pd.DataFrame(columns=_colunas)
 
     pdfs = glob.glob(os.path.join(pasta, "*.pdf"))
@@ -1728,33 +1495,3 @@ def load_pedidos_semar(pasta: str, caminho_cache: str = "") -> pd.DataFrame:
     return df.sort_values("Data", ascending=False).reset_index(drop=True)
 
 
-# ---------------------------------------------------------------------------
-# Bloco de testes
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    import pprint
-
-    PASTA_PRECOS   = r"C:\Users\pesso\OneDrive\Documentos\benverde\MeuAppGerencia\dados\precos"
-    PASTA_ENTRADAS = r"C:\Users\pesso\OneDrive\Documentos\benverde\MeuAppGerencia\dados\entradas_bananas"
-    PASTA_SAIDAS   = r"C:\Users\pesso\OneDrive\Documentos\benverde\MeuAppGerencia\dados\saidas_bananas"
-
-    print("=" * 60)
-    print("TESTE 1: _parse_nome_arquivo_nfe")
-    print("=" * 60)
-    exemplos = [
-        "230201.pdf", "01.01 lj21.pdf", "0102_loja04.pdf",
-        "2301 libra.pdf", "10 01 1.pdf", "10 01 lj11.pdf",
-        "10,01 17.pdf", "27j,an 18.pdf", "28, 01 libra.pdf",
-    ]
-    for ex in exemplos:
-        dt, loja = _parse_nome_arquivo_nfe(ex)
-        print(f"  {ex:30s} → {dt.strftime('%d/%m/%Y') if dt else 'None':12s} | {loja}")
-
-    print("\n" + "=" * 60)
-    print("TESTE 2: load_precos")
-    print("=" * 60)
-    precos = load_precos(PASTA_PRECOS)
-    for data, df in list(precos.items())[:2]:
-        print(f"\n{data} | {df.shape}")
-        print(df.head(3).to_string())

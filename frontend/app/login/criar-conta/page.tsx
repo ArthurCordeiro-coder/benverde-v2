@@ -1,10 +1,19 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Briefcase, ChevronDown, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 
 import api from "../../../lib/api";
+
+type ApiError = {
+  response?: {
+    data?: {
+      detail?: string;
+    };
+  };
+};
 
 type RegisterForm = {
   usuario: string;
@@ -91,8 +100,8 @@ export default function CreateAccountPage() {
         senha: "",
         confirmar: "",
       });
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
+    } catch (err: unknown) {
+      const detail = (err as ApiError | undefined)?.response?.data?.detail;
       setError(typeof detail === "string" ? detail : "Nao foi possivel concluir o cadastro.");
     } finally {
       setLoading(false);
@@ -108,10 +117,13 @@ export default function CreateAccountPage() {
 
       <div className="hidden h-screen lg:block lg:w-1/2">
         <div className="relative h-full w-full">
-          <img
+          <Image
             src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1920&q=80"
             alt="Granja"
-            className="h-full w-full object-cover"
+            fill
+            priority
+            unoptimized
+            className="object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/35 to-transparent" />
         </div>

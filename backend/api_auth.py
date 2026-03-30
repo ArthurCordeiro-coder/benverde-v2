@@ -16,7 +16,10 @@ from auth import (
     verificar_login,
 )
 
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "temp-secret-key-change-me")
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "").strip()
+if not SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY precisa estar definido no ambiente.")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 

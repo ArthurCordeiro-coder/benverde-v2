@@ -6,10 +6,9 @@ const config: Config = {
     extend: {
       colors: {
         benverde: {
-          dark: "#051009",
-          base: "#0a1f12",
-          light: "#133a22",
-          accent: "#10b981",
+          base: "#0b1f15",
+          dark: "#07140e",
+          accent: "#34d399",
         },
       },
     },

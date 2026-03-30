@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
@@ -7,27 +8,14 @@ import { Eye, EyeOff, Lock, Mail, User, X } from "lucide-react";
 
 import api from "../../lib/api";
 
-type JwtPayload = {
-  role?: string;
+type ApiError = {
+  request?: unknown;
+  response?: {
+    data?: {
+      detail?: string;
+    };
+  };
 };
-
-function decodeJwtPayload(token: string): JwtPayload | null {
-  try {
-    const payloadChunk = token.split(".")[1];
-    if (!payloadChunk) {
-      return null;
-    }
-
-    const normalizedPayload = payloadChunk.replace(/-/g, "+").replace(/_/g, "/");
-    const paddedPayload = normalizedPayload.padEnd(
-      Math.ceil(normalizedPayload.length / 4) * 4,
-      "=",
-    );
-    return JSON.parse(window.atob(paddedPayload));
-  } catch {
-    return null;
-  }
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -51,17 +39,14 @@ export default function LoginPage() {
         password,
       });
 
-      const accessToken = response.data.access_token;
-      Cookies.set("benverde_token", accessToken);
-
-      const payload = decodeJwtPayload(accessToken);
-      router.push(payload?.role === "operacional" ? "/registro" : "/dashboard");
-    } catch (err: any) {
-      const errorMessage = err?.response?.data?.detail;
+      Cookies.set("benverde_token", response.data.access_token);
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      const errorMessage = (err as ApiError | undefined)?.response?.data?.detail;
       const finalMessage =
         typeof errorMessage === "string"
           ? errorMessage
-          : err?.request
+          : (err as ApiError | undefined)?.request
             ? "Nao foi possivel conectar ao servidor de autenticacao."
             : "Usuario ou senha invalidos.";
       setError(finalMessage);
@@ -91,10 +76,13 @@ export default function LoginPage() {
 
       <div className="hidden h-screen lg:block lg:w-1/2">
         <div className="relative h-full w-full">
-          <img
+          <Image
             src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1920&q=80"
             alt="Granja"
-            className="h-full w-full object-cover"
+            fill
+            priority
+            unoptimized
+            className="object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/35 to-transparent" />
         </div>

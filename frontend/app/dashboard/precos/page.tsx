@@ -50,46 +50,46 @@ export default function PrecosPage() {
 
   return (
     <section className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-100">Busca de Precos</h1>
+      <h1 className="text-2xl font-bold text-slate-900">Busca de Precos</h1>
 
-      <div className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)] rounded-3xl p-6">
+      <div className="rounded-lg bg-white p-4 shadow-md">
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
           <input
             type="text"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar produto por nome..."
-            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-benverde-accent focus:ring-1 focus:ring-benverde-accent transition-all"
+            className="w-full rounded-lg border border-slate-300 px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
           />
           <button
             type="button"
             onClick={() => setOrdem((prev) => (prev === "asc" ? "desc" : "asc"))}
-            className="bg-benverde-accent/20 hover:bg-benverde-accent/30 text-benverde-accent border border-benverde-accent/30 hover:border-benverde-accent/50 px-4 py-2 rounded-xl transition-all font-medium"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
           >
             Ordenar: {ordem === "asc" ? "Preco crescente" : "Preco decrescente"}
           </button>
         </div>
       </div>
 
-      <div className="bg-white/[0.03] backdrop-blur-2xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.2)] rounded-3xl p-6">
+      <div className="rounded-lg bg-white p-4 shadow-md">
         <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse bg-transparent text-sm">
+          <table className="min-w-full border-collapse text-sm">
             <thead>
-              <tr className="text-left">
-                <th className="px-3 text-gray-400 border-b border-white/10 pb-3 font-medium">Produto</th>
-                <th className="px-3 text-gray-400 border-b border-white/10 pb-3 font-medium">Preco</th>
+              <tr className="border-b text-left text-slate-600">
+                <th className="px-3 py-2">Produto</th>
+                <th className="px-3 py-2">Preco</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td className="px-3 border-b border-white/5 py-4 text-gray-400" colSpan={2}>
+                  <td className="px-3 py-4 text-slate-500" colSpan={2}>
                     Carregando...
                   </td>
                 </tr>
               ) : precosFiltradosOrdenados.length === 0 ? (
                 <tr>
-                  <td className="px-3 border-b border-white/5 py-4 text-gray-400" colSpan={2}>
+                  <td className="px-3 py-4 text-slate-500" colSpan={2}>
                     Nenhum produto encontrado
                   </td>
                 </tr>
@@ -98,9 +98,9 @@ export default function PrecosPage() {
                   const nome = String(item.Produto ?? item.produto ?? "-");
                   const valor = Number(item.Preco ?? item.preco ?? 0);
                   return (
-                    <tr key={`${nome}-${index}`}>
-                      <td className="px-3 border-b border-white/5 py-4 text-gray-200">{nome}</td>
-                      <td className="px-3 border-b border-white/5 py-4 text-gray-200">
+                    <tr key={`${nome}-${index}`} className="border-b">
+                      <td className="px-3 py-2 text-slate-700">{nome}</td>
+                      <td className="px-3 py-2 text-slate-700">
                         {valor.toLocaleString("pt-BR", {
                           style: "currency",
                           currency: "BRL",
