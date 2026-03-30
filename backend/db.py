@@ -47,7 +47,7 @@ def _get_config() -> dict:
 def get_connection():
     cfg = _get_config()
     if not cfg:
-        raise RuntimeError("Banco de dados não configurado (falta PGHOST/PGUSER/PGPASSWORD/PGDATABASE)")
+        raise RuntimeError("Banco de dados nao configurado (falta PGHOST/PGUSER/PGPASSWORD/PGDATABASE)")
     conn = psycopg.connect(**cfg)
     try:
         yield conn
@@ -230,24 +230,56 @@ def _ensure_cache_pedidos_columns():
 
 
 def _ensure_auth_columns():
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT")
-            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT")
-            cur.execute("ALTER TABLE pending ADD COLUMN IF NOT EXISTS email TEXT")
-            cur.execute(
-                """
-                UPDATE users
-                SET role = CASE
-                    WHEN role IN ('admin', 'operacional') THEN role
-                    WHEN COALESCE(is_admin, FALSE) THEN 'admin'
-                    ELSE 'operacional'
-                END
-                WHERE role IS NULL OR role NOT IN ('admin', 'operacional')
-                """
-            )
-            cur.execute("ALTER TABLE users ALTER COLUMN role SET DEFAULT 'operacional'")
-            cur.execute("ALTER TABLE users ALTER COLUMN role SET NOT NULL")
+    auth_columns = {
+        "users": {
+            "email": "TEXT",
+            "role": "TEXT",
+        },
+        "pending": {
+            "email": "TEXT",
+        },
+    }
+    for table, columns in auth_columns.items():
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                for column, definition in columns.items():
+                    cur.execute(
+                        sql.SQL(
+                            "ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}"
+                        ).format(
+                            table=_format_identifier(table),
+                            column=_format_identifier(column),
+                            definition=sql.SQL(definition),
+                        )
+                    )
+
+                cur.execute(
+                    sql.SQL(
+                        """
+                        CREATE UNIQUE INDEX IF NOT EXISTS {idx}
+                        ON {table} ((lower(email)))
+                        WHERE email IS NOT NULL
+                        """
+                    ).format(
+                        idx=_format_identifier(f"{table}_email_unique_idx"),
+                        table=_format_identifier(table),
+                    )
+                )
+
+                if table == "users":
+                    cur.execute(
+                        """
+                        UPDATE users
+                        SET role = CASE
+                            WHEN role IN ('admin', 'operacional') THEN role
+                            WHEN COALESCE(is_admin, FALSE) THEN 'admin'
+                            ELSE 'operacional'
+                        END
+                        WHERE role IS NULL OR role NOT IN ('admin', 'operacional')
+                        """
+                    )
+                    cur.execute("ALTER TABLE users ALTER COLUMN role SET DEFAULT 'operacional'")
+                    cur.execute("ALTER TABLE users ALTER COLUMN role SET NOT NULL")
 
 
 def _ensure_db_structures():

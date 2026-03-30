@@ -1,6 +1,6 @@
 """auth.py
-Sistema de autenticação para o app Benverde.
-Usa apenas stdlib: hashlib, secrets, json, threading, datetime, re, os.
+Sistema de autenticacao para o app Benverde.
+Usa apenas stdlib: hashlib, secrets, threading, datetime e re.
 """
 
 import hashlib
@@ -11,15 +11,8 @@ from datetime import datetime, timedelta, timezone
 
 from db import get_connection
 
-# ---------------------------------------------------------------------------
-# Constantes
-# ---------------------------------------------------------------------------
-
 _LOCK = threading.Lock()
 
-# ---------------------------------------------------------------------------
-# Internos
-# ---------------------------------------------------------------------------
 
 def _hash_senha(salt: str, senha: str) -> str:
     return hashlib.sha256((salt + senha).encode()).hexdigest()
@@ -31,9 +24,13 @@ def _normalizar_role(role: str | None, is_admin: bool | None = False) -> str:
     return "admin" if is_admin else "operacional"
 
 
-# ---------------------------------------------------------------------------
-# Leitura / escrita pública
-# ---------------------------------------------------------------------------
+def _normalizar_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def _email_valido(email: str) -> bool:
+    return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email))
+
 
 def carregar_users() -> list[dict]:
     with _LOCK:
@@ -170,7 +167,6 @@ def salvar_lockouts(lockouts: dict) -> None:
 
 
 def get_user(username: str) -> dict | None:
-    """Busca um usuário aprovado pelo username."""
     user = next((u for u in carregar_users() if u["username"] == username), None)
     if user:
         user.setdefault("funcionalidade", "administracao geral")
@@ -181,15 +177,7 @@ def get_user(username: str) -> dict | None:
     return user
 
 
-# ---------------------------------------------------------------------------
-# Lógica de autenticação
-# ---------------------------------------------------------------------------
-
 def verificar_login(username: str, senha: str) -> tuple[bool, str]:
-    """
-    Valida credenciais com proteção contra brute-force.
-    Retorna (True, "ok") ou (False, "motivo").
-    """
     with _LOCK:
         agora = datetime.now(timezone.utc)
         with get_connection() as conn:
@@ -206,7 +194,7 @@ def verificar_login(username: str, senha: str) -> tuple[bool, str]:
 
                 if bloqueado_ate and agora < bloqueado_ate:
                     hora = bloqueado_ate.astimezone().strftime("%H:%M")
-                    return False, f"Usuário bloqueado até {hora}"
+                    return False, f"Usuario bloqueado ate {hora}"
 
                 def _registrar_tentativa() -> tuple[bool, str]:
                     nonlocal tentativas
@@ -226,8 +214,8 @@ def verificar_login(username: str, senha: str) -> tuple[bool, str]:
                         (username, tentativas, bloqueado_destino),
                     )
                     if bloqueado_destino:
-                        return False, "Muitas tentativas. Usuário bloqueado por 15 minutos."
-                    return False, f"Usuário ou senha inválidos ({tentativas} de 5)"
+                        return False, "Muitas tentativas. Usuario bloqueado por 15 minutos."
+                    return False, f"Usuario ou senha invalidos ({tentativas} de 5)"
 
                 cur.execute(
                     """
@@ -246,7 +234,6 @@ def verificar_login(username: str, senha: str) -> tuple[bool, str]:
                 if _hash_senha(salt, senha) != senha_hash:
                     return _registrar_tentativa()
 
-                # Zera lockout após sucesso
                 cur.execute(
                     """
                     INSERT INTO lockouts (username, tentativas, bloqueado_ate)
@@ -267,30 +254,38 @@ def registrar_usuario(
     senha: str,
     funcionalidade: str = "administracao geral",
 ) -> tuple[bool, str]:
-    """
-    Registra um novo usuário.
-    Retorna (True, "admin_criado") | (True, "pendente") | (False, "motivo").
-    """
     if not re.fullmatch(r"[a-zA-Z0-9_]{3,20}", username):
-        return False, "Username deve ter 3–20 caracteres (letras, números e _)"
-    if not email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email.strip()):
-        return False, "E-mail invalido"
+        return False, "Username deve ter 3-20 caracteres (letras, numeros e _)"
+
+    email_normalizado = _normalizar_email(email)
+    if not _email_valido(email_normalizado):
+        return False, "Email invalido"
+
     if len(senha) < 6:
         return False, "Senha deve ter pelo menos 6 caracteres"
 
     with _LOCK:
         salt = secrets.token_hex(32)
         hash_ = _hash_senha(salt, senha)
-        email_normalizado = email.strip().lower()
         agora_iso = datetime.now(timezone.utc).isoformat()
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM users WHERE username = %s", (username,))
                 if cur.fetchone():
-                    return False, "Username já cadastrado"
+                    return False, "Username ja cadastrado"
+
+                cur.execute("SELECT 1 FROM users WHERE lower(email) = %s", (email_normalizado,))
+                if cur.fetchone():
+                    return False, "Email ja cadastrado"
+
                 cur.execute("SELECT 1 FROM pending WHERE username = %s", (username,))
                 if cur.fetchone():
-                    return False, "Username já aguarda aprovação"
+                    return False, "Username ja aguarda aprovacao"
+
+                cur.execute("SELECT 1 FROM pending WHERE lower(email) = %s", (email_normalizado,))
+                if cur.fetchone():
+                    return False, "Email ja aguarda aprovacao"
+
                 cur.execute("SELECT COUNT(*) FROM users")
                 total_users = cur.fetchone()[0]
                 if total_users == 0:
@@ -311,6 +306,7 @@ def registrar_usuario(
                         ),
                     )
                     return True, "admin_criado"
+
                 cur.execute(
                     """
                     INSERT INTO pending (
@@ -331,7 +327,6 @@ def registrar_usuario(
 
 
 def aprovar_usuario(username: str) -> bool:
-    """Move o usuário pendente para users com is_admin=False."""
     with _LOCK:
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -345,6 +340,7 @@ def aprovar_usuario(username: str) -> bool:
                 entry = cur.fetchone()
                 if entry is None:
                     return False
+
                 cur.execute(
                     """
                     INSERT INTO users (
@@ -366,7 +362,6 @@ def aprovar_usuario(username: str) -> bool:
 
 
 def rejeitar_usuario(username: str) -> bool:
-    """Remove o usuário de pending."""
     with _LOCK:
         with get_connection() as conn:
             with conn.cursor() as cur:

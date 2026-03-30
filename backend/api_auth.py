@@ -31,8 +31,8 @@ class LoginRequest(BaseModel):
 
 class RegisterRequest(BaseModel):
     username: str
-    password: str
     email: str
+    password: str
     nome: str | None = None
     funcionalidade: str = "administracao geral"
 
@@ -116,8 +116,8 @@ def register(payload: RegisterRequest):
     nome = payload.nome or payload.username
     ok, resultado = registrar_usuario(
         username=payload.username,
-        nome=nome,
         email=payload.email,
+        nome=nome,
         senha=payload.password,
         funcionalidade=payload.funcionalidade,
     )
