@@ -97,6 +97,17 @@ def _ensure_tables():
         )
         """,
         """
+        CREATE TABLE IF NOT EXISTS password_reset_codes (
+            username TEXT PRIMARY KEY,
+            email TEXT,
+            code_hash TEXT,
+            expires_at TIMESTAMPTZ,
+            attempts_left INTEGER NOT NULL DEFAULT 5,
+            requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            consumed_at TIMESTAMPTZ
+        )
+        """,
+        """
         CREATE TABLE IF NOT EXISTS metas_local (
             produto TEXT PRIMARY KEY,
             meta BIGINT

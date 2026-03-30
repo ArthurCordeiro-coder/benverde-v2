@@ -1,17 +1,24 @@
 """auth.py
 Sistema de autenticacao para o app Benverde.
-Usa apenas stdlib: hashlib, secrets, threading, datetime e re.
+Usa hashlib, secrets, threading, datetime, re e helpers do app.
 """
 
 import hashlib
+import logging
+import os
 import re
 import secrets
 import threading
 from datetime import datetime, timedelta, timezone
 
 from db import get_connection
+from mailer import send_password_reset_code_email
 
 _LOCK = threading.Lock()
+logger = logging.getLogger(__name__)
+
+PASSWORD_RESET_ATTEMPTS = 5
+PASSWORD_RESET_COOLDOWN_SECONDS = 60
 
 
 def _hash_senha(salt: str, senha: str) -> str:
@@ -30,6 +37,32 @@ def _normalizar_email(email: str) -> str:
 
 def _email_valido(email: str) -> bool:
     return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email))
+
+
+def _get_reset_ttl_minutes() -> int:
+    raw_value = os.environ.get("RESET_CODE_TTL_MINUTES", "15").strip()
+    try:
+        minutes = int(raw_value)
+    except ValueError:
+        return 15
+    return minutes if minutes > 0 else 15
+
+
+def _get_password_reset_pepper() -> str:
+    pepper = os.environ.get("PASSWORD_RESET_PEPPER", "").strip()
+    if not pepper:
+        raise RuntimeError("PASSWORD_RESET_PEPPER precisa estar definido no ambiente.")
+    return pepper
+
+
+def _hash_codigo_recuperacao(username: str, email: str, code: str) -> str:
+    pepper = _get_password_reset_pepper()
+    payload = f"{pepper}:{username}:{email}:{code}"
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _gerar_codigo_recuperacao() -> str:
+    return f"{secrets.randbelow(1_000_000):06d}"
 
 
 def carregar_users() -> list[dict]:
@@ -367,3 +400,208 @@ def rejeitar_usuario(username: str) -> bool:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM pending WHERE username = %s", (username,))
                 return cur.rowcount > 0
+
+
+def solicitar_codigo_recuperacao(username: str, email: str) -> tuple[bool, str]:
+    username = username.strip()
+    email_normalizado = _normalizar_email(email)
+    if not username or not _email_valido(email_normalizado):
+        return False, "ignored"
+
+    agora = datetime.now(timezone.utc)
+    ttl_minutes = _get_reset_ttl_minutes()
+    codigo = _gerar_codigo_recuperacao()
+    codigo_hash = _hash_codigo_recuperacao(username, email_normalizado, codigo)
+    nome = username
+
+    with _LOCK:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT username, nome, email
+                    FROM users
+                    WHERE username = %s AND lower(email) = %s
+                    """,
+                    (username, email_normalizado),
+                )
+                user_row = cur.fetchone()
+                if user_row is None:
+                    return False, "not_found"
+
+                nome = user_row[1] or username
+
+                cur.execute(
+                    """
+                    SELECT requested_at
+                    FROM password_reset_codes
+                    WHERE username = %s
+                      AND consumed_at IS NULL
+                      AND expires_at > %s
+                    ORDER BY requested_at DESC
+                    LIMIT 1
+                    """,
+                    (username, agora),
+                )
+                cooldown_row = cur.fetchone()
+                if cooldown_row is not None:
+                    requested_at = cooldown_row[0]
+                    if isinstance(requested_at, str):
+                        requested_at = datetime.fromisoformat(requested_at)
+                    if requested_at and requested_at > agora - timedelta(
+                        seconds=PASSWORD_RESET_COOLDOWN_SECONDS
+                    ):
+                        return False, "cooldown"
+
+                cur.execute(
+                    """
+                    INSERT INTO password_reset_codes (
+                        username, email, code_hash, expires_at, attempts_left, requested_at, consumed_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, NULL)
+                    ON CONFLICT (username) DO UPDATE
+                      SET email = EXCLUDED.email,
+                          code_hash = EXCLUDED.code_hash,
+                          expires_at = EXCLUDED.expires_at,
+                          attempts_left = EXCLUDED.attempts_left,
+                          requested_at = EXCLUDED.requested_at,
+                          consumed_at = EXCLUDED.consumed_at
+                    """,
+                    (
+                        username,
+                        email_normalizado,
+                        codigo_hash,
+                        agora + timedelta(minutes=ttl_minutes),
+                        PASSWORD_RESET_ATTEMPTS,
+                        agora,
+                    ),
+                )
+
+    try:
+        send_password_reset_code_email(
+            to_email=email_normalizado,
+            username=nome,
+            code=codigo,
+            expires_in_minutes=ttl_minutes,
+        )
+    except Exception:
+        logger.exception(
+            "Falha ao enviar codigo de recuperacao para o usuario '%s'.", username
+        )
+        with _LOCK:
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE password_reset_codes
+                        SET consumed_at = %s
+                        WHERE username = %s AND consumed_at IS NULL
+                        """,
+                        (datetime.now(timezone.utc), username),
+                    )
+        return False, "email_failed"
+
+    return True, "sent"
+
+
+def confirmar_codigo_recuperacao(
+    username: str,
+    email: str,
+    code: str,
+    nova_senha: str,
+) -> tuple[bool, str]:
+    username = username.strip()
+    email_normalizado = _normalizar_email(email)
+    code = code.strip()
+
+    if not username or not _email_valido(email_normalizado):
+        return False, "Informe um usuario e e-mail validos."
+    if not re.fullmatch(r"\d{6}", code):
+        return False, "Informe o codigo de 6 digitos enviado por e-mail."
+    if len(nova_senha) < 6:
+        return False, "A nova senha deve ter pelo menos 6 caracteres."
+
+    agora = datetime.now(timezone.utc)
+    with _LOCK:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT username, email, code_hash, expires_at, attempts_left
+                    FROM password_reset_codes
+                    WHERE username = %s AND consumed_at IS NULL
+                    ORDER BY requested_at DESC
+                    LIMIT 1
+                    """,
+                    (username,),
+                )
+                reset_row = cur.fetchone()
+                if reset_row is None:
+                    return False, "Solicite um novo codigo de recuperacao."
+
+                stored_email = _normalizar_email(reset_row[1] or "")
+                codigo_hash = reset_row[2] or ""
+                expires_at = reset_row[3]
+                attempts_left = int(reset_row[4] or 0)
+                if isinstance(expires_at, str):
+                    expires_at = datetime.fromisoformat(expires_at)
+
+                if stored_email != email_normalizado:
+                    return False, "Codigo invalido ou expirado."
+
+                if expires_at and expires_at <= agora:
+                    cur.execute(
+                        """
+                        UPDATE password_reset_codes
+                        SET consumed_at = %s
+                        WHERE username = %s AND consumed_at IS NULL
+                        """,
+                        (agora, username),
+                    )
+                    return False, "Codigo expirado. Solicite um novo codigo."
+
+                codigo_informado_hash = _hash_codigo_recuperacao(
+                    username, email_normalizado, code
+                )
+                if not secrets.compare_digest(codigo_informado_hash, codigo_hash):
+                    attempts_left = max(attempts_left - 1, 0)
+                    cur.execute(
+                        """
+                        UPDATE password_reset_codes
+                        SET attempts_left = %s,
+                            consumed_at = %s
+                        WHERE username = %s AND consumed_at IS NULL
+                        """,
+                        (
+                            attempts_left,
+                            agora if attempts_left == 0 else None,
+                            username,
+                        ),
+                    )
+                    if attempts_left == 0:
+                        return False, "Codigo invalido. Solicite um novo codigo."
+                    return (
+                        False,
+                        f"Codigo invalido. Restam {attempts_left} tentativa(s).",
+                    )
+
+                novo_salt = secrets.token_hex(32)
+                nova_hash = _hash_senha(novo_salt, nova_senha)
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET salt = %s,
+                        senha_hash = %s
+                    WHERE username = %s
+                    """,
+                    (novo_salt, nova_hash, username),
+                )
+                cur.execute(
+                    """
+                    UPDATE password_reset_codes
+                    SET attempts_left = 0,
+                        consumed_at = %s
+                    WHERE username = %s AND consumed_at IS NULL
+                    """,
+                    (agora, username),
+                )
+                return True, "Senha atualizada com sucesso."
