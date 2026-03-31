@@ -9,6 +9,7 @@ from psycopg.types.json import Jsonb
 
 _CONFIG_LOCK = threading.Lock()
 _DB_CONFIG = None
+_UNSET = object()
 
 
 def _get_config() -> dict:
@@ -141,6 +142,23 @@ def _ensure_tables():
         )
         """,
         """
+        CREATE TABLE IF NOT EXISTS import_jobs (
+            job_id TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            total_files INTEGER NOT NULL DEFAULT 0,
+            processed_files INTEGER NOT NULL DEFAULT 0,
+            saved_records INTEGER NOT NULL DEFAULT 0,
+            started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            finished_at TIMESTAMPTZ,
+            last_heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            current_file TEXT,
+            error_message TEXT,
+            recent_logs JSONB NOT NULL DEFAULT '[]'::jsonb,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        """,
+        """
         CREATE TABLE IF NOT EXISTS estoque_manual (
             id SERIAL PRIMARY KEY,
             data TIMESTAMPTZ,
@@ -207,6 +225,41 @@ def _ensure_cache_columns():
                         table=_format_identifier(table),
                     )
                 )
+
+
+def _ensure_import_jobs_columns():
+    columns = {
+        "job_id": "TEXT",
+        "status": "TEXT NOT NULL DEFAULT 'queued'",
+        "total_files": "INTEGER NOT NULL DEFAULT 0",
+        "processed_files": "INTEGER NOT NULL DEFAULT 0",
+        "saved_records": "INTEGER NOT NULL DEFAULT 0",
+        "started_at": "TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "finished_at": "TIMESTAMPTZ",
+        "last_heartbeat_at": "TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "current_file": "TEXT",
+        "error_message": "TEXT",
+        "recent_logs": "JSONB NOT NULL DEFAULT '[]'::jsonb",
+        "created_at": "TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "updated_at": "TIMESTAMPTZ NOT NULL DEFAULT now()",
+    }
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            for column, definition in columns.items():
+                cur.execute(
+                    sql.SQL(
+                        "ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS {column} {definition}"
+                    ).format(
+                        column=_format_identifier(column),
+                        definition=sql.SQL(definition),
+                    )
+                )
+            cur.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS import_jobs_job_id_idx
+                ON import_jobs (job_id)
+                """
+            )
 
 
 def _ensure_cache_pedidos_columns():
@@ -298,6 +351,7 @@ def _ensure_db_structures():
     _ensure_auth_columns()
     _ensure_cache_columns()
     _ensure_cache_pedidos_columns()
+    _ensure_import_jobs_columns()
 
 
 _ensure_db_structures()
@@ -626,3 +680,121 @@ def save_pedidos_importados(records: list[dict]) -> None:
                 """,
                 valores,
             )
+
+
+def create_import_job(job_id: str, total_files: int, recent_logs: list[str] | None = None) -> None:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO import_jobs (
+                    job_id,
+                    status,
+                    total_files,
+                    processed_files,
+                    saved_records,
+                    started_at,
+                    last_heartbeat_at,
+                    recent_logs,
+                    created_at,
+                    updated_at
+                )
+                VALUES (%s, 'queued', %s, 0, 0, now(), now(), %s, now(), now())
+                """,
+                (job_id, max(0, int(total_files)), Jsonb(recent_logs or [])),
+            )
+
+
+def update_import_job(
+    job_id: str,
+    *,
+    status: str | None = None,
+    total_files: int | None = None,
+    processed_files: int | None = None,
+    saved_records: int | None = None,
+    current_file=_UNSET,
+    error_message=_UNSET,
+    recent_logs=_UNSET,
+    finished: bool = False,
+    touch_heartbeat: bool = False,
+) -> None:
+    assignments: list[sql.SQL] = []
+    values: list[object] = []
+
+    if status is not None:
+        assignments.append(sql.SQL("status = %s"))
+        values.append(status)
+    if total_files is not None:
+        assignments.append(sql.SQL("total_files = %s"))
+        values.append(max(0, int(total_files)))
+    if processed_files is not None:
+        assignments.append(sql.SQL("processed_files = %s"))
+        values.append(max(0, int(processed_files)))
+    if saved_records is not None:
+        assignments.append(sql.SQL("saved_records = %s"))
+        values.append(max(0, int(saved_records)))
+    if current_file is not _UNSET:
+        assignments.append(sql.SQL("current_file = %s"))
+        values.append(current_file)
+    if error_message is not _UNSET:
+        assignments.append(sql.SQL("error_message = %s"))
+        values.append(error_message)
+    if recent_logs is not _UNSET:
+        assignments.append(sql.SQL("recent_logs = %s"))
+        values.append(Jsonb(recent_logs))
+    if touch_heartbeat:
+        assignments.append(sql.SQL("last_heartbeat_at = now()"))
+    if finished:
+        assignments.append(sql.SQL("finished_at = now()"))
+
+    assignments.append(sql.SQL("updated_at = now()"))
+    values.append(job_id)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                sql.SQL("UPDATE import_jobs SET {assignments} WHERE job_id = %s").format(
+                    assignments=sql.SQL(", ").join(assignments),
+                ),
+                values,
+            )
+
+
+def get_import_job(job_id: str) -> dict | None:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    job_id,
+                    status,
+                    total_files,
+                    processed_files,
+                    saved_records,
+                    started_at,
+                    finished_at,
+                    last_heartbeat_at,
+                    current_file,
+                    error_message,
+                    recent_logs
+                FROM import_jobs
+                WHERE job_id = %s
+                """,
+                (job_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return {
+                "job_id": row[0],
+                "status": row[1],
+                "total_files": int(row[2] or 0),
+                "processed_files": int(row[3] or 0),
+                "saved_records": int(row[4] or 0),
+                "started_at": row[5],
+                "finished_at": row[6],
+                "last_heartbeat_at": row[7],
+                "current_file": row[8],
+                "error_message": row[9],
+                "recent_logs": list(row[10] or []),
+            }

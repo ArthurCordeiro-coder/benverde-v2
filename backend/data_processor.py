@@ -15,10 +15,14 @@ import glob
 import re
 import json
 import logging
+import shutil
+import threading
+import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from concurrent.futures.process import BrokenProcessPool
 from datetime import datetime, timedelta
-from typing import Optional
+from pathlib import Path
+from typing import Callable, Optional
 
 import pandas as pd
 import pdfplumber
@@ -28,6 +32,7 @@ from db import (
     delete_movimentacao,
     fetch_cache,
     fetch_caixas,
+    get_import_job,
     fetch_movimentacoes,
     fetch_pedidos_importados,
     insert_caixa,
@@ -35,6 +40,7 @@ from db import (
     load_metas,
     replace_metas,
     save_pedidos_importados,
+    update_import_job,
     upsert_cache,
 )
 
@@ -46,6 +52,9 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+IMPORT_JOB_LOG_LIMIT = 25
+IMPORT_JOB_HEARTBEAT_SECONDS = 5
 
 # ---------------------------------------------------------------------------
 # Regex compilados em nÃ­vel de mÃ³dulo (performance)
@@ -738,11 +747,20 @@ def listar_precos_consolidados(pasta_precos: str = "") -> list[dict]:
     if not colunas:
         return []
 
-    produto_col = next((c for c in colunas if "produto" in c.lower()), None)
+    def normalizar_coluna(valor: str) -> str:
+        import unicodedata
+
+        texto = unicodedata.normalize("NFKD", str(valor))
+        return texto.encode("ascii", "ignore").decode("ascii").lower()
+
+    produto_col = next((c for c in colunas if "produto" in normalizar_coluna(c)), None)
     if produto_col is None:
         produto_col = colunas[0]
 
-    preco_col = next((c for c in colunas if ("preco" in c.lower() or "preï¿½fÂ§o" in c.lower())), None)
+    colunas_preco = [c for c in colunas if "preco" in normalizar_coluna(c)]
+    preco_col = next((c for c in colunas_preco if "semar" in normalizar_coluna(c)), None)
+    if preco_col is None and colunas_preco:
+        preco_col = colunas_preco[0]
     if preco_col is None:
         colunas_numericas = [c for c in colunas if pd.api.types.is_numeric_dtype(df[c])]
         if colunas_numericas:
@@ -751,20 +769,37 @@ def listar_precos_consolidados(pasta_precos: str = "") -> list[dict]:
     if preco_col is None:
         return []
 
-    resumo = df[[produto_col, preco_col]].copy()
+    concorrente_cols = [
+        c for c in colunas_preco if c != preco_col and "semar" not in normalizar_coluna(c)
+    ]
+
+    resumo = df[[produto_col, preco_col, *concorrente_cols]].copy()
     resumo[produto_col] = resumo[produto_col].astype(str).str.strip()
     resumo[preco_col] = pd.to_numeric(resumo[preco_col], errors="coerce")
+    for col in concorrente_cols:
+        resumo[col] = pd.to_numeric(resumo[col], errors="coerce")
     resumo = resumo[(resumo[produto_col] != "") & (resumo[preco_col].notna())]
     resumo = resumo.sort_values(produto_col, ascending=True).reset_index(drop=True)
 
-    return [
-        {
-            "Produto": row[produto_col],
-            "Preco": float(row[preco_col]),
-        }
-        for _, row in resumo.iterrows()
-    ]
+    resultado = []
+    for _, row in resumo.iterrows():
+        precos_concorrentes = [float(row[col]) for col in concorrente_cols if pd.notna(row[col])]
+        media_concorrentes = (
+            sum(precos_concorrentes) / len(precos_concorrentes)
+            if precos_concorrentes
+            else None
+        )
+        resultado.append(
+            {
+                "Produto": row[produto_col],
+                "Preco": float(row[preco_col]),
+                "PrecoSemar": float(row[preco_col]),
+                "PrecoConcorrentesMedia": media_concorrentes,
+                "ConcorrentesCotados": len(precos_concorrentes),
+            }
+        )
 
+    return resultado
 
 # ---------------------------------------------------------------------------
 # 2. load_metas_vendas (mantido para compatibilidade)
@@ -1125,6 +1160,215 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
     df["VALOR UNIT"]  = pd.to_numeric(df["VALOR UNIT"],  errors="coerce")
     df["Produto"]     = df["Produto"].astype(str).str.strip().str.upper()
     return df.sort_values("Data", ascending=False).reset_index(drop=True)
+
+
+def _serializar_data_job(valor) -> str | None:
+    if valor is None or (hasattr(pd, "isna") and pd.isna(valor)):
+        return None
+    if isinstance(valor, datetime):
+        return valor.isoformat()
+    try:
+        convertido = pd.to_datetime(valor, errors="coerce")
+    except Exception:
+        convertido = None
+    if convertido is None or pd.isna(convertido):
+        return str(valor)
+    if hasattr(convertido, "to_pydatetime"):
+        convertido = convertido.to_pydatetime()
+    return convertido.isoformat()
+
+
+def _arquivo_eh_pedido_semar(caminho_pdf: str) -> bool:
+    try:
+        with pdfplumber.open(caminho_pdf) as pdf:
+            texto = (pdf.pages[0].extract_text() or "").lower() if pdf.pages else ""
+            return "pedido de compra" in texto
+    except Exception:
+        return False
+
+
+def _carregar_registros_upload_pdf(caminho_pdf: str) -> list[dict]:
+    if _arquivo_eh_pedido_semar(caminho_pdf):
+        df = extrair_pedido_semar(caminho_pdf)
+        if df.empty:
+            return []
+        registros: list[dict] = []
+        for _, row in df.iterrows():
+            registros.append(
+                {
+                    "Data": _serializar_data_job(row.get("Data")),
+                    "Loja": str(row.get("Loja") or "").strip(),
+                    "Produto": str(row.get("Produto") or "").strip().upper(),
+                    "UNID": str(row.get("UNID") or "KG").strip().upper(),
+                    "QUANT": float(pd.to_numeric(row.get("QUANT"), errors="coerce") or 0),
+                    "VALOR TOTAL": float(
+                        pd.to_numeric(row.get("VALOR TOTAL"), errors="coerce") or 0
+                    ),
+                    "VALOR UNIT": float(
+                        pd.to_numeric(row.get("VALOR UNIT"), errors="coerce") or 0
+                    ),
+                    "ARQUIVO": os.path.basename(caminho_pdf),
+                }
+            )
+        return registros
+
+    nome_arq, dt, loja, produtos = _worker_pedido(caminho_pdf)
+    registros = []
+    for produto in produtos:
+        registros.append(
+            {
+                "Data": _serializar_data_job(dt),
+                "Loja": str(loja or "").strip(),
+                "Produto": str(produto.get("produto") or "").strip().upper(),
+                "UNID": str(produto.get("unidade") or "KG").strip().upper(),
+                "QUANT": float(produto.get("quant") or 0),
+                "VALOR TOTAL": float(produto.get("valor_total") or 0),
+                "VALOR UNIT": float(produto.get("valor_unit") or 0),
+                "ARQUIVO": nome_arq,
+            }
+        )
+    return registros
+
+
+def processar_pedidos_upload(
+    pdf_paths: list[str], progress_callback: Optional[Callable[[dict], None]] = None
+) -> dict:
+    registros: list[dict] = []
+    total_files = len(pdf_paths)
+
+    for indice, caminho_pdf in enumerate(pdf_paths, start=1):
+        registros_arquivo = _carregar_registros_upload_pdf(caminho_pdf)
+        registros.extend(registros_arquivo)
+
+        if progress_callback is not None:
+            progress_callback(
+                {
+                    "processed_files": indice,
+                    "saved_records": len(registros),
+                    "current_file": os.path.basename(caminho_pdf),
+                    "records_added": len(registros_arquivo),
+                    "total_files": total_files,
+                }
+            )
+
+    save_pedidos_importados(registros)
+    return {
+        "processed_files": total_files,
+        "saved_records": len(registros),
+        "total_files": total_files,
+    }
+
+
+def _append_import_job_log(job_id: str, message: str) -> None:
+    job = get_import_job(job_id)
+    if job is None:
+        return
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    recent_logs = list(job.get("recent_logs") or [])
+    recent_logs.append(f"[{timestamp}] {message}")
+    update_import_job(job_id, recent_logs=recent_logs[-IMPORT_JOB_LOG_LIMIT:])
+
+
+def _heartbeat_import_job(job_id: str, current_file: str, stop_event: threading.Event) -> None:
+    while not stop_event.wait(IMPORT_JOB_HEARTBEAT_SECONDS):
+        update_import_job(
+            job_id,
+            status="processing",
+            current_file=current_file,
+            touch_heartbeat=True,
+        )
+
+
+def run_import_job(job_id: str, pdf_paths: list[str], working_dir: str) -> None:
+    total_files = len(pdf_paths)
+    registros: list[dict] = []
+    processed_files = 0
+
+    try:
+        update_import_job(
+            job_id,
+            status="processing",
+            total_files=total_files,
+            processed_files=0,
+            saved_records=0,
+            current_file=None,
+            error_message=None,
+            touch_heartbeat=True,
+        )
+        _append_import_job_log(job_id, f"Importacao iniciada com {total_files} arquivo(s).")
+
+        for caminho_pdf in pdf_paths:
+            current_file = os.path.basename(caminho_pdf)
+            update_import_job(
+                job_id,
+                status="processing",
+                current_file=current_file,
+                touch_heartbeat=True,
+            )
+            _append_import_job_log(job_id, f"Processando {current_file}.")
+
+            stop_event = threading.Event()
+            heartbeat_thread = threading.Thread(
+                target=_heartbeat_import_job,
+                args=(job_id, current_file, stop_event),
+                daemon=True,
+            )
+            heartbeat_thread.start()
+            try:
+                registros_arquivo = _carregar_registros_upload_pdf(caminho_pdf)
+            finally:
+                stop_event.set()
+                heartbeat_thread.join(timeout=1)
+
+            registros.extend(registros_arquivo)
+            processed_files += 1
+
+            update_import_job(
+                job_id,
+                status="processing",
+                processed_files=processed_files,
+                saved_records=len(registros),
+                current_file=current_file,
+                touch_heartbeat=True,
+            )
+            _append_import_job_log(
+                job_id,
+                f"Concluido {current_file}: {len(registros_arquivo)} registro(s).",
+            )
+
+        save_pedidos_importados(registros)
+        update_import_job(
+            job_id,
+            status="completed",
+            processed_files=processed_files,
+            saved_records=len(registros),
+            current_file=None,
+            error_message=None,
+            touch_heartbeat=True,
+            finished=True,
+        )
+        _append_import_job_log(
+            job_id,
+            f"Importacao concluida com {processed_files} arquivo(s) e {len(registros)} registro(s).",
+        )
+    except Exception as exc:
+        logger.exception("Falha ao executar job de importacao %s", job_id)
+        update_import_job(
+            job_id,
+            status="failed",
+            processed_files=processed_files,
+            saved_records=len(registros),
+            current_file=None,
+            error_message=str(exc).strip() or "Falha ao processar importacao.",
+            touch_heartbeat=True,
+            finished=True,
+        )
+        _append_import_job_log(job_id, f"Falha na importacao: {exc}")
+    finally:
+        try:
+            shutil.rmtree(working_dir, ignore_errors=True)
+        except Exception:
+            logger.warning("Nao foi possivel limpar diretório temporario '%s'.", working_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -1493,5 +1737,7 @@ def load_pedidos_semar(pasta: str, caminho_cache: str = "") -> pd.DataFrame:
     df["VALOR UNIT"]  = pd.to_numeric(df["VALOR UNIT"],  errors="coerce")
     df["Produto"]     = df["Produto"].astype(str).str.strip().str.upper()
     return df.sort_values("Data", ascending=False).reset_index(drop=True)
+
+
 
 

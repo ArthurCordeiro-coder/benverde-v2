@@ -6,12 +6,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import {
   AlertCircle,
+  Banana,
+  BarChart3,
   Check,
-  ClipboardList,
-  LayoutDashboard,
+  Leaf,
   LogOut,
-  Package,
-  Tag,
+  MessageCircleMore,
+  PackageSearch,
+  Tags,
   Users,
   X,
 } from "lucide-react";
@@ -36,12 +38,54 @@ type ApiError = {
   };
 };
 
+type NavItemProps = {
+  icon: ReactNode;
+  label: string;
+  active: boolean;
+  href?: string;
+  isHighlight?: boolean;
+  onClick?: () => void;
+};
+
 const navItems = [
-  { href: "/dashboard", label: "Resumo", icon: LayoutDashboard },
-  { href: "/dashboard/estoque", label: "Estoque", icon: Package },
-  { href: "/dashboard/caixas", label: "Caixas", icon: ClipboardList },
-  { href: "/dashboard/precos", label: "Precos", icon: Tag },
+  { href: "/dashboard", label: "Resumo & Metas", icon: <BarChart3 size={18} /> },
+  { href: "/dashboard/estoque", label: "Estoque de Bananas", icon: <Banana size={18} /> },
+  { href: "/dashboard/caixas", label: "Caixas das Lojas", icon: <PackageSearch size={18} /> },
+  { href: "/dashboard/precos", label: "Precos Concorrentes", icon: <Tags size={18} /> },
+  { href: "/dashboard/mita-ai", label: "Mita aí", icon: <MessageCircleMore size={18} /> },
 ];
+
+function getNavClass(active: boolean, isHighlight = false) {
+  return `w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 font-medium text-sm ${
+    active
+      ? "bg-gradient-to-r from-green-500/20 to-emerald-500/10 text-green-300 border border-green-500/20 shadow-[0_0_20px_rgba(16,185,129,0.1)]"
+      : "text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent"
+  } ${
+    isHighlight && !active
+      ? "bg-emerald-900/20 border-emerald-500/10 text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/40"
+      : ""
+  }`;
+}
+
+function NavItem({ icon, label, active, href, isHighlight = false, onClick }: NavItemProps) {
+  const className = getNavClass(active, isHighlight);
+
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        <span className={active ? "text-green-400" : ""}>{icon}</span>
+        {label}
+      </Link>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onClick} className={className}>
+      <span className={active ? "text-green-400" : ""}>{icon}</span>
+      {label}
+    </button>
+  );
+}
 
 function getErrorDetail(error: unknown): string | undefined {
   return (error as ApiError | undefined)?.response?.data?.detail;
@@ -151,76 +195,67 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl">
-        <aside className="w-72 border-r border-slate-200 bg-white/90 p-5">
-          <div className="mb-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Benverde
-            </p>
-            <h1 className="mt-2 text-2xl font-bold">Painel</h1>
+    <div className="flex h-screen overflow-hidden">
+      <aside className="relative z-10 m-4 flex w-72 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-2xl">
+        <div className="flex items-center gap-3 border-b border-white/5 p-8">
+          <div className="rounded-xl bg-gradient-to-br from-green-400 to-green-600 p-2 shadow-lg shadow-green-500/30">
+            <Leaf size={24} className="text-white" />
           </div>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-white">Benverde</h1>
+            <p className="text-xs font-medium text-green-400">Gestao Inteligente</p>
+          </div>
+        </div>
 
-          <nav className="space-y-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                    active
-                      ? "bg-emerald-100 text-emerald-800"
-                      : "text-slate-700 hover:bg-slate-100"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
+        <nav className="flex-1 space-y-2 overflow-y-auto p-4">
+          <p className="mb-2 mt-4 px-4 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+            Painel Gerencial
+          </p>
+
+          {navItems.map((item) => (
+            <NavItem
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              active={pathname === item.href}
+            />
+          ))}
 
           {isAdmin ? (
-            <div className="mt-6 border-t border-slate-200 pt-6">
-              <button
-                type="button"
+            <>
+              <p className="mb-2 mt-8 px-4 text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                Administracao
+              </p>
+              <NavItem
+                icon={<Users size={18} />}
+                label="Usuarios Pendentes"
+                active={pendingModalOpen}
+                isHighlight
                 onClick={() => {
                   setPendingError("");
                   setPendingSuccess("");
                   setPendingModalOpen(true);
                   void carregarPendentes();
                 }}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
-                  pendingModalOpen
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                <Users className="h-4 w-4" />
-                <span>Usuarios pendentes</span>
-              </button>
-            </div>
+              />
+            </>
           ) : null}
-        </aside>
+        </nav>
 
-        <div className="flex min-h-screen flex-1 flex-col">
-          <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6">
-            <p className="text-sm text-slate-600">Area logada</p>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-            >
-              <LogOut className="h-4 w-4" />
-              Sair
-            </button>
-          </header>
-
-          <main className="flex-1 p-6">{children}</main>
+        <div className="border-t border-white/5 p-4">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="group flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-gray-400 transition-all duration-300 hover:bg-white/5 hover:text-white"
+          >
+            <LogOut size={18} className="transition-colors group-hover:text-red-400" />
+            Sair do Sistema
+          </button>
         </div>
-      </div>
+      </aside>
+
+      <main className="relative z-10 h-screen flex-1 overflow-y-auto p-8">{children}</main>
 
       {pendingModalOpen ? (
         <div
@@ -233,7 +268,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         >
           <div
             onClick={(event) => event.stopPropagation()}
-            className="w-full max-w-3xl rounded-2xl border border-white/15 bg-[#0b1f15]/95 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+            className="w-full max-w-3xl rounded-3xl border border-white/15 bg-[#0b1f15]/95 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl"
           >
             <div className="mb-5 flex flex-col gap-3 border-b border-white/10 pb-5 md:flex-row md:items-center md:justify-between">
               <div>
