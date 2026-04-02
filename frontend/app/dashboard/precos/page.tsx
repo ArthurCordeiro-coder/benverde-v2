@@ -81,6 +81,9 @@ type DisplayRow = BaseRow & {
   minPrice: number | null;
   maxPrice: number | null;
   semarGapPercent: number;
+  bestCompetitor: string | null;
+  bestCompetitorPrice: number | null;
+  averagePrice: number | null;
 };
 
 type SortDirection = "ascending" | "descending";
@@ -134,9 +137,8 @@ const MARKET_DOT_CLASSES = [
   "bg-fuchsia-500/80",
 ];
 const STATUS_CLASSNAMES = {
-  lider: "border border-green-500/20 bg-green-500/10 text-green-400",
-  monitorar: "border border-yellow-500/20 bg-yellow-500/10 text-yellow-300",
-  alerta: "border border-red-500/20 bg-red-500/10 text-red-300",
+  ganhando: "border border-green-500/20 bg-green-500/10 text-green-400",
+  perdendo: "border border-red-500/20 bg-red-500/10 text-red-300",
   semCotacao: "border border-white/10 bg-white/5 text-gray-400",
 } as const;
 
@@ -212,12 +214,31 @@ function enrichRow(baseRow: BaseRow): DisplayRow {
       ? ((semarPrice - minPrice) / minPrice) * 100
       : 0;
 
+  // Best competitor (excluding Semar)
+  const competitorEntries = availableEntries.filter((entry) => entry[0] !== "Semar");
+  let bestCompetitor: string | null = null;
+  let bestCompetitorPrice: number | null = null;
+  if (competitorEntries.length > 0) {
+    const best = competitorEntries.reduce((a, b) => (a[1] <= b[1] ? a : b));
+    bestCompetitor = best[0];
+    bestCompetitorPrice = best[1];
+  }
+
+  // Average of all available prices
+  const averagePrice =
+    availableEntries.length > 0
+      ? Number((availableEntries.reduce((sum, e) => sum + e[1], 0) / availableEntries.length).toFixed(2))
+      : null;
+
   return {
     ...baseRow,
     leaderMarkets,
     minPrice,
     maxPrice,
     semarGapPercent,
+    bestCompetitor,
+    bestCompetitorPrice,
+    averagePrice,
   };
 }
 
@@ -227,29 +248,21 @@ function getRowStatus(row: DisplayRow): RowStatus {
     return {
       label: "Sem cotacao",
       className: STATUS_CLASSNAMES.semCotacao,
-      priority: 3,
-    };
-  }
-
-  if (row.leaderMarkets.includes("Semar")) {
-    return {
-      label: "Lider",
-      className: STATUS_CLASSNAMES.lider,
-      priority: 0,
-    };
-  }
-
-  if (row.semarGapPercent >= 10) {
-    return {
-      label: "Alerta",
-      className: STATUS_CLASSNAMES.alerta,
       priority: 2,
     };
   }
 
+  if (row.bestCompetitorPrice === null || semarPrice <= row.bestCompetitorPrice) {
+    return {
+      label: "Ganhando",
+      className: STATUS_CLASSNAMES.ganhando,
+      priority: 0,
+    };
+  }
+
   return {
-    label: "Monitorar",
-    className: STATUS_CLASSNAMES.monitorar,
+    label: "Perdendo",
+    className: STATUS_CLASSNAMES.perdendo,
     priority: 1,
   };
 }
@@ -276,6 +289,10 @@ function sortRows(rows: DisplayRow[], sortConfig: SortConfig): DisplayRow[] {
       comparison = getRowStatus(left).priority - getRowStatus(right).priority;
     } else if (sortConfig.key === "gap") {
       comparison = left.semarGapPercent - right.semarGapPercent;
+    } else if (sortConfig.key === "media") {
+      const safeLeft = left.averagePrice === null ? Number.POSITIVE_INFINITY : left.averagePrice;
+      const safeRight = right.averagePrice === null ? Number.POSITIVE_INFINITY : right.averagePrice;
+      comparison = safeLeft - safeRight;
     } else {
       const leftValue = left.prices[sortConfig.key];
       const rightValue = right.prices[sortConfig.key];
@@ -634,14 +651,14 @@ export default function PrecosPage() {
   const exportRows = useMemo(
     () =>
       visibleRows.map((row) => ({
-        Base: selectedDateLabel,
         Produto: row.produto,
-        ...Object.fromEntries(markets.map((market) => [market, row.prices[market] ?? ""])),
+        "Preco Semar": row.prices.Semar ?? "",
+        "Melhor Concorrente": row.bestCompetitor ?? "",
+        "Preco Concorrente": row.bestCompetitorPrice ?? "",
+        Media: row.averagePrice ?? "",
         Status: getRowStatus(row).label,
-        "Gap Semar %":
-          row.semarGapPercent > 0 ? Number(row.semarGapPercent.toFixed(1)) : 0,
       })),
-    [markets, selectedDateLabel, visibleRows],
+    [visibleRows],
   );
 
   const exportTable = () => {
@@ -855,9 +872,9 @@ export default function PrecosPage() {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <GlassCard
-          title="Lideranca Semar"
+          title="Semar Ganhando"
           value={isLoading ? "Carregando..." : stats.winPerc}
-          subtitle="Menor preco absoluto."
+          subtitle="Produtos com menor preco."
           icon={<Zap className="text-yellow-400" size={24} />}
           trend="up"
         />
@@ -1003,29 +1020,48 @@ export default function PrecosPage() {
                       {getSortIcon(sortConfig, "produto")}
                     </button>
                   </th>
-                  {markets.map((market) => (
-                    <th
-                      key={market}
-                      className="border-r border-white/5 p-5 text-right text-[10px] font-bold uppercase tracking-widest last:border-r-0"
+                  <th className="border-r border-white/5 p-5 text-right text-[10px] font-bold uppercase tracking-widest">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSortConfig((current) => ({
+                          key: "Semar",
+                          direction:
+                            current.key === "Semar" && current.direction === "ascending"
+                              ? "descending"
+                              : "ascending",
+                        }))
+                      }
+                      className="ml-auto flex items-center gap-1"
                     >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSortConfig((current) => ({
-                            key: market,
-                            direction:
-                              current.key === market && current.direction === "ascending"
-                                ? "descending"
-                                : "ascending",
-                          }))
-                        }
-                        className="ml-auto flex items-center gap-1"
-                      >
-                        {market}
-                        {getSortIcon(sortConfig, market)}
-                      </button>
-                    </th>
-                  ))}
+                      Preco Semar
+                      {getSortIcon(sortConfig, "Semar")}
+                    </button>
+                  </th>
+                  <th className="border-r border-white/5 p-5 text-[10px] font-bold uppercase tracking-widest">
+                    Melhor Concorrente
+                  </th>
+                  <th className="border-r border-white/5 p-5 text-right text-[10px] font-bold uppercase tracking-widest">
+                    Preco Concorrente
+                  </th>
+                  <th className="border-r border-white/5 p-5 text-right text-[10px] font-bold uppercase tracking-widest">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSortConfig((current) => ({
+                          key: "media",
+                          direction:
+                            current.key === "media" && current.direction === "ascending"
+                              ? "descending"
+                              : "ascending",
+                        }))
+                      }
+                      className="ml-auto flex items-center gap-1"
+                    >
+                      Media
+                      {getSortIcon(sortConfig, "media")}
+                    </button>
+                  </th>
                   <th className="p-5 text-[10px] font-bold uppercase tracking-widest">
                     <button
                       type="button"
@@ -1049,100 +1085,82 @@ export default function PrecosPage() {
               <tbody className="divide-y divide-white/5">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={markets.length + 2} className="p-5 text-gray-400">
+                    <td colSpan={6} className="p-5 text-gray-400">
                       Carregando precos...
                     </td>
                   </tr>
                 ) : visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan={markets.length + 2} className="p-5 text-gray-400">
+                    <td colSpan={6} className="p-5 text-gray-400">
                       Nenhum produto encontrado para esse filtro.
                     </td>
                   </tr>
                 ) : (
                   visibleRows.map((row) => {
-                    const availablePrices = Object.values(row.prices).filter(
-                      (value): value is number => typeof value === "number",
-                    );
-                    const hasComparison = availablePrices.length > 1;
                     const rowStatus = getRowStatus(row);
+                    const isBanana = normalizeText(row.produto).includes("BANANA");
 
                     return (
                       <tr
                         key={`${selectedDate}-${row.produto}`}
                         className={`group transition-colors ${
-                          normalizeText(row.produto).includes("BANANA")
+                          isBanana
                             ? "bg-yellow-500/[0.03] hover:bg-yellow-500/[0.06]"
                             : "hover:bg-white/[0.03]"
                         }`}
                       >
                         <td className="border-r border-white/5 p-5 font-medium">
                           <div className="flex items-center gap-3">
-                            {normalizeText(row.produto).includes("BANANA") ? (
+                            {isBanana ? (
                               <Banana size={14} className="animate-pulse text-yellow-400" />
                             ) : null}
-                            <div>
-                              <p
-                                className={
-                                  normalizeText(row.produto).includes("BANANA")
-                                    ? "text-yellow-50"
-                                    : "text-white"
-                                }
-                              >
-                                {row.produto}
-                              </p>
-                              {selectedDate === GENERAL_KEY ? (
-                                <p className="mt-1 text-[10px] uppercase tracking-widest text-gray-500">
-                                  Media das pesquisas disponiveis
-                                </p>
-                              ) : null}
-                            </div>
+                            <p className={isBanana ? "text-yellow-50" : "text-white"}>
+                              {row.produto}
+                            </p>
                           </div>
                         </td>
 
-                        {markets.map((market) => {
-                          const value = row.prices[market];
-                          const isMin = hasComparison && value !== null && value === row.minPrice;
-                          const isMax = hasComparison && value !== null && value === row.maxPrice;
-                          const diffPercent =
-                            value !== null && row.minPrice !== null && value > row.minPrice
-                              ? ((value - row.minPrice) / row.minPrice) * 100
-                              : 0;
-                          const colorClass = isMin
-                            ? "text-green-400"
-                            : isMax
-                              ? "text-orange-400"
-                              : "text-white";
+                        <td className="border-r border-white/5 p-5 text-right tabular-nums">
+                          {row.prices.Semar !== null ? (
+                            <span className="font-medium text-white">
+                              {formatCurrency(row.prices.Semar)}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
+                        </td>
 
-                          return (
-                            <td
-                              key={`${row.produto}-${market}`}
-                              title={buildCellTooltip(row, market, selectedDate === GENERAL_KEY)}
-                              className="group/cell relative overflow-visible border-r border-white/5 p-5 text-right tabular-nums last:border-r-0"
-                            >
-                              {value !== null ? (
-                                <>
-                                  <div
-                                    className={`pointer-events-none absolute right-5 top-2 z-20 rounded border border-white/10 bg-black/60 px-1.5 py-0.5 text-[9px] font-black opacity-0 backdrop-blur-md transition-all duration-300 group-hover/cell:opacity-100 ${colorClass}`}
-                                  >
-                                    {diffPercent === 0 ? "LIDER" : `+${diffPercent.toFixed(0)}%`}
-                                  </div>
-                                  <span
-                                    className={`${colorClass} transition-all duration-300 ${
-                                      isMin
-                                        ? "font-bold drop-shadow-[0_0_8px_rgba(74,222,128,0.3)]"
-                                        : ""
-                                    }`}
-                                  >
-                                    {formatCurrency(value)}
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="text-gray-500">-</span>
-                              )}
-                            </td>
-                          );
-                        })}
+                        <td className="border-r border-white/5 p-5">
+                          {row.bestCompetitor ? (
+                            <span className="text-sm text-white">{row.bestCompetitor}</span>
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
+                        </td>
+
+                        <td className="border-r border-white/5 p-5 text-right tabular-nums">
+                          {row.bestCompetitorPrice !== null ? (
+                            <span className={
+                              row.prices.Semar !== null && row.bestCompetitorPrice < row.prices.Semar
+                                ? "font-medium text-red-400"
+                                : "text-white"
+                            }>
+                              {formatCurrency(row.bestCompetitorPrice)}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
+                        </td>
+
+                        <td className="border-r border-white/5 p-5 text-right tabular-nums">
+                          {row.averagePrice !== null ? (
+                            <span className="text-gray-300">
+                              {formatCurrency(row.averagePrice)}
+                            </span>
+                          ) : (
+                            <span className="text-gray-500">-</span>
+                          )}
+                        </td>
 
                         <td className="p-5">
                           <span
@@ -1175,11 +1193,15 @@ export default function PrecosPage() {
             <div className="flex flex-wrap gap-6 text-[10px] font-bold uppercase tracking-widest text-gray-500">
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-green-400" />
-                Menor preco
+                Ganhando
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-orange-400" />
-                Maior preco (Gap %)
+                <div className="h-2 w-2 rounded-full bg-red-400" />
+                Perdendo
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-gray-400" />
+                Sem cotacao
               </div>
             </div>
           </div>
