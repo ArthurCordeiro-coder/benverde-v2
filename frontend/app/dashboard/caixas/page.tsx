@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import api from "@/lib/api";
+import * as XLSX from "xlsx";
+import html2canvas from "html2canvas";
 import {
   Banana,
   Check,
@@ -89,6 +91,7 @@ export default function CaixasPage() {
   // Menu de exportação
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const tableSectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -166,6 +169,57 @@ export default function CaixasPage() {
       return matchData && matchLoja && matchStatus;
     });
   }, [registros, filterData, filterLoja, filterStatus]);
+
+  const exportarExcel = () => {
+    const dataParaExcel = filteredRows.map((row) => ({
+      Data: formatarData(row.data),
+      Loja: row.loja ?? "-",
+      "Nº Loja": row.n_loja ?? "",
+      Benverde: row.caixas_benverde ?? 0,
+      CCJ: row.caixas_ccj ?? 0,
+      "CCJ Banca": row.ccj_banca ?? 0,
+      "CCJ Mercadoria": row.ccj_mercadoria ?? 0,
+      "CCJ Retirada": row.ccj_retirada ?? 0,
+      Bananas: row.caixas_bananas ?? 0,
+      Total: row.total ?? 0,
+      Status: row.entregue === "sim" ? "Entregue" : "Não Entregue",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataParaExcel);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Caixas das Lojas");
+
+    // Ajusta largura das colunas automaticamente
+    const colWidths = Object.keys(dataParaExcel[0] ?? {}).map((key) => ({
+      wch: Math.max(key.length, 12),
+    }));
+    worksheet["!cols"] = colWidths;
+
+    const dataHoje = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
+    XLSX.writeFile(workbook, `caixas-lojas-${dataHoje}.xlsx`);
+    setIsExportOpen(false);
+  };
+
+  const exportarPNG = async () => {
+    if (!tableSectionRef.current) return;
+    setIsExportOpen(false);
+
+    // Pequeno delay para o dropdown fechar antes de capturar
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const canvas = await html2canvas(tableSectionRef.current, {
+      backgroundColor: "#0b1f15",
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+
+    const link = document.createElement("a");
+    const dataHoje = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
+    link.download = `caixas-lojas-${dataHoje}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
 
   const formatarData = (valor?: string | null) => {
     if (!valor) return "-";
@@ -275,7 +329,7 @@ export default function CaixasPage() {
       </div>
 
       {/* Seção da Tabela */}
-      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-2xl">
+      <section ref={tableSectionRef} className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-2xl">
         {/* Barra de Filtros */}
         <div className="flex flex-col gap-4 border-b border-white/5 p-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
@@ -362,10 +416,7 @@ export default function CaixasPage() {
                 <div className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1f15]/95 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl">
                   <button
                     type="button"
-                    onClick={() => {
-                      console.log("Exportando como Excel...");
-                      setIsExportOpen(false);
-                    }}
+                    onClick={exportarExcel}
                     className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-300 transition-all hover:bg-white/5 hover:text-green-400"
                   >
                     <FileSpreadsheet size={16} />
@@ -373,10 +424,7 @@ export default function CaixasPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      console.log("Exportando como PNG...");
-                      setIsExportOpen(false);
-                    }}
+                    onClick={() => void exportarPNG()}
                     className="flex w-full items-center gap-3 px-4 py-3 text-sm text-gray-300 transition-all hover:bg-white/5 hover:text-green-400"
                   >
                     <ImageIcon size={16} />
