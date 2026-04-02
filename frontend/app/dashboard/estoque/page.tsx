@@ -1,7 +1,40 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
+import html2canvas from "html2canvas";
+import * as XLSX from "xlsx";
+import {
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  Banana,
+  BarChart3,
+  Bot,
+  Box,
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  History,
+  Image as ImageIcon,
+  Loader2,
+  MessageCircleMore,
+  PieChart,
+  RefreshCw,
+  SendHorizonal,
+  ShoppingCart,
+  Sparkles,
+  X,
+} from "lucide-react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 type HistoricoItem = {
   data?: string | null;
@@ -9,47 +42,266 @@ type HistoricoItem = {
   produto?: string;
   quant?: number;
   unidade?: string;
+  loja?: string;
   arquivo?: string;
 };
 
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+type MitaResponse = {
+  answer?: string;
+  history?: ChatMessage[];
+};
+
+type Feedback = {
+  tone: "success" | "error";
+  text: string;
+} | null;
+
+type GlassCardProps = {
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: ReactNode;
+  trend: "up" | "down" | "neutral";
+  colorClass?: string;
+};
+
+type ProdutoRanking = {
+  nome: string;
+  saldo: number;
+};
+
+const MITA_QUESTIONS = [
+  "Qual variedade corre mais risco de ruptura?",
+  "Como esta a tendencia de saida semanal?",
+  "Houve bonificacoes nesta ultima carga?",
+];
+
+function GlassCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  trend,
+  colorClass = "text-emerald-400",
+}: GlassCardProps) {
+  return (
+    <div className="group relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition-all hover:bg-white/[0.05]">
+      <div className="mb-4 flex items-start justify-between">
+        <div className={`rounded-2xl border border-white/5 bg-white/5 p-3 shadow-inner ${colorClass}`}>
+          {icon}
+        </div>
+        {trend === "up" ? <ArrowUpRight size={20} className="text-green-400" /> : null}
+        {trend === "down" ? <ArrowDownRight size={20} className="text-red-400" /> : null}
+        {trend === "neutral" ? <Activity size={20} className="text-blue-400" /> : null}
+      </div>
+      <div>
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">{title}</p>
+        <h3 className="mb-2 text-3xl font-bold tracking-tight text-white">{value}</h3>
+        <p className="text-xs font-medium text-gray-400">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+function normalizeText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function formatQuantity(value: number, unit = "kg"): string {
+  const hasDecimals = Math.abs(value % 1) > 0.001;
+  const formatted = value.toLocaleString("pt-BR", {
+    minimumFractionDigits: hasDecimals ? 1 : 0,
+    maximumFractionDigits: hasDecimals ? 2 : 0,
+  });
+  return `${formatted} ${unit}`;
+}
+
+function formatDate(value?: string | null): string {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString("pt-BR");
+  }
+
+  if (value.includes("-")) {
+    return value.split("-").reverse().join("/");
+  }
+
+  return value;
+}
+
+function formatDateTime(value?: string | null): string {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleString("pt-BR");
+  }
+
+  return value;
+}
+
+function bubbleClass(role: ChatMessage["role"]) {
+  return role === "assistant"
+    ? "border border-emerald-400/20 bg-emerald-500/10 text-emerald-50 shadow-lg shadow-emerald-500/5"
+    : "border border-white/10 bg-white/10 text-white";
+}
+
 export default function EstoquePage() {
+  const mitaEndpoint = process.env.NEXT_PUBLIC_MITA_AI_PATH?.trim() || "/api/mita-ai/chat";
+
   const [saldo, setSaldo] = useState(0);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pageError, setPageError] = useState("");
+  const [feedback, setFeedback] = useState<Feedback>(null);
+
+  const [showMitaMenu, setShowMitaMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isMitaTyping, setIsMitaTyping] = useState(false);
+  const [currentInput, setCurrentInput] = useState("");
+
   const [enviandoPdf, setEnviandoPdf] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [salvandoMovimentacao, setSalvandoMovimentacao] = useState(false);
-
   const [produto, setProduto] = useState("");
   const [quantidade, setQuantidade] = useState("");
   const [tipo, setTipo] = useState<"entrada" | "saida">("entrada");
 
   const inputFileRef = useRef<HTMLInputElement>(null);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
+  const mitaMenuRef = useRef<HTMLDivElement | null>(null);
+  const historySectionRef = useRef<HTMLDivElement | null>(null);
 
-  const buscarEstoque = async () => {
-    setCarregando(true);
+  const buscarEstoque = useCallback(async (mode: "initial" | "refresh" = "refresh") => {
+    if (mode === "initial") {
+      setCarregando(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
     try {
       const response = await api.get("/api/estoque/saldo");
-      setSaldo(Number(response.data?.saldo ?? 0));
-      setHistorico(Array.isArray(response.data?.historico) ? response.data.historico : []);
+      const saldoAtual = Number(response.data?.saldo ?? 0);
+      const historicoAtual = Array.isArray(response.data?.historico) ? response.data.historico : [];
+
+      historicoAtual.sort((left: HistoricoItem, right: HistoricoItem) => {
+        const leftTime = new Date(left.data ?? "").getTime();
+        const rightTime = new Date(right.data ?? "").getTime();
+        return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+      });
+
+      setSaldo(Number.isFinite(saldoAtual) ? saldoAtual : 0);
+      setHistorico(historicoAtual);
+      setPageError("");
     } catch (error) {
       console.error("Erro ao carregar estoque:", error);
-      alert("Nao foi possivel carregar os dados de estoque.");
+      setPageError("Nao foi possivel carregar os dados de estoque.");
     } finally {
       setCarregando(false);
+      setIsRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    void buscarEstoque();
   }, []);
 
-  const formatarData = (valor?: string | null) => {
-    if (!valor) return "-";
-    const data = new Date(valor);
-    if (Number.isNaN(data.getTime())) return "-";
-    return data.toLocaleString("pt-BR");
-  };
+  useEffect(() => {
+    void buscarEstoque("initial");
+  }, [buscarEstoque]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, isMitaTyping]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+      if (mitaMenuRef.current && !mitaMenuRef.current.contains(event.target as Node)) {
+        setShowMitaMenu(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const stats = useMemo(() => {
+    const totalEntradas = historico
+      .filter((item) => normalizeText(item.tipo ?? "") === "ENTRADA")
+      .reduce((total, item) => total + Number(item.quant ?? 0), 0);
+
+    const totalSaidas = historico
+      .filter((item) => normalizeText(item.tipo ?? "") === "SAIDA")
+      .reduce((total, item) => total + Number(item.quant ?? 0), 0);
+
+    const rankingMap = new Map<string, number>();
+    for (const item of historico) {
+      const nome = String(item.produto ?? "SEM PRODUTO").trim() || "SEM PRODUTO";
+      const sinal = normalizeText(item.tipo ?? "") === "ENTRADA" ? 1 : -1;
+      const quantidadeAtual = Number(item.quant ?? 0) * sinal;
+      rankingMap.set(nome, (rankingMap.get(nome) ?? 0) + quantidadeAtual);
+    }
+
+    const ranking = Array.from(rankingMap.entries())
+      .map<ProdutoRanking>(([nome, saldoItem]) => ({ nome, saldo: saldoItem }))
+      .sort((left, right) => right.saldo - left.saldo);
+
+    const topVariedade = ranking[0] ?? { nome: "Sem dados", saldo: 0 };
+    const riscoVariedade =
+      ranking.filter((item) => item.saldo > 0).sort((left, right) => left.saldo - right.saldo)[0] ??
+      ranking[ranking.length - 1] ??
+      topVariedade;
+
+    const movimentosRecentes = historico.slice(0, 7);
+    const saidaRecente = movimentosRecentes
+      .filter((item) => normalizeText(item.tipo ?? "") === "SAIDA")
+      .reduce((total, item) => total + Number(item.quant ?? 0), 0);
+
+    return {
+      saldoAtual: saldo,
+      totalEntradas,
+      totalSaidas,
+      topVariedade,
+      riscoVariedade,
+      ranking,
+      saidaRecente,
+    };
+  }, [historico, saldo]);
+
+  const exportRows = useMemo(
+    () =>
+      historico.map((item) => ({
+        Data: formatDateTime(item.data),
+        Tipo: item.tipo ?? "-",
+        Produto: item.produto ?? "-",
+        Quantidade: Number(item.quant ?? 0),
+        Unidade: item.unidade ?? "KG",
+        Loja: item.loja ?? "-",
+        Arquivo: item.arquivo ?? "-",
+      })),
+    [historico],
+  );
 
   const abrirSeletorArquivo = () => {
     inputFileRef.current?.click();
@@ -57,18 +309,34 @@ export default function EstoquePage() {
 
   const handleUploadPdf = async (event: ChangeEvent<HTMLInputElement>) => {
     const arquivo = event.target.files?.[0];
-    if (!arquivo) return;
+    if (!arquivo) {
+      return;
+    }
 
     setEnviandoPdf(true);
+    setFeedback(null);
+
     try {
       const formData = new FormData();
       formData.append("file", arquivo);
       await api.post("/api/upload/pdf", formData);
-      alert("DANFE enviada com sucesso.");
-      await buscarEstoque();
-    } catch (error) {
+      setFeedback({
+        tone: "success",
+        text: "DANFE enviada com sucesso. O estoque foi atualizado.",
+      });
+      await buscarEstoque("refresh");
+    } catch (error: unknown) {
       console.error("Erro no upload do PDF:", error);
-      alert("Falha ao enviar o PDF.");
+      const detail = (
+        error as { response?: { data?: { detail?: string } } } | undefined
+      )?.response?.data?.detail;
+      setFeedback({
+        tone: "error",
+        text:
+          typeof detail === "string" && detail.trim()
+            ? detail
+            : "Falha ao enviar o PDF para processamento.",
+      });
     } finally {
       setEnviandoPdf(false);
       event.target.value = "";
@@ -80,11 +348,16 @@ export default function EstoquePage() {
     const quant = Number(quantidade);
 
     if (!produto.trim() || !quant || quant <= 0) {
-      alert("Preencha produto e quantidade validos.");
+      setFeedback({
+        tone: "error",
+        text: "Preencha produto e quantidade validos.",
+      });
       return;
     }
 
     setSalvandoMovimentacao(true);
+    setFeedback(null);
+
     try {
       await api.post("/api/estoque/movimentacao", {
         produto: produto.trim(),
@@ -96,177 +369,670 @@ export default function EstoquePage() {
       setProduto("");
       setQuantidade("");
       setTipo("entrada");
-      await buscarEstoque();
-    } catch (error) {
+      setFeedback({
+        tone: "success",
+        text: "Movimentacao registrada com sucesso.",
+      });
+      await buscarEstoque("refresh");
+    } catch (error: unknown) {
       console.error("Erro ao salvar movimentacao:", error);
-      alert("Nao foi possivel salvar a movimentacao.");
+      const detail = (
+        error as { response?: { data?: { detail?: string } } } | undefined
+      )?.response?.data?.detail;
+      setFeedback({
+        tone: "error",
+        text:
+          typeof detail === "string" && detail.trim()
+            ? detail
+            : "Nao foi possivel salvar a movimentacao.",
+      });
     } finally {
       setSalvandoMovimentacao(false);
     }
   };
 
+  const exportarExcel = () => {
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Estoque de Bananas");
+    XLSX.writeFile(workbook, `estoque-bananas-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setShowExportMenu(false);
+  };
+
+  const exportarPng = async () => {
+    if (!historySectionRef.current) {
+      return;
+    }
+
+    setShowExportMenu(false);
+    await new Promise((resolve) => window.setTimeout(resolve, 120));
+
+    const canvas = await html2canvas(historySectionRef.current, {
+      backgroundColor: "#07130d",
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+
+    const link = document.createElement("a");
+    link.download = `estoque-bananas-${new Date().toISOString().slice(0, 10)}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+
+  const buildFallbackMitaResponse = useCallback(
+    (question: string) => {
+      const normalizedQuestion = normalizeText(question);
+
+      if (normalizedQuestion.includes("ESTOQUE") || normalizedQuestion.includes("SALDO")) {
+        return `Temos ${formatQuantity(stats.saldoAtual)} em estoque. A variedade ${stats.topVariedade.nome} representa o maior volume disponivel agora.`;
+      }
+
+      if (normalizedQuestion.includes("RUPTURA") || normalizedQuestion.includes("RISCO") || normalizedQuestion.includes("TERRA")) {
+        if (stats.riscoVariedade.saldo <= 0) {
+          return `A variedade ${stats.riscoVariedade.nome} esta sem saldo positivo. Recomendo revisar as ultimas saidas e programar reposicao imediata.`;
+        }
+        return `A variedade ${stats.riscoVariedade.nome} e a que mais merece atencao agora, com ${formatQuantity(stats.riscoVariedade.saldo)} disponiveis.`;
+      }
+
+      if (normalizedQuestion.includes("SAIDA") || normalizedQuestion.includes("TENDENCIA")) {
+        return `Registramos ${formatQuantity(stats.totalSaidas)} em saidas acumuladas no historico atual. Nos movimentos mais recentes, sairam ${formatQuantity(stats.saidaRecente)}.`;
+      }
+
+      if (normalizedQuestion.includes("BONIFICAC")) {
+        return "Nao encontrei um indicador explicito de bonificacao nesse historico. Hoje eu enxergo entradas, saidas, produto, loja e arquivo de origem.";
+      }
+
+      return `Consigo analisar entradas, saidas, risco de ruptura e distribuicao por variedade. Hoje o saldo total esta em ${formatQuantity(stats.saldoAtual)}.`;
+    },
+    [stats],
+  );
+
+  const sendMitaMessage = useCallback(
+    async (rawQuestion: string) => {
+      const question = rawQuestion.trim();
+      if (!question || isMitaTyping) {
+        return;
+      }
+
+      setIsChatOpen(true);
+      setShowMitaMenu(false);
+      setCurrentInput("");
+
+      const previousMessages = [...chatMessages];
+      const optimisticMessages = [...previousMessages, { role: "user" as const, content: question }];
+      setChatMessages(optimisticMessages);
+      setIsMitaTyping(true);
+
+      try {
+        const response = await api.post<MitaResponse>(mitaEndpoint, {
+          message: question,
+          history: previousMessages,
+        });
+
+        if (Array.isArray(response.data?.history) && response.data.history.length > 0) {
+          setChatMessages(
+            response.data.history.filter(
+              (item): item is ChatMessage =>
+                (item.role === "user" || item.role === "assistant") &&
+                typeof item.content === "string",
+            ),
+          );
+        } else {
+          const answer =
+            typeof response.data?.answer === "string" && response.data.answer.trim()
+              ? response.data.answer.trim()
+              : buildFallbackMitaResponse(question);
+          setChatMessages([...optimisticMessages, { role: "assistant", content: answer }]);
+        }
+      } catch (error) {
+        console.error("Erro ao consultar Mita AI, usando resposta local:", error);
+        setChatMessages([
+          ...optimisticMessages,
+          { role: "assistant", content: buildFallbackMitaResponse(question) },
+        ]);
+      } finally {
+        setIsMitaTyping(false);
+      }
+    },
+    [buildFallbackMitaResponse, chatMessages, isMitaTyping, mitaEndpoint],
+  );
+
+  const insightText =
+    stats.riscoVariedade.saldo <= 0
+      ? `Detectamos saldo zerado para ${stats.riscoVariedade.nome}. Vale priorizar reposicao imediata para evitar ruptura nas lojas.`
+      : `Detectamos menor cobertura para ${stats.riscoVariedade.nome}. Com ${formatQuantity(stats.riscoVariedade.saldo)} disponiveis, vale programar reposicao nas proximas 48h.`;
+
   return (
-    <section className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-slate-900">Registro de Estoque</h1>
+    <section className="mx-auto max-w-7xl space-y-8 pb-20 text-gray-100">
+      <input
+        ref={inputFileRef}
+        type="file"
+        accept=".pdf"
+        className="hidden"
+        onChange={handleUploadPdf}
+      />
 
-        <div className="flex gap-2">
-          <input
-            ref={inputFileRef}
-            type="file"
-            accept=".pdf"
-            className="hidden"
-            onChange={handleUploadPdf}
-          />
+      <header className="flex flex-col items-start justify-between gap-4 rounded-3xl border border-white/5 bg-white/[0.02] p-6 shadow-sm backdrop-blur-md md:flex-row md:items-center">
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-tr from-yellow-500 to-green-300 p-[2px]">
+            <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0a1f12]">
+              <Banana size={20} className="text-yellow-400" />
+            </div>
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight text-white">Mita Monitora: Gestao de Estoque</h2>
+            <p className="text-sm text-gray-400">Saldo e movimentacoes de bananas em tempo real.</p>
+          </div>
+        </div>
 
+        <div className="flex w-full flex-wrap gap-3 md:w-auto md:justify-end">
+          <button
+            type="button"
+            onClick={() => void buscarEstoque("refresh")}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-2.5 text-sm font-medium text-green-300 transition-all hover:bg-white/10 shadow-[0_0_15px_rgba(74,222,128,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isRefreshing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+            Sincronizar Carga
+          </button>
           <button
             type="button"
             onClick={abrirSeletorArquivo}
             disabled={enviandoPdf}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
+            className="rounded-full border border-sky-400/20 bg-sky-500/10 px-5 py-2.5 text-sm font-semibold text-sky-200 transition-all hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {enviandoPdf ? "Enviando..." : "Enviar DANFE (PDF)"}
+            {enviandoPdf ? "Enviando PDF..." : "Enviar DANFE"}
           </button>
-
           <button
             type="button"
             onClick={() => setModalAberto(true)}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+            className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-5 py-2.5 text-sm font-semibold text-emerald-200 transition-all hover:bg-emerald-500/20"
           >
             Nova Movimentacao
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="rounded-lg bg-white p-6 shadow-md">
-        <p className="text-sm text-slate-500">Saldo atual</p>
-        <p
-          className={`mt-2 text-4xl font-bold ${
-            saldo > 0 ? "text-green-600" : "text-red-600"
+      {pageError ? (
+        <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-5 py-4 text-sm text-red-200">
+          {pageError}
+        </div>
+      ) : null}
+
+      {feedback ? (
+        <div
+          className={`rounded-2xl border px-5 py-4 text-sm ${
+            feedback.tone === "success"
+              ? "border-green-500/20 bg-green-500/10 text-green-300"
+              : "border-red-500/20 bg-red-500/10 text-red-200"
           }`}
         >
-          {saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
-          kg
-        </p>
+          {feedback.text}
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+        <GlassCard
+          title="Saldo em Estoque"
+          value={carregando ? "Carregando..." : formatQuantity(stats.saldoAtual)}
+          subtitle="Volume total consolidado."
+          icon={<Box size={24} />}
+          colorClass="text-yellow-400"
+          trend={stats.saldoAtual >= 0 ? "up" : "down"}
+        />
+        <GlassCard
+          title="Saidas Recentes"
+          value={carregando ? "Carregando..." : formatQuantity(stats.totalSaidas)}
+          subtitle="Fluxo acumulado das saidas registradas."
+          icon={<ShoppingCart size={24} />}
+          colorClass="text-orange-400"
+          trend="neutral"
+        />
+        <GlassCard
+          title="Variedade Lider"
+          value={stats.topVariedade.nome.split(" ").pop() ?? stats.topVariedade.nome}
+          subtitle={`${formatQuantity(stats.topVariedade.saldo)} disponiveis.`}
+          icon={<Banana size={24} />}
+          colorClass="text-emerald-400"
+          trend="up"
+        />
       </div>
 
-      <div className="rounded-lg bg-white p-4 shadow-md">
-        <h2 className="mb-3 text-lg font-semibold text-slate-900">Historico</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b text-left text-slate-600">
-                <th className="px-3 py-2">Data</th>
-                <th className="px-3 py-2">Tipo</th>
-                <th className="px-3 py-2">Produto</th>
-                <th className="px-3 py-2">Quantidade</th>
-                <th className="px-3 py-2">Unidade</th>
-                <th className="px-3 py-2">Arquivo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {carregando ? (
-                <tr>
-                  <td className="px-3 py-4 text-slate-500" colSpan={6}>
-                    Carregando...
-                  </td>
-                </tr>
-              ) : historico.length === 0 ? (
-                <tr>
-                  <td className="px-3 py-4 text-slate-500" colSpan={6}>
-                    Nenhum registro encontrado.
-                  </td>
-                </tr>
-              ) : (
-                historico.map((item, index) => {
-                  const tipoTexto = String(item.tipo || "-");
-                  const tipoNormalizado = tipoTexto.toLowerCase();
-                  const isEntrada = tipoNormalizado === "entrada";
-                  const tipoClasse = isEntrada ? "text-green-600" : "text-red-600";
+      <section className="grid grid-cols-1 gap-8 pb-8 lg:grid-cols-2">
+        <div
+          ref={historySectionRef}
+          className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-xl backdrop-blur-md"
+        >
+          <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-white">
+            <History size={18} className="text-green-400" />
+            Fluxo de Movimentacao
+          </h3>
+          <div className="space-y-4">
+            {carregando ? (
+              <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-gray-400">
+                Carregando movimentacoes...
+              </div>
+            ) : historico.length === 0 ? (
+              <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-gray-400">
+                Nenhum movimento encontrado.
+              </div>
+            ) : (
+              historico.map((item, index) => {
+                const isEntrada = normalizeText(item.tipo ?? "") === "ENTRADA";
+                return (
+                  <div
+                    key={`${item.data ?? "sem-data"}-${item.produto ?? "sem-produto"}-${index}`}
+                    className="group flex items-center justify-between rounded-2xl border border-white/5 bg-white/5 p-4 transition-all hover:border-white/10"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div
+                        className={`rounded-xl p-2 ${
+                          isEntrada
+                            ? "bg-green-500/20 text-green-400"
+                            : "bg-red-500/20 text-red-400"
+                        }`}
+                      >
+                        {isEntrada ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white transition-colors group-hover:text-green-400">
+                          {item.produto || "Sem produto"}
+                        </p>
+                        <p className="text-[10px] uppercase text-gray-500">
+                          {(item.loja || item.arquivo || "Operacao manual").toString()} · {formatDate(item.data)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p
+                        className={`text-sm font-black tabular-nums ${
+                          isEntrada ? "text-green-400" : "text-red-400"
+                        }`}
+                      >
+                        {isEntrada ? "+" : "-"}
+                        {formatQuantity(Number(item.quant ?? 0), item.unidade || "KG")}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
 
+        <div className="space-y-8">
+          <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-xl backdrop-blur-md">
+            <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-white">
+              <PieChart size={18} className="text-yellow-400" />
+              Distribuicao de Saldo
+            </h3>
+            <div className="space-y-6">
+              {stats.ranking.length === 0 ? (
+                <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-gray-400">
+                  Sem variedades disponiveis para comparar.
+                </div>
+              ) : (
+                stats.ranking.map((item) => {
+                  const percentage = stats.saldoAtual === 0 ? 0 : (item.saldo / stats.saldoAtual) * 100;
                   return (
-                    <tr key={`${item.data || "sem-data"}-${item.produto || "sem-produto"}-${index}`} className="border-b">
-                      <td className="px-3 py-2 text-slate-700">{formatarData(item.data)}</td>
-                      <td className={`px-3 py-2 font-semibold ${tipoClasse}`}>{tipoTexto}</td>
-                      <td className="px-3 py-2 text-slate-700">{item.produto || "-"}</td>
-                      <td className="px-3 py-2 text-slate-700">
-                        {(Number(item.quant || 0) || 0).toLocaleString("pt-BR", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td className="px-3 py-2 text-slate-700">{item.unidade || "-"}</td>
-                      <td className="px-3 py-2 text-slate-700">{item.arquivo || "-"}</td>
-                    </tr>
+                    <div key={item.nome} className="space-y-2">
+                      <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest">
+                        <span className="text-gray-400">{item.nome}</span>
+                        <span className="font-mono text-white">{formatQuantity(item.saldo)}</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-green-500 to-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.3)] transition-all duration-1000"
+                          style={{ width: `${Math.max(0, Math.min(100, percentage))}%` }}
+                        />
+                      </div>
+                    </div>
                   );
                 })
               )}
-            </tbody>
-          </table>
+            </div>
+          </div>
+ 
+          <div className="group relative overflow-hidden rounded-[32px] border border-emerald-500/20 bg-emerald-500/5 p-6 shadow-lg">
+            <div className="absolute right-0 top-0 p-2 opacity-20 transition-opacity group-hover:opacity-40">
+              <MessageCircleMore size={60} className="text-emerald-500" />
+            </div>
+
+            <div className="relative z-10 mb-6 flex items-start gap-4">
+              <div className="rounded-2xl bg-emerald-500/20 p-3 text-emerald-400">
+                <Sparkles size={24} />
+              </div>
+              <div className="space-y-2">
+                <h4 className="text-sm font-bold text-emerald-300">Mita Inteligencia</h4>
+                <p className="text-xs italic leading-relaxed text-emerald-100/70">{insightText}</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200/60">
+                  Ultima atualizacao: {formatDateTime(historico[0]?.data)}
+                </p>
+              </div>
+            </div>
+
+            <div className="relative z-10 space-y-4 border-t border-emerald-500/10 pt-4">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <div className="relative" ref={exportMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExportMenu((prev) => !prev);
+                      setShowMitaMenu(false);
+                    }}
+                    className={`flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-[10px] font-bold uppercase transition-all ${
+                      showExportMenu
+                        ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                        : "border-white/10 bg-white/5 text-gray-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                    }`}
+                  >
+                    <Download size={14} />
+                    Exportar Movimentacoes
+                  </button>
+
+                  {showExportMenu ? (
+                    <div className="mt-2 grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                      <button
+                        type="button"
+                        onClick={() => void exportarPng()}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-[10px] font-bold uppercase text-emerald-100/80 transition-all hover:bg-emerald-500/20"
+                      >
+                        <ImageIcon size={14} className="text-emerald-500" />
+                        PNG
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void exportarExcel()}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-[10px] font-bold uppercase text-emerald-100/80 transition-all hover:bg-emerald-500/20"
+                      >
+                        <FileSpreadsheet size={14} className="text-emerald-500" />
+                        Excel
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="relative" ref={mitaMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMitaMenu((prev) => !prev);
+                      setShowExportMenu(false);
+                    }}
+                    className={`flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-[10px] font-bold uppercase transition-all ${
+                      showMitaMenu
+                        ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
+                        : "border-white/10 bg-white/5 text-gray-400 hover:bg-emerald-500/10 hover:text-emerald-300"
+                    }`}
+                  >
+                    <Bot size={14} />
+                    Perguntar a Mita
+                  </button>
+
+                  {showMitaMenu ? (
+                    <div className="mt-2 grid grid-cols-1 gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                      {MITA_QUESTIONS.map((question) => (
+                        <button
+                          key={question}
+                          type="button"
+                          onClick={() => {
+                            setIsChatOpen(true);
+                            setShowMitaMenu(false);
+                            void sendMitaMessage(question);
+                          }}
+                          className="group/q flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-left transition-all hover:bg-emerald-500/20"
+                        >
+                          <span className="text-[10px] font-semibold text-emerald-100/80 group-hover/q:text-emerald-100">
+                            {question}
+                          </span>
+                          <ChevronRight
+                            size={12}
+                            className="shrink-0 text-emerald-500 transition-transform group-hover/q:translate-x-1"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/80">
+                  <BarChart3 size={14} />
+                  Leitura rapida da operacao
+                </div>
+                <div className="grid grid-cols-1 gap-3 text-sm text-gray-300 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Entradas</p>
+                    <p className="mt-2 text-lg font-bold text-white">{formatQuantity(stats.totalEntradas)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Saidas</p>
+                    <p className="mt-2 text-lg font-bold text-white">{formatQuantity(stats.totalSaidas)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Risco</p>
+                    <p className="mt-2 text-lg font-bold text-white">
+                      {stats.riscoVariedade.nome === "Sem dados"
+                        ? "Sem alerta"
+                        : stats.riscoVariedade.nome.replace("BANANA ", "")}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
+
+      <button
+        type="button"
+        onClick={() => setIsChatOpen((prev) => !prev)}
+        className="fixed bottom-8 right-8 z-[110] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-[0_8px_32px_rgba(16,185,129,0.4)] transition-all hover:scale-110 active:scale-95"
+      >
+        <div className="animate-ping-3 absolute inset-0 rounded-full bg-green-400/20" />
+        {isChatOpen ? <X size={28} className="relative z-10" /> : <Bot size={32} className="relative z-10" />}
+      </button>
+
+      {isChatOpen ? (
+        <div className="fixed bottom-28 right-8 z-[100] flex h-[550px] w-[400px] flex-col overflow-hidden rounded-[32px] border border-white/15 bg-[#07130d]/95 shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom-8 duration-300">
+          <header className="flex items-center justify-between border-b border-white/10 p-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-emerald-500/10 p-2 text-emerald-200">
+                <Bot size={24} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-white">Chat da Mita</h2>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-green-400">
+                  Gestao de Estoque
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsChatOpen(false)}
+              className="rounded-full p-1 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+          </header>
+
+          <div className="custom-scrollbar flex-1 space-y-4 overflow-y-auto p-6 text-sm font-medium">
+            {chatMessages.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center space-y-4 px-4 text-center">
+                <div className="rounded-full border border-emerald-500/10 bg-emerald-500/5 p-4 text-emerald-400">
+                  <Bot size={40} />
+                </div>
+                <p className="italic text-gray-500">"Mita, como esta o saldo de bananas hoje?"</p>
+              </div>
+            ) : (
+              chatMessages.map((message, index) => (
+                <div
+                  key={`${message.role}-${index}`}
+                  className={`flex ${
+                    message.role === "user" ? "justify-end" : "justify-start"
+                  } animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                >
+                  <div className={`max-w-[85%] rounded-[20px] px-4 py-2 ${bubbleClass(message.role)}`}>
+                    {message.content}
+                  </div>
+                </div>
+              ))
+            )}
+
+            {isMitaTyping ? (
+              <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 animate-pulse">
+                <Bot size={14} />
+                Mita analisando...
+              </div>
+            ) : null}
+
+            <div ref={chatEndRef} />
+          </div>
+
+          <div className="flex gap-2 border-t border-white/10 bg-black/20 p-4">
+            <input
+              value={currentInput}
+              onChange={(event) => setCurrentInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void sendMitaMessage(currentInput);
+                }
+              }}
+              placeholder="Duvidas sobre o estoque..."
+              className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-gray-600 focus:border-green-500"
+            />
+            <button
+              type="button"
+              onClick={() => void sendMitaMessage(currentInput)}
+              className="rounded-xl bg-emerald-500 p-2 text-black transition-colors hover:bg-emerald-400 active:scale-95"
+            >
+              <SendHorizonal size={18} />
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {modalAberto ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-900">Nova Movimentacao</h3>
-            <form className="mt-4 space-y-4" onSubmit={handleSalvarMovimentacao}>
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => !salvandoMovimentacao && setModalAberto(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl border border-white/15 bg-[#0b1f15] p-6 shadow-2xl animate-in zoom-in duration-300"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-6 flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400">
+                  <BarChart3 size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Registrar Movimentacao</h3>
+                  <p className="text-xs text-gray-400">Atualize o estoque sem sair do dashboard.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalAberto(false)}
+                className="rounded-full p-1 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form className="space-y-4" onSubmit={(event) => void handleSalvarMovimentacao(event)}>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Produto</label>
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                  Produto
+                </label>
                 <input
-                  type="text"
                   value={produto}
-                  onChange={(e) => setProduto(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
+                  onChange={(event) => setProduto(event.target.value)}
+                  placeholder="Ex: Banana Nanica"
+                  className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-green-500"
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Quantidade</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={quantidade}
-                  onChange={(e) => setQuantidade(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
-                  required
-                />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    Quantidade (kg)
+                  </label>
+                  <input
+                    value={quantidade}
+                    onChange={(event) => setQuantidade(event.target.value)}
+                    placeholder="0"
+                    inputMode="decimal"
+                    className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-green-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                    Tipo
+                  </label>
+                  <select
+                    value={tipo}
+                    onChange={(event) => setTipo(event.target.value as "entrada" | "saida")}
+                    className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-green-500"
+                  >
+                    <option value="entrada">Entrada</option>
+                    <option value="saida">Saida</option>
+                  </select>
+                </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Tipo</label>
-                <select
-                  value={tipo}
-                  onChange={(e) => setTipo(e.target.value as "entrada" | "saida")}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
-                >
-                  <option value="entrada">entrada</option>
-                  <option value="saida">saida</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setModalAberto(false)}
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-gray-300 transition-all hover:bg-white/10"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={salvandoMovimentacao}
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition-all hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {salvandoMovimentacao ? "Salvando..." : "Salvar"}
+                  {salvandoMovimentacao ? "Salvando..." : "Salvar movimentacao"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       ) : null}
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 999px;
+        }
+
+        @keyframes ping-three-times {
+          0% {
+            transform: scale(1);
+            opacity: 1;
+          }
+
+          75%,
+          100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+
+        .animate-ping-3 {
+          animation: ping-three-times 1.5s cubic-bezier(0, 0, 0.2, 1) 3 forwards;
+        }
+      `}</style>
     </section>
   );
 }

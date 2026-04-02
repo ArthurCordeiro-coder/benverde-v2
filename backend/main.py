@@ -23,6 +23,7 @@ from data_processor import (
     deletar_movimentacao_manual,
     extrair_bananas_pdf_upload,
     listar_precos_consolidados,
+    load_precos,
     load_movimentacoes_manuais,
     load_registros_caixas,
     run_import_job,
@@ -203,6 +204,167 @@ def _meta_matches_product(meta_name: str, imported_product: str) -> bool:
     return meta_name.startswith(f"{imported_product} ")
 
 
+def _normalize_column_name(value: object) -> str:
+    text = unicodedata.normalize("NFKD", str(value or "").strip())
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _extract_market_name(column_name: object) -> str | None:
+    text = str(column_name or "").strip()
+    if not text:
+        return None
+
+    match = re.search(r"\(([^)]+)\)", text)
+    if match:
+        return match.group(1).strip()
+
+    normalized = _normalize_column_name(text)
+    if "semar" in normalized:
+        return "Semar"
+    return text
+
+
+def _coerce_price_value(value: object) -> float | None:
+    raw = str(value or "").strip()
+    if not raw or raw.lower() in {"nan", "none", "-"}:
+        return None
+
+    cleaned = re.sub(r"[^\d,.\-]", "", raw)
+    if not cleaned:
+        return None
+
+    if "," in cleaned and "." in cleaned:
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+    elif "," in cleaned:
+        cleaned = cleaned.replace(",", ".")
+
+    try:
+        number = float(cleaned)
+    except ValueError:
+        return None
+
+    if number <= 0:
+        return None
+    return round(number, 2)
+
+
+def _build_price_snapshot_items(df) -> tuple[list[dict], list[str]]:
+    if df is None or df.empty:
+        return [], []
+
+    columns = list(df.columns)
+    product_column = next(
+        (
+            column
+            for column in columns
+            if "produto buscado" in _normalize_column_name(column)
+        ),
+        None,
+    )
+    if product_column is None:
+        product_column = next(
+            (column for column in columns if "produto" in _normalize_column_name(column)),
+            None,
+        )
+    if product_column is None:
+        return [], []
+
+    price_columns: dict[str, str] = {}
+    status_columns: dict[str, str] = {}
+    match_columns: dict[str, str] = {}
+
+    for column in columns:
+        normalized = _normalize_column_name(column)
+        market = _extract_market_name(column)
+        if not market:
+            continue
+
+        if "preco" in normalized:
+            price_columns[market] = column
+            continue
+        if normalized.startswith("status"):
+            status_columns[market] = column
+            continue
+        if "produto encontrado" in normalized:
+            match_columns[market] = column
+
+    markets = ["Semar", *sorted(market for market in price_columns if market != "Semar")]
+    items: list[dict] = []
+
+    for row in df.to_dict(orient="records"):
+        product = str(row.get(product_column) or "").strip().upper()
+        if not product:
+            continue
+
+        prices: dict[str, float | None] = {}
+        statuses: dict[str, str] = {}
+        matches: dict[str, str] = {}
+        has_any_price = False
+
+        for market in markets:
+            price_value = _coerce_price_value(row.get(price_columns.get(market, "")))
+            prices[market] = price_value
+            if price_value is not None:
+                has_any_price = True
+
+            status_value = str(row.get(status_columns.get(market, "")) or "").strip()
+            if status_value:
+                statuses[market] = status_value
+
+            matched_name = str(row.get(match_columns.get(market, "")) or "").strip()
+            if matched_name:
+                matches[market] = matched_name
+
+        if not has_any_price:
+            continue
+
+        items.append(
+            {
+                "produto": product,
+                "prices": prices,
+                "statuses": statuses,
+                "matches": matches,
+            }
+        )
+
+    items.sort(key=lambda current: current["produto"])
+    return items, markets
+
+
+def _build_price_overview(pasta_precos: Path) -> dict:
+    datasets = load_precos(str(pasta_precos))
+    if not datasets:
+        return {"latestDate": None, "dates": [], "markets": ["Semar"], "snapshots": {}}
+
+    dates: list[dict] = []
+    snapshots: dict[str, list[dict]] = {}
+    all_markets: set[str] = {"Semar"}
+
+    for date_key, df in datasets.items():
+        items, markets = _build_price_snapshot_items(df)
+        snapshots[date_key] = items
+        all_markets.update(markets)
+
+        try:
+            label = datetime.strptime(date_key, "%d-%m-%Y").strftime("%d/%m/%Y")
+        except ValueError:
+            label = date_key
+
+        dates.append({"key": date_key, "label": label})
+
+    ordered_markets = ["Semar", *sorted(market for market in all_markets if market != "Semar")]
+    return {
+        "latestDate": dates[0]["key"] if dates else None,
+        "dates": dates,
+        "markets": ordered_markets,
+        "snapshots": snapshots,
+    }
+
+
 def _build_dashboard_meta_items() -> list[dict]:
     raw_metas = load_metas()
     base_items: list[dict] = []
@@ -363,6 +525,13 @@ def get_precos(current_user: dict = Depends(get_current_user)):
     pasta_precos = Path(__file__).resolve().parent / "dados" / "precos"
     precos = listar_precos_consolidados(str(pasta_precos))
     return jsonable_encoder(precos)
+
+
+@app.get("/api/precos/overview")
+def get_precos_overview(current_user: dict = Depends(get_current_user)):
+    pasta_precos = Path(__file__).resolve().parent / "dados" / "precos"
+    overview = _build_price_overview(pasta_precos)
+    return jsonable_encoder(overview)
 
 
 @app.get("/api/dashboard/summary")
