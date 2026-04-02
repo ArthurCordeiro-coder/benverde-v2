@@ -18,6 +18,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 
 from api_auth import get_current_user, router as auth_router
+from openai import OpenAI
+
 from data_processor import (
     calcular_estoque,
     deletar_movimentacao_manual,
@@ -26,6 +28,8 @@ from data_processor import (
     load_precos,
     load_movimentacoes_manuais,
     load_registros_caixas,
+    resumo_estoque_para_prompt,
+    resumo_precos_para_prompt,
     run_import_job,
     salvar_movimentacao_manual,
     salvar_registro_caixas,
@@ -795,6 +799,101 @@ def get_upload_pedidos_status(job_id: str, current_user: dict = Depends(get_curr
         )
 
     return _serialize_import_job(job)
+
+
+_MITA_MODEL = "grok-4.20-0309-reasoning"
+_MITA_SYSTEM_PROMPT = """Voce e a Mita, gerente de dados inteligente da Benverde, uma distribuidora de bananas e hortifruti.
+Voce tem acesso ao contexto operacional atual (estoque, precos, caixas das lojas e metas) e deve responder de forma clara,
+objetiva e em portugues brasileiro. Seja direta, use numeros quando relevante e aponte riscos ou oportunidades quando identificar."""
+
+
+def _build_mita_context() -> str:
+    """Monta o contexto operacional atual para o prompt da Mita."""
+    partes = []
+
+    try:
+        saldo, historico = calcular_estoque()
+        partes.append("## ESTOQUE ATUAL\n" + resumo_estoque_para_prompt(saldo, historico))
+    except Exception as exc:
+        logger.warning("Mita: falha ao carregar estoque: %s", exc)
+
+    try:
+        dados_precos = load_precos()
+        partes.append("## PRECOS CONCORRENTES\n" + resumo_precos_para_prompt(dados_precos))
+    except Exception as exc:
+        logger.warning("Mita: falha ao carregar precos: %s", exc)
+
+    try:
+        caixas_df = load_registros_caixas()
+        pendentes = caixas_df[caixas_df["entregue"] != "sim"] if not caixas_df.empty else caixas_df
+        partes.append(
+            f"## CAIXAS DAS LOJAS\n"
+            f"Total de registros: {len(caixas_df)}\n"
+            f"Registros nao entregues: {len(pendentes)}\n"
+            + (pendentes.to_string(index=False, max_rows=20) if not pendentes.empty else "Nenhuma pendencia.")
+        )
+    except Exception as exc:
+        logger.warning("Mita: falha ao carregar caixas: %s", exc)
+
+    try:
+        metas = load_metas()
+        if metas:
+            linhas_metas = "\n".join(f"  {m['produto']}: {m['meta']} unidades" for m in metas[:30])
+            partes.append(f"## METAS POR PRODUTO\n{linhas_metas}")
+    except Exception as exc:
+        logger.warning("Mita: falha ao carregar metas: %s", exc)
+
+    return "\n\n".join(partes) if partes else "Nenhum dado operacional disponivel no momento."
+
+
+@app.post("/api/mita-ai/chat")
+def mita_ai_chat(payload: dict = Body(...), current_user: dict = Depends(get_current_user)):
+    xai_api_key = os.getenv("XAI_API_KEY", "").strip()
+    if not xai_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Servico de IA nao configurado. Defina XAI_API_KEY no servidor.",
+        )
+
+    user_message = (payload.get("message") or "").strip()
+    if not user_message:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Mensagem vazia.")
+
+    raw_history = payload.get("history") or []
+    history: list[dict] = [
+        {"role": str(m["role"]), "content": str(m["content"])}
+        for m in raw_history
+        if isinstance(m, dict)
+        and m.get("role") in ("user", "assistant")
+        and isinstance(m.get("content"), str)
+    ]
+
+    contexto = _build_mita_context()
+    system_content = f"{_MITA_SYSTEM_PROMPT}\n\n{contexto}"
+
+    messages = [{"role": "system", "content": system_content}]
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_message})
+
+    try:
+        client = OpenAI(api_key=xai_api_key, base_url="https://api.x.ai/v1")
+        completion = client.chat.completions.create(
+            model=_MITA_MODEL,
+            messages=messages,
+        )
+        answer = (completion.choices[0].message.content or "").strip()
+    except Exception as exc:
+        logger.exception("Mita AI: erro na chamada ao modelo %s", _MITA_MODEL)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Erro ao se comunicar com o modelo de IA: {exc}",
+        )
+
+    updated_history = history + [
+        {"role": "user", "content": user_message},
+        {"role": "assistant", "content": answer},
+    ]
+    return {"answer": answer, "history": updated_history}
 
 
 @app.post("/api/upload/pdf")

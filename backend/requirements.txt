@@ -9,3 +9,4 @@ pdfplumber
 openpyxl
 pytest
 httpx
+openai
