@@ -52,7 +52,7 @@ const navItems = [
   { href: "/dashboard/estoque", label: "Estoque de Bananas", icon: <Banana size={18} /> },
   { href: "/dashboard/caixas", label: "Caixas das Lojas", icon: <PackageSearch size={18} /> },
   { href: "/dashboard/precos", label: "Precos Concorrentes", icon: <Tags size={18} /> },
-  { href: "/dashboard/mita-ai", label: "Mita aí", icon: <MessageCircleMore size={18} /> },
+  { href: "/dashboard/mita-ai", label: "Mita AI", icon: <MessageCircleMore size={18} /> },
 ];
 
 function getNavClass(active: boolean, isHighlight = false) {
@@ -195,7 +195,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-[#070d09] text-gray-100">
       <aside className="relative z-10 m-4 flex w-72 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-2xl">
         <div className="flex items-center gap-3 border-b border-white/5 p-8">
           <div className="rounded-xl bg-gradient-to-br from-green-400 to-green-600 p-2 shadow-lg shadow-green-500/30">

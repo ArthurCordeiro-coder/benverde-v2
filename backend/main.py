@@ -5,7 +5,9 @@ load_dotenv()
 import logging
 from multiprocessing import Process
 import os
+import re
 import shutil
+import unicodedata
 import uuid
 import zipfile
 from datetime import datetime
@@ -27,11 +29,75 @@ from data_processor import (
     salvar_movimentacao_manual,
     salvar_registro_caixas,
 )
-from db import create_import_job, get_import_job, update_import_job
+from db import (
+    clear_cache_table,
+    clear_pedidos_importados,
+    create_import_job,
+    fetch_pedidos_importados,
+    get_import_job,
+    load_metas,
+    replace_metas,
+    update_import_job,
+)
 
 app = FastAPI(title="Benverde API")
 logger = logging.getLogger(__name__)
 IMPORT_JOBS_ROOT = Path(__file__).resolve().parent / "temp_import_jobs"
+DASHBOARD_CATEGORY_ORDER = ("Frutas", "Legumes", "Verduras")
+_CATEGORY_KEYWORDS = {
+    "Frutas": (
+        "BANANA",
+        "MACA",
+        "MAMAO",
+        "PERA",
+        "UVA",
+        "MELAO",
+        "MELANCIA",
+        "LARANJA",
+        "LIMAO",
+        "ABACATE",
+        "ABACAXI",
+        "MANGA",
+        "MORANGO",
+        "KIWI",
+        "GOIABA",
+    ),
+    "Legumes": (
+        "BATATA",
+        "CENOURA",
+        "BERINJELA",
+        "MANDIOCA",
+        "BETERRABA",
+        "ABOBORA",
+        "ABOBRINHA",
+        "CHUCHU",
+        "PEPINO",
+        "CEBOLA",
+        "ALHO",
+        "INHAME",
+        "MANDIOQUINHA",
+        "PIMENTAO",
+        "TOMATE",
+        "VAGEM",
+        "MILHO",
+    ),
+    "Verduras": (
+        "ALFACE",
+        "MANJERICAO",
+        "MOSTARDA",
+        "RUCULA",
+        "COUVE",
+        "ESPINAFRE",
+        "AGRIAO",
+        "ALMEIRAO",
+        "SALSINHA",
+        "CEBOLINHA",
+        "COENTRO",
+        "HORTELA",
+        "REPOLHO",
+        "ESCAROLA",
+    ),
+}
 
 
 def get_allowed_origins() -> list[str]:
@@ -98,6 +164,144 @@ def _serialize_import_job(job: dict) -> dict:
     }
 
 
+def _normalize_text(value: object) -> str:
+    text = unicodedata.normalize("NFKD", str(value or "").strip().upper())
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    text = re.sub(r"[^A-Z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _infer_dashboard_category(produto: str, categoria: object | None = None) -> str:
+    normalized_category = _normalize_text(categoria)
+    category_map = {
+        "FRUTA": "Frutas",
+        "FRUTAS": "Frutas",
+        "LEGUME": "Legumes",
+        "LEGUMES": "Legumes",
+        "VERDURA": "Verduras",
+        "VERDURAS": "Verduras",
+    }
+    if normalized_category in category_map:
+        return category_map[normalized_category]
+
+    normalized_product = _normalize_text(produto)
+    for category, keywords in _CATEGORY_KEYWORDS.items():
+        if any(keyword in normalized_product for keyword in keywords):
+            return category
+    return "Frutas"
+
+
+def _meta_matches_product(meta_name: str, imported_product: str) -> bool:
+    if not meta_name or not imported_product:
+        return False
+    if meta_name == imported_product:
+        return True
+    if imported_product.startswith(f"{meta_name} "):
+        return True
+    if f" {meta_name} " in f" {imported_product} ":
+        return True
+    return meta_name.startswith(f"{imported_product} ")
+
+
+def _build_dashboard_meta_items() -> list[dict]:
+    raw_metas = load_metas()
+    base_items: list[dict] = []
+    seen_products: set[str] = set()
+
+    for index, raw_meta in enumerate(raw_metas, start=1):
+        produto = str(raw_meta.get("Produto") or raw_meta.get("produto") or "").strip()
+        if not produto:
+            continue
+
+        normalized_product = _normalize_text(produto)
+        if not normalized_product or normalized_product in seen_products:
+            continue
+
+        try:
+            meta_value = int(float(raw_meta.get("Meta") or raw_meta.get("meta") or 0))
+        except (TypeError, ValueError):
+            meta_value = 0
+
+        if meta_value <= 0:
+            continue
+
+        seen_products.add(normalized_product)
+        base_items.append(
+            {
+                "id": index,
+                "produto": produto,
+                "categoria": _infer_dashboard_category(
+                    produto,
+                    raw_meta.get("Categoria") or raw_meta.get("categoria"),
+                ),
+                "meta": meta_value,
+                "_normalized": normalized_product,
+            }
+        )
+
+    if not base_items:
+        return []
+
+    aggregated_orders = {item["_normalized"]: 0.0 for item in base_items}
+    normalized_targets = sorted(
+        [(item["_normalized"], item["produto"]) for item in base_items],
+        key=lambda current: len(current[0]),
+        reverse=True,
+    )
+
+    for imported_order in fetch_pedidos_importados():
+        normalized_product = _normalize_text(
+            imported_order.get("Produto") or imported_order.get("produto")
+        )
+        if not normalized_product:
+            continue
+
+        try:
+            quantity = float(imported_order.get("QUANT") or imported_order.get("quant") or 0)
+        except (TypeError, ValueError):
+            quantity = 0.0
+
+        if quantity <= 0:
+            continue
+
+        matched_meta = next(
+            (
+                normalized_meta
+                for normalized_meta, _ in normalized_targets
+                if _meta_matches_product(normalized_meta, normalized_product)
+            ),
+            None,
+        )
+        if matched_meta is None:
+            continue
+
+        aggregated_orders[matched_meta] += quantity
+
+    items: list[dict] = []
+    for item in base_items:
+        pedido = round(aggregated_orders.get(item["_normalized"], 0.0), 2)
+        progresso = (pedido / item["meta"]) * 100 if item["meta"] > 0 else 0.0
+        status_label = "Pendente"
+        if progresso >= 100:
+            status_label = "Atingida"
+        elif progresso >= 80:
+            status_label = "Proxima"
+
+        items.append(
+            {
+                "id": item["id"],
+                "produto": item["produto"],
+                "categoria": item["categoria"],
+                "meta": item["meta"],
+                "pedido": pedido,
+                "progresso": round(progresso, 2),
+                "status": status_label,
+            }
+        )
+
+    return items
+
+
 @app.get("/api/estoque/saldo")
 def get_estoque_saldo(current_user: dict = Depends(get_current_user)):
     saldo, historico = calcular_estoque()
@@ -159,6 +363,123 @@ def get_precos(current_user: dict = Depends(get_current_user)):
     pasta_precos = Path(__file__).resolve().parent / "dados" / "precos"
     precos = listar_precos_consolidados(str(pasta_precos))
     return jsonable_encoder(precos)
+
+
+@app.get("/api/dashboard/summary")
+def get_dashboard_summary(current_user: dict = Depends(get_current_user)):
+    saldo_estoque, _ = calcular_estoque()
+
+    caixas_df = load_registros_caixas()
+    caixas_registradas = int(len(caixas_df.index))
+    caixas_disponiveis = 0
+    if not caixas_df.empty:
+        caixas_disponiveis = int(
+            caixas_df["total"].fillna(0).astype(int).sum()
+            if "total" in caixas_df.columns
+            else 0
+        )
+
+    pasta_precos = Path(__file__).resolve().parent / "dados" / "precos"
+    precos = listar_precos_consolidados(str(pasta_precos))
+    precos_registrados = len(precos)
+    preco_values = []
+    for item in precos:
+        try:
+            price = float(item.get("Preco") or item.get("preco") or 0)
+        except (TypeError, ValueError):
+            price = 0.0
+        if price > 0:
+            preco_values.append(price)
+    preco_medio = sum(preco_values) / len(preco_values) if preco_values else 0.0
+
+    metas = _build_dashboard_meta_items()
+    media_entrega = (
+        sum(float(item["progresso"]) for item in metas) / len(metas) if metas else 0.0
+    )
+
+    return {
+        "summary": {
+            "saldoEstoque": round(float(saldo_estoque or 0), 2),
+            "caixasDisponiveis": caixas_disponiveis,
+            "precoMedio": round(preco_medio, 2),
+            "caixasRegistradas": caixas_registradas,
+            "precosRegistrados": precos_registrados,
+            "metasAtivas": len(metas),
+            "mediaEntrega": round(media_entrega, 2),
+            "pedidosImportados": len(fetch_pedidos_importados()),
+        },
+        "metas": metas,
+    }
+
+
+@app.put("/api/dashboard/metas")
+def put_dashboard_metas(
+    payload: dict | list = Body(...), current_user: dict = Depends(get_current_user)
+):
+    items = payload if isinstance(payload, list) else payload.get("items")
+    if not isinstance(items, list):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Envie uma lista de metas.",
+        )
+
+    by_product: dict[str, dict] = {}
+    for raw_item in items:
+        if not isinstance(raw_item, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cada meta precisa ser um objeto JSON.",
+            )
+
+        produto = str(raw_item.get("produto") or raw_item.get("Produto") or "").strip()
+        if not produto:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Toda meta precisa informar o produto.",
+            )
+
+        try:
+            meta_value = int(float(raw_item.get("meta") or raw_item.get("Meta") or 0))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Meta invalida para o produto {produto}.",
+            ) from exc
+
+        if meta_value <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"A meta do produto {produto} deve ser maior que zero.",
+            )
+
+        normalized_product = _normalize_text(produto)
+        by_product[normalized_product] = {
+            "Produto": produto,
+            "Meta": meta_value,
+            "Categoria": _infer_dashboard_category(
+                produto,
+                raw_item.get("categoria") or raw_item.get("Categoria"),
+            ),
+        }
+
+    replace_metas(list(by_product.values()))
+    return {"success": True, "items": jsonable_encoder(_build_dashboard_meta_items())}
+
+
+@app.delete("/api/dashboard/pedidos/importados")
+def delete_dashboard_imported_orders(current_user: dict = Depends(get_current_user)):
+    is_admin = bool(
+        current_user.get("role") == "admin" or current_user.get("is_admin") is True
+    )
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Apenas administradores podem limpar pedidos importados.",
+        )
+
+    clear_pedidos_importados()
+    clear_cache_table("cache_pedidos")
+    return {"success": True}
 
 
 @app.post("/api/upload/pedidos", status_code=status.HTTP_202_ACCEPTED)

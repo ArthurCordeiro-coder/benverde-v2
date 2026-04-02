@@ -111,7 +111,8 @@ def _ensure_tables():
         """
         CREATE TABLE IF NOT EXISTS metas_local (
             produto TEXT PRIMARY KEY,
-            meta BIGINT
+            meta BIGINT,
+            categoria TEXT
         )
         """,
         """
@@ -262,6 +263,23 @@ def _ensure_import_jobs_columns():
             )
 
 
+def _ensure_metas_columns():
+    columns = {
+        "categoria": "TEXT",
+    }
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            for column, definition in columns.items():
+                cur.execute(
+                    sql.SQL(
+                        "ALTER TABLE metas_local ADD COLUMN IF NOT EXISTS {column} {definition}"
+                    ).format(
+                        column=_format_identifier(column),
+                        definition=sql.SQL(definition),
+                    )
+                )
+
+
 def _ensure_cache_pedidos_columns():
     columns = {
         "arquivo_pdf": "TEXT",
@@ -352,6 +370,7 @@ def _ensure_db_structures():
     _ensure_cache_columns()
     _ensure_cache_pedidos_columns()
     _ensure_import_jobs_columns()
+    _ensure_metas_columns()
 
 
 _ensure_db_structures()
@@ -510,8 +529,15 @@ def clear_cache_table(table_name: str) -> None:
 def load_metas() -> list[dict]:
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT produto, meta FROM metas_local ORDER BY produto")
-            return [{"Produto": row[0], "Meta": row[1]} for row in cur.fetchall()]
+            cur.execute("SELECT produto, meta, categoria FROM metas_local ORDER BY produto")
+            return [
+                {
+                    "Produto": row[0],
+                    "Meta": row[1],
+                    "Categoria": row[2],
+                }
+                for row in cur.fetchall()
+            ]
 
 
 def replace_metas(records: list[dict]) -> None:
@@ -520,8 +546,8 @@ def replace_metas(records: list[dict]) -> None:
             cur.execute("DELETE FROM metas_local")
             for item in records:
                 cur.execute(
-                    "INSERT INTO metas_local (produto, meta) VALUES (%s, %s)",
-                    (item.get("Produto"), item.get("Meta")),
+                    "INSERT INTO metas_local (produto, meta, categoria) VALUES (%s, %s, %s)",
+                    (item.get("Produto"), item.get("Meta"), item.get("Categoria")),
                 )
 
 
@@ -680,6 +706,12 @@ def save_pedidos_importados(records: list[dict]) -> None:
                 """,
                 valores,
             )
+
+
+def clear_pedidos_importados() -> None:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM pedidos_importados")
 
 
 def create_import_job(job_id: str, total_files: int, recent_logs: list[str] | None = None) -> None:
