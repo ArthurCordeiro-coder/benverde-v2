@@ -1,0 +1,13 @@
+
+> dev
+> next dev --port 3001
+
+▲ Next.js 16.2.1 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.0.22:3001
+✓ Ready in 348ms
+
+ GET /login 200 in 302ms (next.js: 57ms, proxy.ts: 109ms, application-code: 136ms)
+ GET /login/criar-conta 200 in 499ms (next.js: 331ms, proxy.ts: 107ms, application-code: 60ms)
+ GET /api/me 401 in 348ms (next.js: 330ms, application-code: 18ms)
+ POST /api/register 400 in 106ms (next.js: 96ms, application-code: 9ms)

@@ -205,7 +205,7 @@ function findDateColumn(columns: string[]): string | null {
 }
 
 async function loadDbDatasets(): Promise<Record<string, PriceRow[]>> {
-  const tableName = (process.env.PRECOS_TABLE?.trim() || "precos").trim();
+  const tableName = "precos";
 
   try {
     if (!(await tableExists(tableName))) {
