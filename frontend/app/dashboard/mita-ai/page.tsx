@@ -22,7 +22,7 @@ function bubbleClass(role: ChatMessage["role"]) {
 }
 
 export default function MitaAiPage() {
-  const mitaEndpoint = process.env.NEXT_PUBLIC_MITA_AI_PATH?.trim() || "/api/mita-ai/chat";
+  const mitaEndpoint = "/api/mita-ai/chat";
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -74,7 +74,7 @@ export default function MitaAiPage() {
           content:
             typeof detail === "string" && detail.trim()
               ? detail
-              : "Nao consegui falar com a Mita agora. Verifique a configuracao da IA no backend.",
+              : "Nao consegui falar com a Mita agora. Verifique a configuracao da IA no servidor Next.js.",
         },
       ]);
     } finally {
@@ -95,8 +95,8 @@ export default function MitaAiPage() {
               Converse com a gerente de dados do painel
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-300">
-              A Mita analisa estoque, caixas, precos, metas e pedidos importados para responder
-              em linguagem natural dentro do painel gerencial.
+              A Mita analisa estoque, caixas, precos e metas para responder em linguagem
+              natural dentro do painel gerencial.
             </p>
           </div>
 
@@ -117,8 +117,9 @@ export default function MitaAiPage() {
           <div className="border-b border-white/10 px-6 py-5">
             <h2 className="text-lg font-semibold text-white">Chat da Mita</h2>
             <p className="mt-1 text-sm text-slate-400">
-              Pergunte, por exemplo: "como esta o estoque?", "qual produto esta abaixo da meta?"
-              ou "qual o preco da banana prata?"
+              Pergunte, por exemplo: &quot;como esta o estoque?&quot;,
+              &quot;qual produto esta abaixo da meta?&quot; ou &quot;qual o preco da banana
+              prata?&quot;
             </p>
           </div>
 
@@ -190,7 +191,7 @@ export default function MitaAiPage() {
               <li>Estoque atual e movimentacoes recentes de bananas.</li>
               <li>Precos da base atual e respostas rapidas para consulta de preco.</li>
               <li>Caixas registradas por loja.</li>
-              <li>Metas salvas no banco e progresso com base nos pedidos importados.</li>
+              <li>Metas salvas no banco e progresso operacional disponivel no painel.</li>
             </ul>
           </div>
 

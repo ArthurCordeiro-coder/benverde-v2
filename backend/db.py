@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import threading
 from contextlib import contextmanager
@@ -7,6 +8,7 @@ import psycopg
 from psycopg import sql
 from psycopg.types.json import Jsonb
 
+logger = logging.getLogger(__name__)
 _CONFIG_LOCK = threading.Lock()
 _DB_CONFIG = None
 _UNSET = object()
@@ -18,24 +20,37 @@ def _get_config() -> dict:
         return _DB_CONFIG
 
     def _resolve(key: str):
-        return os.environ.get(key)
+        value = os.environ.get(key)
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
-    config = {
-        "host": _resolve("PGHOST"),
-        "dbname": _resolve("PGDATABASE"),
-        "user": _resolve("PGUSER"),
-        "password": _resolve("PGPASSWORD"),
-        "sslmode": _resolve("PGSSLMODE"),
-    }
-    port = _resolve("PGPORT")
-    if port:
-        config["port"] = port
+    database_url = _resolve("DATABASE_URL")
+    if database_url:
+        config = {"conninfo": database_url}
+    else:
+        config = {
+            "host": _resolve("PGHOST"),
+            "dbname": _resolve("PGDATABASE"),
+            "user": _resolve("PGUSER"),
+            "password": _resolve("PGPASSWORD"),
+        }
+
+        port = _resolve("PGPORT")
+        if port:
+            config["port"] = port
+
+    sslmode = _resolve("PGSSLMODE")
+    if sslmode:
+        config["sslmode"] = sslmode
+
     channel_binding = _resolve("PGCHANNELBINDING")
     if channel_binding:
         config["channel_binding"] = channel_binding
 
     config = {k: v for k, v in config.items() if v}
-    if "port" not in config:
+    if "conninfo" not in config and "port" not in config:
         config["port"] = 5432
 
     with _CONFIG_LOCK:
@@ -48,7 +63,9 @@ def _get_config() -> dict:
 def get_connection():
     cfg = _get_config()
     if not cfg:
-        raise RuntimeError("Banco de dados nao configurado (falta PGHOST/PGUSER/PGPASSWORD/PGDATABASE)")
+        raise RuntimeError(
+            "Banco de dados nao configurado (defina DATABASE_URL ou PGHOST/PGUSER/PGPASSWORD/PGDATABASE)"
+        )
     conn = psycopg.connect(**cfg)
     try:
         yield conn
@@ -62,6 +79,13 @@ def get_connection():
 
 def _format_identifier(name: str):
     return sql.Identifier(name)
+
+
+def _format_qualified_identifier(name: str):
+    parts = [part.strip() for part in str(name or "").split(".") if part.strip()]
+    if not parts:
+        raise ValueError("Identificador de tabela vazio.")
+    return sql.SQL(".").join(sql.Identifier(part) for part in parts)
 
 
 def _ensure_tables():
@@ -712,6 +736,28 @@ def clear_pedidos_importados() -> None:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM pedidos_importados")
+
+
+def fetch_precos_rows() -> list[dict]:
+    table_name = os.environ.get("PRECOS_TABLE", "precos").strip() or "precos"
+
+    try:
+        qualified_table = _format_qualified_identifier(table_name)
+    except ValueError:
+        return []
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT to_regclass(%s)", (table_name,))
+            if cur.fetchone()[0] is None:
+                return []
+
+            cur.execute(sql.SQL("SELECT * FROM {table}").format(table=qualified_table))
+            columns = [
+                item.name if hasattr(item, "name") else item[0]
+                for item in (cur.description or [])
+            ]
+            return [dict(zip(columns, row)) for row in cur.fetchall()]
 
 
 def create_import_job(job_id: str, total_files: int, recent_logs: list[str] | None = None) -> None:

@@ -11,7 +11,6 @@ import {
   Bot,
   BrainCircuit,
   ChevronDown,
-  ChevronRight,
   ChevronUp,
   ChevronsUpDown,
   Download,
@@ -310,27 +309,8 @@ function sortRows(rows: DisplayRow[], sortConfig: SortConfig): DisplayRow[] {
   return result;
 }
 
-function buildCellTooltip(row: DisplayRow, market: string, isGeneralView: boolean): string | undefined {
-  const details: string[] = [];
-  const matchValue = row.matches[market];
-  const statusValue = row.statuses[market];
-  const sampleCount = row.sampleCounts[market];
-
-  if (matchValue) {
-    details.push(`Produto encontrado: ${matchValue}`);
-  }
-  if (statusValue) {
-    details.push(`Status: ${statusValue}`);
-  }
-  if (isGeneralView && sampleCount > 0) {
-    details.push(`Media baseada em ${sampleCount} coleta(s)`);
-  }
-
-  return details.length > 0 ? details.join("\n") : undefined;
-}
-
 export default function PrecosPage() {
-  const mitaEndpoint = process.env.NEXT_PUBLIC_MITA_AI_PATH?.trim() || "/api/mita-ai/chat";
+  const mitaEndpoint = "/api/mita-ai/chat";
 
   const [dateOptions, setDateOptions] = useState<PriceDateOption[]>([]);
   const [markets, setMarkets] = useState<string[]>(["Semar"]);

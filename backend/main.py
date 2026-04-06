@@ -121,6 +121,11 @@ app.add_middleware(
 app.include_router(auth_router)
 
 
+@app.get("/health")
+def healthcheck():
+    return {"status": "ok"}
+
+
 def _serialize_import_job(job: dict) -> dict:
     total_files = max(0, int(job.get("total_files") or 0))
     processed_files = max(0, int(job.get("processed_files") or 0))
@@ -256,6 +261,62 @@ def _coerce_price_value(value: object) -> float | None:
     return round(number, 2)
 
 
+def _canonical_market_name(value: object) -> str | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+
+    normalized = _normalize_column_name(text)
+    if "semar" in normalized:
+        return "Semar"
+
+    if normalized.isascii():
+        return " ".join(part.capitalize() for part in normalized.split())
+    return text
+
+
+def _merge_price_items(raw_items: list[dict], markets: list[str]) -> list[dict]:
+    grouped: dict[str, list[dict]] = {}
+    for item in raw_items:
+        grouped.setdefault(item["produto"], []).append(item)
+
+    items: list[dict] = []
+    for produto, group in grouped.items():
+        if len(group) == 1:
+            items.append(group[0])
+            continue
+
+        merged_prices: dict[str, float | None] = {}
+        for market in markets:
+            values = [
+                entry["prices"][market]
+                for entry in group
+                if entry["prices"].get(market) is not None
+            ]
+            merged_prices[market] = round(sum(values) / len(values), 2) if values else None
+
+        merged_statuses: dict[str, str] = {}
+        merged_matches: dict[str, str] = {}
+        for entry in group:
+            for market in markets:
+                if market not in merged_statuses and entry.get("statuses", {}).get(market):
+                    merged_statuses[market] = entry["statuses"][market]
+                if market not in merged_matches and entry.get("matches", {}).get(market):
+                    merged_matches[market] = entry["matches"][market]
+
+        items.append(
+            {
+                "produto": produto,
+                "prices": merged_prices,
+                "statuses": merged_statuses,
+                "matches": merged_matches,
+            }
+        )
+
+    items.sort(key=lambda current: current["produto"])
+    return items
+
+
 def _build_price_snapshot_items(df) -> tuple[list[dict], list[str]]:
     if df is None or df.empty:
         return [], []
@@ -276,6 +337,95 @@ def _build_price_snapshot_items(df) -> tuple[list[dict], list[str]]:
         )
     if product_column is None:
         return [], []
+
+    market_column = next(
+        (
+            column
+            for column in columns
+            if _normalize_column_name(column) in {"estabelecimento", "mercado", "loja", "concorrente"}
+        ),
+        None,
+    )
+    generic_price_column = next(
+        (
+            column
+            for column in columns
+            if _normalize_column_name(column) in {"preco", "valor", "price"}
+        ),
+        None,
+    )
+    generic_status_column = next(
+        (
+            column
+            for column in columns
+            if _normalize_column_name(column) == "status"
+        ),
+        None,
+    )
+    generic_match_column = next(
+        (
+            column
+            for column in columns
+            if "produto encontrado" in _normalize_column_name(column)
+        ),
+        None,
+    )
+
+    if market_column and generic_price_column:
+        grouped_rows: dict[str, dict] = {}
+        all_markets: set[str] = {"Semar"}
+
+        for row in df.to_dict(orient="records"):
+            product = str(row.get(product_column) or "").strip().upper()
+            market = _canonical_market_name(row.get(market_column))
+            if not product or not market:
+                continue
+
+            all_markets.add(market)
+            current = grouped_rows.setdefault(
+                product,
+                {
+                    "price_lists": {},
+                    "statuses": {},
+                    "matches": {},
+                },
+            )
+
+            price_value = _coerce_price_value(row.get(generic_price_column))
+            if price_value is not None:
+                current["price_lists"].setdefault(market, []).append(price_value)
+
+            status_value = str(row.get(generic_status_column or "") or "").strip()
+            if status_value and market not in current["statuses"]:
+                current["statuses"][market] = status_value
+
+            matched_name = str(row.get(generic_match_column or "") or "").strip()
+            if matched_name and market not in current["matches"]:
+                current["matches"][market] = matched_name
+
+        markets = ["Semar", *sorted(market for market in all_markets if market != "Semar")]
+        raw_items = []
+        for product, payload in grouped_rows.items():
+            prices = {
+                market: (
+                    round(sum(payload["price_lists"].get(market, [])) / len(payload["price_lists"][market]), 2)
+                    if payload["price_lists"].get(market)
+                    else None
+                )
+                for market in markets
+            }
+            if not any(value is not None for value in prices.values()):
+                continue
+            raw_items.append(
+                {
+                    "produto": product,
+                    "prices": prices,
+                    "statuses": payload["statuses"],
+                    "matches": payload["matches"],
+                }
+            )
+
+        return _merge_price_items(raw_items, markets), markets
 
     price_columns: dict[str, str] = {}
     status_columns: dict[str, str] = {}
@@ -347,44 +497,7 @@ def _build_price_snapshot_items(df) -> tuple[list[dict], list[str]]:
             }
         )
 
-    # Deduplicate: group by product and average prices per market
-    grouped: dict[str, list[dict]] = {}
-    for item in raw_items:
-        grouped.setdefault(item["produto"], []).append(item)
-
-    items: list[dict] = []
-    for produto, group in grouped.items():
-        if len(group) == 1:
-            items.append(group[0])
-        else:
-            merged_prices: dict[str, float | None] = {}
-            for market in markets:
-                vals = [
-                    entry["prices"][market]
-                    for entry in group
-                    if entry["prices"].get(market) is not None
-                ]
-                merged_prices[market] = round(sum(vals) / len(vals), 2) if vals else None
-            # Keep statuses/matches from first entry that has them
-            merged_statuses: dict[str, str] = {}
-            merged_matches: dict[str, str] = {}
-            for entry in group:
-                for market in markets:
-                    if market not in merged_statuses and entry.get("statuses", {}).get(market):
-                        merged_statuses[market] = entry["statuses"][market]
-                    if market not in merged_matches and entry.get("matches", {}).get(market):
-                        merged_matches[market] = entry["matches"][market]
-            items.append(
-                {
-                    "produto": produto,
-                    "prices": merged_prices,
-                    "statuses": merged_statuses,
-                    "matches": merged_matches,
-                }
-            )
-
-    items.sort(key=lambda current: current["produto"])
-    return items, markets
+    return _merge_price_items(raw_items, markets), markets
 
 
 def _build_price_overview(pasta_precos: Path) -> dict:

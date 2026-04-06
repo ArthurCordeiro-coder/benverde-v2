@@ -165,10 +165,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
   };
 
-  const handleLogout = () => {
-    document.cookie = "benverde_token=; Max-Age=0; path=/; SameSite=Lax";
-    setPendingModalOpen(false);
-    router.replace("/login");
+  const handleLogout = async () => {
+    try {
+      await api.post("/api/logout");
+    } catch {
+      // Mesmo se a rota falhar, seguimos para limpar a sessao visualmente.
+    } finally {
+      setPendingModalOpen(false);
+      router.replace("/login");
+    }
   };
 
   useEffect(() => {
@@ -188,11 +193,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         setIsAdmin(false);
         setPendingModalOpen(false);
         setPendingUsers([]);
+        router.replace("/login");
       }
     };
 
     void carregarPerfil();
-  }, []);
+  }, [router]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#070d09] text-gray-100">
@@ -246,7 +252,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="border-t border-white/5 p-4">
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={() => void handleLogout()}
             className="group flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-gray-400 transition-all duration-300 hover:bg-white/5 hover:text-white"
           >
             <LogOut size={18} className="transition-colors group-hover:text-red-400" />

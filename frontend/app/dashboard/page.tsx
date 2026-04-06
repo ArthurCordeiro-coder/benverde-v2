@@ -14,16 +14,13 @@ import {
   ChevronUp,
   Download,
   Edit2,
-  Eraser,
   FileSpreadsheet,
-  FileText,
   Filter,
   Image as ImageIcon,
   Leaf,
   Loader2,
   MessageCircleMore,
   PackageSearch,
-  Plus,
   Save,
   Search,
   SendHorizonal,
@@ -101,43 +98,6 @@ type MitaResponse = {
   history?: ChatMessage[];
 };
 
-type ImportJobStatus = "queued" | "processing" | "completed" | "failed";
-
-type ImportJobResponse = {
-  job_id: string;
-  status: ImportJobStatus;
-  total_files: number;
-  processed_files: number;
-  remaining_files: number;
-  saved_records: number;
-  progress_percent: number;
-  eta_seconds: number | null;
-  elapsed_seconds: number | null;
-  current_file: string | null;
-  error_message: string | null;
-  recent_logs: string[];
-  started_at: string | null;
-  last_heartbeat_at: string | null;
-  finished_at: string | null;
-};
-
-type ImportJobState = {
-  jobId: string | null;
-  status: ImportJobStatus | null;
-  progressPercent: number;
-  processedFiles: number;
-  totalFiles: number;
-  etaSeconds: number | null;
-  elapsedSeconds: number | null;
-  savedRecords: number;
-  currentFile: string | null;
-  lastSuccessfulPollAt: number | null;
-  errorMessage: string | null;
-  recentLogs: string[];
-  startedAt: string | null;
-  networkError: string | null;
-};
-
 type Feedback = {
   tone: "success" | "error";
   text: string;
@@ -159,24 +119,6 @@ const EMPTY_SUMMARY: DashboardSummary = {
   metasAtivas: 0,
   mediaEntrega: 0,
   pedidosImportados: 0,
-};
-const POLL_INTERVAL_MS = 4000;
-const NETWORK_ERROR_COOLDOWN_MS = 15 * 60 * 1000;
-const INITIAL_IMPORT_JOB_STATE: ImportJobState = {
-  jobId: null,
-  status: null,
-  progressPercent: 0,
-  processedFiles: 0,
-  totalFiles: 0,
-  etaSeconds: null,
-  elapsedSeconds: null,
-  savedRecords: 0,
-  currentFile: null,
-  lastSuccessfulPollAt: null,
-  errorMessage: null,
-  recentLogs: [],
-  startedAt: null,
-  networkError: null,
 };
 
 function GlassCard({ title, value, subtitle, icon, trend }: GlassCardProps) {
@@ -311,44 +253,6 @@ function formatCurrency(value: number): string {
   });
 }
 
-function formatDuration(seconds: number | null): string {
-  if (seconds === null || !Number.isFinite(seconds)) {
-    return "Calculando...";
-  }
-  if (seconds <= 0) {
-    return "Menos de 1 min";
-  }
-
-  const totalMinutes = Math.ceil(seconds / 60);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours <= 0) {
-    return `${totalMinutes} min`;
-  }
-
-  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}min`;
-}
-
-function mapImportJobResponse(payload: ImportJobResponse, lastSuccessfulPollAt: number): ImportJobState {
-  return {
-    jobId: payload.job_id,
-    status: payload.status,
-    progressPercent: Number(payload.progress_percent ?? 0),
-    processedFiles: Number(payload.processed_files ?? 0),
-    totalFiles: Number(payload.total_files ?? 0),
-    etaSeconds: payload.eta_seconds ?? null,
-    elapsedSeconds: payload.elapsed_seconds ?? null,
-    savedRecords: Number(payload.saved_records ?? 0),
-    currentFile: payload.current_file ?? null,
-    lastSuccessfulPollAt,
-    errorMessage: payload.error_message ?? null,
-    recentLogs: Array.isArray(payload.recent_logs) ? payload.recent_logs : [],
-    startedAt: payload.started_at ?? null,
-    networkError: null,
-  };
-}
-
 async function parseMetasFile(file: File): Promise<ImportedMeta[]> {
   const normalizedExtension = file.name.split(".").pop()?.toLowerCase();
   if (normalizedExtension && ["png", "jpg", "jpeg", "webp"].includes(normalizedExtension)) {
@@ -464,7 +368,7 @@ function bubbleClass(role: ChatMessage["role"]) {
 }
 
 export default function DashboardHome() {
-  const mitaEndpoint = process.env.NEXT_PUBLIC_MITA_AI_PATH?.trim() || "/api/mita-ai/chat";
+  const mitaEndpoint = "/api/mita-ai/chat";
   const [summary, setSummary] = useState<DashboardSummary>(EMPTY_SUMMARY);
   const [metas, setMetas] = useState<DashboardMeta[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
@@ -487,7 +391,6 @@ export default function DashboardHome() {
   const [currentInput, setCurrentInput] = useState("");
 
   const [showMetasModal, setShowMetasModal] = useState(false);
-  const [showPedidosModal, setShowPedidosModal] = useState(false);
   const [isSavingMetas, setIsSavingMetas] = useState(false);
   const [isExtractingMetas, setIsExtractingMetas] = useState(false);
   const [selectedMetaFile, setSelectedMetaFile] = useState<File | null>(null);
@@ -497,22 +400,10 @@ export default function DashboardHome() {
   const [formMeta, setFormMeta] = useState(0);
   const [formCategoria, setFormCategoria] = useState<DashboardCategory>("Frutas");
 
-  const [isProcessingPedidos, setIsProcessingPedidos] = useState(false);
-  const [selectedPedidoFiles, setSelectedPedidoFiles] = useState<File[]>([]);
-  const [importMessage, setImportMessage] = useState<Feedback>(null);
-  const [importJob, setImportJob] = useState<ImportJobState>(INITIAL_IMPORT_JOB_STATE);
-
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
   const mitaMenuRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const tableSectionRef = useRef<HTMLDivElement | null>(null);
-  const handledImportStatusRef = useRef<ImportJobStatus | null>(null);
-
-  const hasActiveImport = importJob.status === "queued" || importJob.status === "processing";
-  const isImportDelayed =
-    hasActiveImport &&
-    importJob.elapsedSeconds !== null &&
-    importJob.elapsedSeconds >= NETWORK_ERROR_COOLDOWN_MS / 1000;
 
   const loadDashboardData = useCallback(async (mode: "initial" | "refresh" = "refresh") => {
     if (mode === "initial") {
@@ -565,69 +456,6 @@ export default function DashboardHome() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, isMitaTyping]);
-
-  useEffect(() => {
-    if (!importJob.jobId || !hasActiveImport) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(async () => {
-      try {
-        const response = await api.get<ImportJobResponse>(`/api/upload/pedidos/${importJob.jobId}`);
-        setImportJob(mapImportJobResponse(response.data, Date.now()));
-      } catch (error) {
-        console.error("Erro ao consultar status da importacao:", error);
-        setImportJob((currentState) => {
-          if (!currentState.jobId || (currentState.status !== "queued" && currentState.status !== "processing")) {
-            return currentState;
-          }
-
-          const lastSuccess = currentState.lastSuccessfulPollAt ?? Date.now();
-          const cooldownExceeded = Date.now() - lastSuccess >= NETWORK_ERROR_COOLDOWN_MS;
-
-          return {
-            ...currentState,
-            networkError: cooldownExceeded
-              ? "Sem resposta do servidor ha mais de 15 minutos. A importacao pode ainda estar rodando no backend."
-              : null,
-          };
-        });
-      }
-    }, POLL_INTERVAL_MS);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [importJob.jobId, importJob.lastSuccessfulPollAt, importJob.status, hasActiveImport]);
-
-  useEffect(() => {
-    if (importJob.status === "completed" && handledImportStatusRef.current !== "completed") {
-      handledImportStatusRef.current = "completed";
-      setImportMessage({
-        tone: "success",
-        text: `Importacao concluida com ${importJob.processedFiles} arquivo(s) processado(s) e ${importJob.savedRecords} registro(s) salvo(s).`,
-      });
-      void loadDashboardData("refresh");
-    }
-
-    if (importJob.status === "failed" && handledImportStatusRef.current !== "failed") {
-      handledImportStatusRef.current = "failed";
-      setImportMessage({
-        tone: "error",
-        text: importJob.errorMessage || "Falha ao processar a importacao de pedidos.",
-      });
-    }
-
-    if (importJob.status === "queued" || importJob.status === "processing") {
-      handledImportStatusRef.current = null;
-    }
-  }, [
-    importJob.errorMessage,
-    importJob.processedFiles,
-    importJob.savedRecords,
-    importJob.status,
-    loadDashboardData,
-  ]);
 
   const filteredAndSortedData = useMemo(() => {
     let result = [...metas];
@@ -846,79 +674,6 @@ export default function DashboardHome() {
     }
   };
 
-  const handlePedidoFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setSelectedPedidoFiles(Array.from(event.target.files ?? []));
-    setImportMessage(null);
-  };
-
-  const handleProcessPedidos = async () => {
-    if (selectedPedidoFiles.length === 0 || isProcessingPedidos) {
-      return;
-    }
-
-    setIsProcessingPedidos(true);
-    setImportMessage(null);
-    handledImportStatusRef.current = null;
-
-    try {
-      const formData = new FormData();
-      selectedPedidoFiles.forEach((file) => formData.append("files", file));
-
-      const response = await api.post<ImportJobResponse>("/api/upload/pedidos", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      setImportJob(mapImportJobResponse(response.data, Date.now()));
-      setImportMessage({
-        tone: "success",
-        text: `Importacao iniciada com ${selectedPedidoFiles.length} arquivo(s).`,
-      });
-      setSelectedPedidoFiles([]);
-    } catch (error: unknown) {
-      console.error("Erro ao iniciar importacao de pedidos:", error);
-      const detail = (
-        error as { response?: { data?: { detail?: string } } } | undefined
-      )?.response?.data?.detail;
-      setImportMessage({
-        tone: "error",
-        text:
-          typeof detail === "string" && detail.trim()
-            ? detail
-            : "Nao foi possivel processar os arquivos enviados.",
-      });
-    } finally {
-      setIsProcessingPedidos(false);
-    }
-  };
-
-  const handleClearPedidosCache = async () => {
-    setImportMessage(null);
-
-    try {
-      await api.delete("/api/dashboard/pedidos/importados");
-      setImportJob(INITIAL_IMPORT_JOB_STATE);
-      await loadDashboardData("refresh");
-      setImportMessage({
-        tone: "success",
-        text: "Pedidos importados e cache de processamento foram limpos.",
-      });
-    } catch (error: unknown) {
-      console.error("Erro ao limpar pedidos importados:", error);
-      const detail = (
-        error as { response?: { data?: { detail?: string } } } | undefined
-      )?.response?.data?.detail;
-      setImportMessage({
-        tone: "error",
-        text:
-          typeof detail === "string" && detail.trim()
-            ? detail
-            : "Nao foi possivel limpar os pedidos importados.",
-      });
-    }
-  };
-
   const exportTableToExcel = () => {
     const exportRows = getExportRows(filteredAndSortedData);
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
@@ -956,7 +711,7 @@ export default function DashboardHome() {
       const bestProduct = top5[0]?.produto ?? "Nenhum produto";
 
       if (normalizedQuestion.includes("RESUMO")) {
-        return `Hoje temos ${metas.length} meta(s) ativa(s), ${formatQuantity(totalPedidos, "kg")} em pedidos importados e média global de ${summary.mediaEntrega.toFixed(1)}% de atingimento. O melhor desempenho atual é ${bestProduct}.`;
+        return `Hoje temos ${metas.length} meta(s) ativa(s), ${formatQuantity(totalPedidos, "kg")} associados as metas e media global de ${summary.mediaEntrega.toFixed(1)}% de atingimento. O melhor desempenho atual e ${bestProduct}.`;
       }
 
       if (normalizedQuestion.includes("EVOLUCAO DE")) {
@@ -1068,7 +823,7 @@ export default function DashboardHome() {
         <div className="flex items-start gap-4">
           <AlertCircle size={24} className="mt-0.5 shrink-0 text-amber-400" />
           <p className="text-sm font-medium">
-            Este resumo consolida estoque, metas, caixas, preços e pedidos já importados no sistema.
+            Este resumo consolida estoque, metas, caixas, precos e indicadores operacionais ativos do sistema.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wider text-amber-50/80">
@@ -1076,10 +831,7 @@ export default function DashboardHome() {
             {summary.caixasRegistradas} caixas
           </span>
           <span className="rounded-full border border-amber-300/20 bg-black/10 px-3 py-1">
-            {summary.precosRegistrados} preços
-          </span>
-          <span className="rounded-full border border-amber-300/20 bg-black/10 px-3 py-1">
-            {summary.pedidosImportados} pedidos
+            {summary.precosRegistrados} precos
           </span>
         </div>
       </div>
@@ -1124,17 +876,6 @@ export default function DashboardHome() {
             <UploadCloud size={24} />
           </div>
           <span className="font-semibold text-sm">Importar metas</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setShowPedidosModal(true)}
-          className="group flex flex-col items-center justify-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] py-5 text-gray-300 backdrop-blur-xl transition-all hover:bg-white/[0.06] hover:text-white"
-        >
-          <div className="rounded-full bg-white/5 p-3 transition-colors group-hover:bg-green-500/20 group-hover:text-green-400">
-            <Plus size={24} />
-          </div>
-          <span className="font-semibold text-sm">Importar pedidos</span>
         </button>
 
         <div className="relative" ref={exportMenuRef}>
@@ -1243,49 +984,6 @@ export default function DashboardHome() {
           ) : null}
         </div>
       </div>
-
-      {hasActiveImport ? (
-        <section className="space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-2xl">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-white">Importacao #{importJob.jobId?.slice(0, 8)}</p>
-              <p className="text-sm text-gray-400">
-                {importJob.processedFiles} de {importJob.totalFiles || 0} arquivo(s) concluido(s)
-              </p>
-            </div>
-            <div className="text-sm text-gray-300">Em acompanhamento</div>
-          </div>
-
-          <div className="h-3 overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-green-500 via-emerald-400 to-lime-300 transition-all duration-500"
-              style={{ width: `${Math.max(4, importJob.progressPercent || 0)}%` }}
-            />
-          </div>
-
-          <div className="grid gap-3 text-sm text-gray-300 md:grid-cols-3">
-            <p>Progresso: {importJob.progressPercent.toFixed(1)}%</p>
-            <p>Registros salvos: {importJob.savedRecords}</p>
-            <p>Tempo restante: {formatDuration(importJob.etaSeconds)}</p>
-          </div>
-
-          {importJob.currentFile ? (
-            <p className="text-sm text-gray-400">Arquivo atual: {importJob.currentFile}</p>
-          ) : null}
-
-          {isImportDelayed ? (
-            <p className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-              Esta importacao ja passou de 15 minutos. Vamos continuar acompanhando ate o backend concluir.
-            </p>
-          ) : null}
-
-          {importJob.networkError ? (
-            <p className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {importJob.networkError}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
 
       <div
         ref={tableSectionRef}
@@ -1748,165 +1446,6 @@ export default function DashboardHome() {
                   )}
                 </div>
               </section>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {showPedidosModal ? (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          onClick={() => {
-            if (!isProcessingPedidos) {
-              setShowPedidosModal(false);
-            }
-          }}
-        >
-          <div
-            className="relative w-full max-w-xl rounded-3xl border border-white/15 bg-[#0b1f15] p-6 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-6 flex items-center justify-between border-b border-white/10 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-green-500/10 p-2 text-green-400">
-                  <PackageSearch size={20} />
-                </div>
-                <h2 className="text-xl font-bold tracking-tight text-white">Importar Pedidos</h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPedidosModal(false)}
-                className="rounded-full p-1 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="relative flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/10 p-10 transition-all hover:border-green-500/30">
-                  <input
-                    type="file"
-                    multiple
-                    accept=".pdf,.zip"
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                    onChange={handlePedidoFileChange}
-                  />
-                  <UploadCloud
-                    className={`mb-3 ${selectedPedidoFiles.length > 0 ? "text-green-400" : "text-gray-500"}`}
-                    size={32}
-                  />
-                  <p className="text-center text-sm font-medium text-gray-300">PDF ou ZIP</p>
-                  <p className="mt-1 text-xs text-gray-500">Clique para selecionar multiplos arquivos</p>
-                </label>
-
-                {selectedPedidoFiles.length > 0 ? (
-                  <div className="custom-scrollbar max-h-24 overflow-y-auto rounded-xl border border-white/5 bg-black/20 p-2">
-                    {selectedPedidoFiles.map((file) => (
-                      <div
-                        key={file.name}
-                        className="flex items-center gap-2 border-b border-white/5 py-1 text-[10px] text-gray-400 last:border-0"
-                      >
-                        <FileText size={12} className="text-green-500/50" />
-                        {file.name}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              <button
-                type="button"
-                onClick={() => void handleProcessPedidos()}
-                disabled={selectedPedidoFiles.length === 0 || isProcessingPedidos}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-green-500 py-3 font-bold text-black shadow-lg transition-all hover:bg-green-600 disabled:cursor-not-allowed disabled:bg-gray-700 disabled:opacity-50"
-              >
-                {isProcessingPedidos ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Processando...
-                  </>
-                ) : (
-                  <>
-                    <UploadCloud size={18} />
-                    Processar
-                  </>
-                )}
-              </button>
-
-              {importJob.jobId ? (
-                <div className="space-y-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-white">Importacao #{importJob.jobId.slice(0, 8)}</p>
-                      <p className="text-xs text-gray-400">
-                        {importJob.processedFiles} de {importJob.totalFiles} arquivo(s)
-                      </p>
-                    </div>
-                    <span className="text-xs font-semibold uppercase tracking-widest text-green-300">
-                      {importJob.status === "completed"
-                        ? "Concluida"
-                        : importJob.status === "failed"
-                          ? "Falhou"
-                          : "Em andamento"}
-                    </span>
-                  </div>
-
-                  <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-green-500 via-emerald-400 to-lime-300 transition-all duration-500"
-                      style={{ width: `${Math.max(4, importJob.progressPercent || 0)}%` }}
-                    />
-                  </div>
-
-                  <div className="grid gap-2 text-xs text-gray-300 md:grid-cols-3">
-                    <p>Progresso: {importJob.progressPercent.toFixed(1)}%</p>
-                    <p>Registros: {importJob.savedRecords}</p>
-                    <p>Tempo: {formatDuration(importJob.etaSeconds)}</p>
-                  </div>
-
-                  {importJob.currentFile ? (
-                    <p className="text-xs text-gray-400">Arquivo atual: {importJob.currentFile}</p>
-                  ) : null}
-
-                  {importJob.recentLogs.length > 0 ? (
-                    <div className="rounded-xl border border-white/10 bg-[#08130f] p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-white">Ultimos eventos</p>
-                      <div className="space-y-1 text-xs text-gray-400">
-                        {importJob.recentLogs.slice(-4).map((logLine) => (
-                          <p key={logLine}>{logLine}</p>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {importMessage ? (
-                <div
-                  className={`rounded-xl border p-3 text-center text-sm font-medium ${
-                    importMessage.tone === "success"
-                      ? "border-green-500/20 bg-green-500/10 text-green-400"
-                      : "border-red-500/20 bg-red-500/10 text-red-200"
-                  }`}
-                >
-                  {importMessage.text}
-                </div>
-              ) : null}
-
-              <div className="h-px bg-white/5" />
-
-              <div className="flex flex-col items-center pt-2">
-                <button
-                  type="button"
-                  onClick={() => void handleClearPedidosCache()}
-                  disabled={hasActiveImport}
-                  className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-500 transition-colors hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Eraser size={16} />
-                  Limpar cache geral
-                </button>
-              </div>
             </div>
           </div>
         </div>

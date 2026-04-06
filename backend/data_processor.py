@@ -32,6 +32,7 @@ from db import (
     delete_movimentacao,
     fetch_cache,
     fetch_caixas,
+    fetch_precos_rows,
     get_import_job,
     fetch_movimentacoes,
     fetch_pedidos_importados,
@@ -672,7 +673,7 @@ def _extrair_bananas_pdf(caminho_pdf: str) -> list:
 # 1. load_precos
 # ---------------------------------------------------------------------------
 
-def load_precos(pasta_precos: str = "") -> dict:
+def _load_precos_from_csv(pasta_precos: str = "") -> dict:
     """Carrega CSVs de preÃ§os de uma pasta."""
     resultado: dict = {}
     if not pasta_precos or not os.path.isdir(pasta_precos):
@@ -733,6 +734,184 @@ def load_precos(pasta_precos: str = "") -> dict:
     ))
 
 
+def load_precos(pasta_precos: str = "") -> dict:
+    """Carrega precos do banco e usa CSVs apenas como fallback."""
+
+    def normalizar_coluna(valor: str) -> str:
+        import unicodedata
+
+        texto = unicodedata.normalize("NFKD", str(valor))
+        return texto.encode("ascii", "ignore").decode("ascii").lower().strip()
+
+    def preparar_dataframe_precos(df: pd.DataFrame, dt: Optional[datetime]) -> pd.DataFrame:
+        if df.shape[1] > 0:
+            primeira_col = df.columns[0]
+            df = df[~df[primeira_col].astype(str).str.contains("Busca gerada em", na=False)]
+
+        df = df.copy()
+        df.columns = df.columns.map(lambda coluna: str(coluna).strip())
+        df.dropna(how="all", inplace=True)
+
+        status_cols = [
+            coluna for coluna in df.columns if normalizar_coluna(coluna).startswith("status")
+        ]
+        if status_cols:
+            mask_nenhuma_loja = pd.concat(
+                [
+                    df[coluna]
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                    .isin({"nao encontrado", "nÃ£o encontrado", "sem match"})
+                    for coluna in status_cols
+                ],
+                axis=1,
+            ).all(axis=1)
+            df = df[~mask_nenhuma_loja]
+
+        for coluna in [
+            coluna for coluna in df.columns if "preco" in normalizar_coluna(coluna)
+        ]:
+            df[coluna] = (
+                df[coluna]
+                .astype(str)
+                .str.replace(r"[^\d,\.]", "", regex=True)
+                .str.replace(",", ".", regex=False)
+            )
+            df[coluna] = pd.to_numeric(df[coluna], errors="coerce")
+
+        produto_col = next(
+            (
+                coluna
+                for coluna in df.columns
+                if "produto buscado" in normalizar_coluna(coluna)
+            ),
+            None,
+        )
+        if produto_col is None:
+            produto_col = next(
+                (coluna for coluna in df.columns if "produto" in normalizar_coluna(coluna)),
+                None,
+            )
+        if produto_col is not None:
+            df[produto_col] = df[produto_col].astype(str).str.strip().str.upper()
+
+        if dt is not None:
+            df["Data"] = dt
+
+        return df
+
+    def parse_data_preco(valor) -> Optional[datetime]:
+        if valor is None or (isinstance(valor, float) and pd.isna(valor)):
+            return None
+        if isinstance(valor, datetime):
+            return valor
+        try:
+            parsed = pd.to_datetime(valor, errors="coerce", dayfirst=True)
+            if pd.notna(parsed):
+                return parsed.to_pydatetime()
+        except Exception:
+            pass
+        return parse_data_arquivo(str(valor))
+
+    def encontrar_coluna_data(colunas: list[str]) -> Optional[str]:
+        data_prioridades = {
+            "data",
+            "date",
+            "data pesquisa",
+            "data da pesquisa",
+            "data coleta",
+            "data consulta",
+            "dt",
+            "dt pesquisa",
+            "data_pesquisa",
+            "data_coleta",
+            "created at",
+            "created_at",
+            "updated at",
+            "updated_at",
+            "imported at",
+            "imported_at",
+            "timestamp",
+        }
+        arquivo_prioridades = {
+            "arquivo",
+            "nome arquivo",
+            "arquivo origem",
+            "source file",
+            "file name",
+            "filename",
+        }
+        normalizadas = {coluna: normalizar_coluna(coluna) for coluna in colunas}
+
+        for coluna, normalizada in normalizadas.items():
+            if normalizada in data_prioridades:
+                return coluna
+        for coluna, normalizada in normalizadas.items():
+            if normalizada.startswith("data "):
+                return coluna
+        for coluna, normalizada in normalizadas.items():
+            if normalizada in arquivo_prioridades:
+                return coluna
+        return None
+
+    try:
+        registros_db = fetch_precos_rows()
+    except Exception as exc:
+        logger.warning("Falha ao consultar tabela de precos no banco: %s", exc)
+        registros_db = []
+
+    if registros_db:
+        try:
+            df_db = pd.DataFrame(registros_db)
+            if not df_db.empty:
+                coluna_data = encontrar_coluna_data(list(df_db.columns))
+                if coluna_data:
+                    resultado: dict[str, pd.DataFrame] = {}
+                    grupos: dict[str, list[dict]] = {}
+                    for registro in registros_db:
+                        dt = parse_data_preco(registro.get(coluna_data))
+                        if dt is None:
+                            continue
+                        chave = dt.strftime("%d-%m-%Y")
+                        grupos.setdefault(chave, []).append(registro)
+
+                    for chave, registros in grupos.items():
+                        dt = datetime.strptime(chave, "%d-%m-%Y")
+                        df_grupo = preparar_dataframe_precos(pd.DataFrame(registros), dt)
+                        if not df_grupo.empty:
+                            resultado[chave] = df_grupo
+
+                    if resultado:
+                        logger.info(
+                            "Precos carregados do banco: %d data(s) consolidadas.",
+                            len(resultado),
+                        )
+                        return dict(
+                            sorted(
+                                resultado.items(),
+                                key=lambda item: datetime.strptime(item[0], "%d-%m-%Y"),
+                                reverse=True,
+                            )
+                        )
+                else:
+                    logger.warning(
+                        "Tabela de precos encontrada no banco, mas sem coluna de data reconhecida. Usando fallback em CSV."
+                    )
+                    df_unico = preparar_dataframe_precos(pd.DataFrame(registros_db), datetime.now())
+                    if not df_unico.empty:
+                        chave = datetime.now().strftime("%d-%m-%Y")
+                        logger.info(
+                            "Precos carregados do banco sem coluna de data; usando snapshot unico em %s.",
+                            chave,
+                        )
+                        return {chave: df_unico}
+        except Exception as exc:
+            logger.warning("Falha ao montar precos a partir do banco: %s", exc)
+
+    return _load_precos_from_csv(pasta_precos)
+
+
 def listar_precos_consolidados(pasta_precos: str = "") -> list[dict]:
     """Retorna lista simplificada de precos com base no CSV mais recente."""
     dados = load_precos(pasta_precos)
@@ -758,6 +937,69 @@ def listar_precos_consolidados(pasta_precos: str = "") -> list[dict]:
         produto_col = colunas[0]
 
     colunas_preco = [c for c in colunas if "preco" in normalizar_coluna(c)]
+    mercado_col = next(
+        (
+            c
+            for c in colunas
+            if normalizar_coluna(c) in {"estabelecimento", "mercado", "loja", "concorrente"}
+        ),
+        None,
+    )
+
+    if mercado_col and any(normalizar_coluna(c) == "preco" for c in colunas_preco):
+        preco_col = next(c for c in colunas_preco if normalizar_coluna(c) == "preco")
+        resumo = df[[produto_col, mercado_col, preco_col]].copy()
+        resumo[produto_col] = resumo[produto_col].astype(str).str.strip()
+        resumo[mercado_col] = resumo[mercado_col].astype(str).str.strip()
+        resumo[preco_col] = pd.to_numeric(resumo[preco_col], errors="coerce")
+        resumo = resumo[(resumo[produto_col] != "") & (resumo[mercado_col] != "")]
+
+        def eh_semar(valor: object) -> bool:
+            return "semar" in normalizar_coluna(str(valor or ""))
+
+        resultado = []
+        for produto, grupo in resumo.groupby(produto_col, sort=True):
+            grupo_com_preco = grupo[grupo[preco_col].notna()].copy()
+            if grupo_com_preco.empty:
+                continue
+
+            semar_vals = [
+                float(valor)
+                for _, valor in grupo_com_preco.loc[
+                    grupo_com_preco[mercado_col].map(eh_semar),
+                    preco_col,
+                ].items()
+            ]
+            if not semar_vals:
+                continue
+
+            concorrentes = grupo_com_preco.loc[
+                ~grupo_com_preco[mercado_col].map(eh_semar),
+                [mercado_col, preco_col],
+            ]
+            precos_concorrentes = [float(valor) for valor in concorrentes[preco_col].tolist()]
+            mercados_cotados = {
+                str(mercado).strip()
+                for mercado in concorrentes[mercado_col].tolist()
+                if str(mercado).strip()
+            }
+
+            resultado.append(
+                {
+                    "Produto": produto,
+                    "Preco": round(sum(semar_vals) / len(semar_vals), 2),
+                    "PrecoSemar": round(sum(semar_vals) / len(semar_vals), 2),
+                    "PrecoConcorrentesMedia": (
+                        round(sum(precos_concorrentes) / len(precos_concorrentes), 2)
+                        if precos_concorrentes
+                        else None
+                    ),
+                    "ConcorrentesCotados": len(mercados_cotados),
+                }
+            )
+
+        return resultado
+
     preco_col = next((c for c in colunas_preco if "semar" in normalizar_coluna(c)), None)
     if preco_col is None and colunas_preco:
         preco_col = colunas_preco[0]

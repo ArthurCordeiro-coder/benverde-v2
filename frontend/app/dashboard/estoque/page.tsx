@@ -26,7 +26,6 @@ import {
   X,
 } from "lucide-react";
 import {
-  type ChangeEvent,
   type FormEvent,
   type ReactNode,
   useCallback,
@@ -164,7 +163,7 @@ function bubbleClass(role: ChatMessage["role"]) {
 }
 
 export default function EstoquePage() {
-  const mitaEndpoint = process.env.NEXT_PUBLIC_MITA_AI_PATH?.trim() || "/api/mita-ai/chat";
+  const mitaEndpoint = "/api/mita-ai/chat";
 
   const [saldo, setSaldo] = useState(0);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
@@ -181,14 +180,12 @@ export default function EstoquePage() {
   const [isMitaTyping, setIsMitaTyping] = useState(false);
   const [currentInput, setCurrentInput] = useState("");
 
-  const [enviandoPdf, setEnviandoPdf] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [salvandoMovimentacao, setSalvandoMovimentacao] = useState(false);
   const [produto, setProduto] = useState("");
   const [quantidade, setQuantidade] = useState("");
   const [tipo, setTipo] = useState<"entrada" | "saida">("entrada");
 
-  const inputFileRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
   const mitaMenuRef = useRef<HTMLDivElement | null>(null);
@@ -302,46 +299,6 @@ export default function EstoquePage() {
       })),
     [historico],
   );
-
-  const abrirSeletorArquivo = () => {
-    inputFileRef.current?.click();
-  };
-
-  const handleUploadPdf = async (event: ChangeEvent<HTMLInputElement>) => {
-    const arquivo = event.target.files?.[0];
-    if (!arquivo) {
-      return;
-    }
-
-    setEnviandoPdf(true);
-    setFeedback(null);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", arquivo);
-      await api.post("/api/upload/pdf", formData);
-      setFeedback({
-        tone: "success",
-        text: "DANFE enviada com sucesso. O estoque foi atualizado.",
-      });
-      await buscarEstoque("refresh");
-    } catch (error: unknown) {
-      console.error("Erro no upload do PDF:", error);
-      const detail = (
-        error as { response?: { data?: { detail?: string } } } | undefined
-      )?.response?.data?.detail;
-      setFeedback({
-        tone: "error",
-        text:
-          typeof detail === "string" && detail.trim()
-            ? detail
-            : "Falha ao enviar o PDF para processamento.",
-      });
-    } finally {
-      setEnviandoPdf(false);
-      event.target.value = "";
-    }
-  };
 
   const handleSalvarMovimentacao = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -505,14 +462,6 @@ export default function EstoquePage() {
 
   return (
     <section className="mx-auto max-w-7xl space-y-8 pb-20 text-gray-100">
-      <input
-        ref={inputFileRef}
-        type="file"
-        accept=".pdf"
-        className="hidden"
-        onChange={handleUploadPdf}
-      />
-
       <header className="flex flex-col items-start justify-between gap-4 rounded-3xl border border-white/5 bg-white/[0.02] p-6 shadow-sm backdrop-blur-md md:flex-row md:items-center">
         <div className="flex items-center gap-4">
           <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-tr from-yellow-500 to-green-300 p-[2px]">
@@ -535,14 +484,6 @@ export default function EstoquePage() {
           >
             {isRefreshing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             Sincronizar Carga
-          </button>
-          <button
-            type="button"
-            onClick={abrirSeletorArquivo}
-            disabled={enviandoPdf}
-            className="rounded-full border border-sky-400/20 bg-sky-500/10 px-5 py-2.5 text-sm font-semibold text-sky-200 transition-all hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {enviandoPdf ? "Enviando PDF..." : "Enviar DANFE"}
           </button>
           <button
             type="button"
@@ -864,7 +805,9 @@ export default function EstoquePage() {
                 <div className="rounded-full border border-emerald-500/10 bg-emerald-500/5 p-4 text-emerald-400">
                   <Bot size={40} />
                 </div>
-                <p className="italic text-gray-500">"Mita, como esta o saldo de bananas hoje?"</p>
+                <p className="italic text-gray-500">
+                  &quot;Mita, como esta o saldo de bananas hoje?&quot;
+                </p>
               </div>
             ) : (
               chatMessages.map((message, index) => (

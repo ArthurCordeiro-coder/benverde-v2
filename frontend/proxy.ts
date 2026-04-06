@@ -1,25 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-function hasValidJwtPayload(token: string): boolean {
-  try {
-    const payloadChunk = token.split(".")[1];
-    if (!payloadChunk) {
-      return false;
-    }
+import {
+  SESSION_COOKIE_NAME,
+  verifySessionToken,
+} from "@/lib/server/session-token";
 
-    const normalizedPayload = payloadChunk.replace(/-/g, "+").replace(/_/g, "/");
-    const paddedPayload = normalizedPayload.padEnd(Math.ceil(normalizedPayload.length / 4) * 4, "=");
-    JSON.parse(atob(paddedPayload));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const token = request.cookies.get("benverde_token")?.value;
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const isDashboardRoute = pathname.startsWith("/dashboard");
   const isLegacyOperationalRoute =
     pathname === "/registro" ||
@@ -43,10 +32,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!hasValidJwtPayload(token)) {
+  const payload = await verifySessionToken(token);
+  if (!payload) {
     const loginUrl = new URL("/login", request.url);
     const response = NextResponse.redirect(loginUrl);
-    response.cookies.delete("benverde_token");
+    response.cookies.delete(SESSION_COOKIE_NAME);
     return response;
   }
 
