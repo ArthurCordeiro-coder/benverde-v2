@@ -15,6 +15,8 @@ export type Movimentacao = {
   arquivo: string | null;
 };
 
+const ENTRADA_LABEL = "Entrada";
+
 function serializeMovimentacao(row: Record<string, unknown>): Movimentacao {
   const data = parseDateValue(row.data);
   return {
@@ -75,8 +77,13 @@ export async function saveMovimentacoes(payload: unknown): Promise<number> {
     const quant = parsePositiveQuantity(registro.quant);
     const data = parseDateValue(registro.data) ?? new Date();
     const unidade = String(registro.unidade ?? "KG").trim() || "KG";
-    const loja = String(registro.loja ?? "").trim();
+    const lojaInformada = String(registro.loja ?? "").trim();
+    const loja = tipo === "entrada" ? lojaInformada || ENTRADA_LABEL : lojaInformada;
     const arquivo = String(registro.arquivo ?? "manual").trim() || "manual";
+
+    if (tipo === "saida" && !loja) {
+      badRequest("Toda saida precisa informar uma loja valida.");
+    }
 
     await execute(
       `INSERT INTO estoque_manual (data, tipo, produto, quant, unidade, loja, arquivo)

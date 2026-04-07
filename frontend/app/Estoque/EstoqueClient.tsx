@@ -32,7 +32,7 @@ type Movimentacao = {
 type EstoqueResponse = { saldo: number; historico: Movimentacao[] };
 type UploadPdfResponse = {
   arquivo?: string;
-  processamento?: "parser" | "mita-ai";
+  processamento?: "mita-ai";
   resultado?: Array<{ produto?: string; quant?: number }>;
 };
 type Feedback = { tone: "success" | "error"; text: string } | null;
@@ -48,22 +48,32 @@ type Row = {
 };
 
 const DEFAULT_PRODUCTS = ["BANANA NANICA", "BANANA DA TERRA", "BANANA PRATA", "BANANA MACA"];
+const ENTRADA_LABEL = "Entrada";
 
-const createRow = (overrides: Partial<Row> = {}): Row => ({
-  id: Date.now() + Math.floor(Math.random() * 100000),
-  sel: false,
-  produto: "",
-  quant: "",
-  loja: "",
-  tipo: "entrada",
-  origem: "manual",
-  ...overrides,
-});
+const resolveLojaByTipo = (tipo: Row["tipo"], loja = "") => (tipo === "entrada" ? ENTRADA_LABEL : loja);
+
+const createRow = (overrides: Partial<Row> = {}): Row => {
+  const base: Row = {
+    id: Date.now() + Math.floor(Math.random() * 100000),
+    sel: false,
+    produto: "",
+    quant: "",
+    loja: "",
+    tipo: "entrada",
+    origem: "manual",
+    ...overrides,
+  };
+
+  return {
+    ...base,
+    loja: resolveLojaByTipo(base.tipo, base.loja),
+  };
+};
 
 const createRows = (count: number, overrides: Partial<Row> = {}) =>
   Array.from({ length: count }, () => createRow(overrides));
 
-const hasContent = (row: Row) => Boolean(row.produto.trim() || row.quant.trim() || row.loja.trim());
+const isFilledRow = (row: Row) => Boolean(row.produto.trim() || row.quant.trim());
 
 const normalizeTipo = (value: string | null | undefined) => {
   const tipo = String(value ?? "").trim().toLowerCase();
@@ -136,6 +146,10 @@ export default function EstoqueClient() {
     () => buildLojaOptions(historico.map((item) => item.loja)),
     [historico],
   );
+  const saidaLojaOptions = useMemo(
+    () => lojaOptions.filter((loja) => loja !== ENTRADA_LABEL),
+    [lojaOptions],
+  );
 
   const productOptions = useMemo(() => {
     const unique = new Set(DEFAULT_PRODUCTS);
@@ -160,7 +174,29 @@ export default function EstoqueClient() {
   const selAll = rows.length > 0 && rows.every((row) => row.sel);
 
   const updateRow = (id: number, field: keyof Row, value: string | boolean) => {
-    setRows((current) => current.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
+    setRows((current) =>
+      current.map((row) => {
+        if (row.id !== id) return row;
+
+        if (field === "tipo") {
+          const tipo = value as Row["tipo"];
+          return {
+            ...row,
+            tipo,
+            loja: tipo === "entrada" ? ENTRADA_LABEL : row.loja === ENTRADA_LABEL ? bulkLoja : row.loja,
+          };
+        }
+
+        if (field === "loja") {
+          return {
+            ...row,
+            loja: row.tipo === "entrada" ? ENTRADA_LABEL : String(value),
+          };
+        }
+
+        return { ...row, [field]: value };
+      }),
+    );
   };
 
   const handleToggleAll = () => {
@@ -170,13 +206,23 @@ export default function EstoqueClient() {
 
   const handleBulkLoja = (value: string) => {
     setBulkLoja(value);
-    if (!value) return;
-    setRows((current) => current.map((row) => ({ ...row, loja: value })));
+    setRows((current) =>
+      current.map((row) => ({
+        ...row,
+        loja: row.tipo === "entrada" ? ENTRADA_LABEL : value,
+      })),
+    );
   };
 
   const handleBulkTipo = (value: "entrada" | "saida") => {
     setBulkTipo(value);
-    setRows((current) => current.map((row) => ({ ...row, tipo: value })));
+    setRows((current) =>
+      current.map((row) => ({
+        ...row,
+        tipo: value,
+        loja: value === "entrada" ? ENTRADA_LABEL : row.loja === ENTRADA_LABEL ? bulkLoja : row.loja,
+      })),
+    );
   };
 
   const addRow = () => {
@@ -213,34 +259,25 @@ export default function EstoqueClient() {
         return;
       }
 
-      const origemUpload =
-        response.data?.processamento === "mita-ai"
-          ? response.data?.arquivo
-            ? `mita-ai:${response.data.arquivo}`
-            : "mita-ai"
-          : response.data?.arquivo
-            ? `pdf:${response.data.arquivo}`
-            : "pdf";
-      const metodoLeitura =
-        response.data?.processamento === "mita-ai" ? "pela MITA-I" : "do PDF";
+      const origemUpload = response.data?.arquivo ? `mita-ai:${response.data.arquivo}` : "mita-ai";
 
       const importedRows = resultado.map((item) =>
         createRow({
           produto: String(item.produto ?? "").trim(),
           quant: item.quant != null ? String(item.quant) : "",
-          loja: bulkLoja,
+          loja: ENTRADA_LABEL,
           tipo: "entrada",
           origem: origemUpload,
         }),
       );
 
-      const nextRows = [...rows.filter(hasContent), ...importedRows];
+      const nextRows = [...rows.filter(isFilledRow), ...importedRows];
       const padding = nextRows.length >= 5 ? [] : createRows(5 - nextRows.length, { loja: bulkLoja, tipo: bulkTipo });
       setRows([...nextRows, ...padding]);
       setShowUpload(false);
       setFeedback({
         tone: "success",
-        text: `${importedRows.length} linha(s) carregada(s) ${metodoLeitura}. Confira e salve as movimentacoes.`,
+        text: `${importedRows.length} linha(s) carregada(s) pela MITA-I. Confira e salve as movimentacoes.`,
       });
     } catch (error) {
       setFeedback({
@@ -255,22 +292,27 @@ export default function EstoqueClient() {
 
   const salvarMovimentacoes = async () => {
     setFeedback(null);
-    const filledRows = rows.filter(hasContent);
+    const filledRows = rows.filter(isFilledRow);
     if (filledRows.length === 0) {
       setFeedback({ tone: "error", text: "Nenhuma linha preenchida para salvar." });
       return;
     }
 
     const invalidRows = filledRows.filter((row) => {
-      const loja = getLojaByLabel(row.loja);
       const quant = Number(row.quant);
-      return !row.produto.trim() || !loja || !Number.isFinite(quant) || quant <= 0;
+      if (!row.produto.trim() || !Number.isFinite(quant) || quant <= 0) {
+        return true;
+      }
+      if (row.tipo === "entrada") {
+        return false;
+      }
+      return !getLojaByLabel(row.loja);
     });
 
     if (invalidRows.length > 0) {
       setFeedback({
         tone: "error",
-        text: "Preencha produto, quantidade e loja valida em todas as linhas usadas.",
+        text: "Preencha produto e quantidade em todas as linhas usadas. Nas saidas, selecione uma loja valida.",
       });
       return;
     }
@@ -280,7 +322,7 @@ export default function EstoqueClient() {
       await api.post(
         "/api/estoque/movimentacao",
         filledRows.map((row) => ({
-          loja: getLojaByLabel(row.loja)?.label ?? row.loja.trim(),
+          loja: row.tipo === "entrada" ? ENTRADA_LABEL : getLojaByLabel(row.loja)?.label ?? row.loja.trim(),
           produto: row.produto.trim(),
           quant: Number(row.quant),
           tipo: row.tipo,
@@ -335,7 +377,7 @@ export default function EstoqueClient() {
               <div>
                 <h1 className="text-3xl font-black tracking-tight text-white">Registro de Estoque</h1>
                 <p className="text-sm text-gray-300">
-                  Registre entradas e saidas em lote ou importe um PDF para montar as linhas.
+                  Registre entradas e saidas em lote ou use a MITA-I para montar as linhas a partir do PDF.
                 </p>
               </div>
             </div>
@@ -399,8 +441,8 @@ export default function EstoqueClient() {
                     <div>
                       <h3 className="text-sm font-bold text-white">Leitura de PDF</h3>
                       <p className="text-sm text-gray-400">
-                        Envie uma NF-e em PDF para preencher as linhas automaticamente. Quando
-                        necessario, a MITA-I entra na leitura para montar as linhas.
+                        Envie uma NF-e em PDF. A MITA-I le o arquivo e preenche automaticamente as
+                        linhas de entrada.
                       </p>
                     </div>
                     <input
@@ -438,12 +480,15 @@ export default function EstoqueClient() {
                     Loja (todas as linhas)
                   </label>
                   <select
-                    value={bulkLoja}
+                    value={bulkTipo === "entrada" ? ENTRADA_LABEL : bulkLoja}
                     onChange={(event) => handleBulkLoja(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400"
+                    disabled={bulkTipo === "entrada"}
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
                   >
-                    <option value="">Escolha uma loja</option>
-                    {lojaOptions.map((loja) => (
+                    <option value={bulkTipo === "entrada" ? ENTRADA_LABEL : ""}>
+                      {bulkTipo === "entrada" ? ENTRADA_LABEL : "Escolha uma loja"}
+                    </option>
+                    {saidaLojaOptions.map((loja) => (
                       <option key={loja} value={loja} className="bg-[#07130d]">
                         {loja}
                       </option>
@@ -466,7 +511,7 @@ export default function EstoqueClient() {
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-300">
-                  {rows.filter(hasContent).length} linha(s) preenchida(s)
+                  {rows.filter(isFilledRow).length} linha(s) preenchida(s)
                 </div>
               </div>
 
@@ -514,16 +559,23 @@ export default function EstoqueClient() {
                     />
 
                     <select
-                      value={row.loja}
+                      value={row.tipo === "entrada" ? ENTRADA_LABEL : row.loja}
                       onChange={(event) => updateRow(row.id, "loja", event.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400"
+                      disabled={row.tipo === "entrada"}
+                      className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-70"
                     >
-                      <option value="">Selecione uma loja</option>
-                      {lojaOptions.map((loja) => (
-                        <option key={loja} value={loja} className="bg-[#07130d]">
-                          {loja}
-                        </option>
-                      ))}
+                      {row.tipo === "entrada" ? (
+                        <option value={ENTRADA_LABEL}>{ENTRADA_LABEL}</option>
+                      ) : (
+                        <>
+                          <option value="">Selecione uma loja</option>
+                          {saidaLojaOptions.map((loja) => (
+                            <option key={loja} value={loja} className="bg-[#07130d]">
+                              {loja}
+                            </option>
+                          ))}
+                        </>
+                      )}
                     </select>
 
                     <select

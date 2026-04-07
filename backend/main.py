@@ -963,7 +963,7 @@ def get_upload_pedidos_status(job_id: str, current_user: dict = Depends(get_curr
     return _serialize_import_job(job)
 
 
-_MITA_MODEL = "grok-4.20-0309-reasoning"
+_MITA_MODEL = "grok-4-1-fast-reasoning"
 _MITA_SYSTEM_PROMPT = """Voce e a Mita, gerente de dados inteligente da Benverde, uma distribuidora de bananas e hortifruti.
 Voce tem acesso ao contexto operacional atual (estoque, precos, caixas das lojas e metas) e deve responder de forma clara,
 objetiva e em portugues brasileiro. Seja direta, use numeros quando relevante e aponte riscos ou oportunidades quando identificar."""

@@ -11,7 +11,7 @@ type ChatMessage = {
   content: string;
 };
 
-const MITA_MODEL = "grok-4.20-0309-reasoning";
+const MITA_MODEL = "grok-4-1-fast-reasoning";
 const MITA_SYSTEM_PROMPT = `Voce e a Mita, gerente de dados inteligente da Benverde, uma distribuidora de bananas e hortifruti.
 Voce tem acesso ao contexto operacional atual de estoque, precos, caixas das lojas e metas e deve responder
 de forma clara, objetiva e em portugues brasileiro. Seja direta, use numeros quando relevante e aponte
