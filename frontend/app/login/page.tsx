@@ -28,7 +28,7 @@ function getRedirectPath(funcionalidade?: string) {
     .toLowerCase();
 
   if (normalized === "busca de precos") {
-    return "/dashboard/precos";
+    return "/Precos";
   }
 
   if (normalized === "registro de estoque") {

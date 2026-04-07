@@ -16,7 +16,7 @@ function getRestrictedDashboardPath(funcionalidade: string) {
   const normalized = normalizeFuncionalidade(funcionalidade);
 
   if (normalized === "busca de precos") {
-    return "/precos";
+    return "/Precos";
   }
 
   if (normalized === "registro de estoque") {
@@ -47,6 +47,13 @@ export async function proxy(request: NextRequest) {
   if (isLegacyOperationalRoute) {
     const dashboardUrl = new URL("/dashboard", request.url);
     return NextResponse.redirect(dashboardUrl);
+  }
+
+  if (pathname === "/precos" || pathname.startsWith("/precos/")) {
+    const canonicalPath = pathname.replace(/^\/precos/, "/Precos");
+    const canonicalUrl = new URL(canonicalPath, request.url);
+    canonicalUrl.search = request.nextUrl.search;
+    return NextResponse.redirect(canonicalUrl);
   }
 
   if (isProtectedRoute && !token) {
