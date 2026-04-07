@@ -395,6 +395,7 @@ export default function DashboardHome() {
   const [isExtractingMetas, setIsExtractingMetas] = useState(false);
   const [selectedMetaFile, setSelectedMetaFile] = useState<File | null>(null);
   const [metasFeedback, setMetasFeedback] = useState<Feedback>(null);
+  const [localMetas, setLocalMetas] = useState<DashboardMeta[]>([]);
   const [formId, setFormId] = useState<number | null>(null);
   const [formProduto, setFormProduto] = useState("");
   const [formMeta, setFormMeta] = useState(0);
@@ -437,6 +438,14 @@ export default function DashboardHome() {
   useEffect(() => {
     void loadDashboardData("initial");
   }, [loadDashboardData]);
+
+  useEffect(() => {
+    if (showMetasModal) {
+      setLocalMetas(metas);
+      setMetasFeedback(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMetasModal]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -591,7 +600,7 @@ export default function DashboardHome() {
     setFormCategoria("Frutas");
   };
 
-  const handleSaveMeta = async () => {
+  const handleSaveMeta = () => {
     const produto = formProduto.trim();
     if (!produto || formMeta <= 0) {
       setMetasFeedback({
@@ -602,7 +611,7 @@ export default function DashboardHome() {
     }
 
     const nextMetas: DashboardMeta[] = formId
-      ? metas.map((item) =>
+      ? localMetas.map((item) =>
           item.id === formId
             ? {
                 ...item,
@@ -613,7 +622,7 @@ export default function DashboardHome() {
             : item,
         )
       : [
-          ...metas,
+          ...localMetas,
           {
             id: Date.now(),
             produto,
@@ -625,17 +634,66 @@ export default function DashboardHome() {
           },
         ];
 
-    await persistMetas(nextMetas, formId ? "Meta atualizada com sucesso." : "Meta adicionada com sucesso.");
+    setLocalMetas(nextMetas);
+    setMetasFeedback(null);
     resetForm();
   };
 
-  const handleDeleteMeta = async (id: number) => {
-    const nextMetas = metas.filter((item) => item.id !== id);
-    await persistMetas(nextMetas, "Meta removida com sucesso.");
+  const handleDeleteMeta = (id: number) => {
+    setLocalMetas((current) => current.filter((item) => item.id !== id));
     if (formId === id) {
       resetForm();
     }
   };
+
+  const handleDeleteAllMetas = () => {
+    setLocalMetas([]);
+    resetForm();
+  };
+
+  const handleCloseMetasModal = useCallback(async () => {
+    if (isSavingMetas || isExtractingMetas) return;
+
+    const toKey = (m: DashboardMeta) => `${m.produto}|${m.meta}|${m.categoria}`;
+    const originalKeys = [...metas].map(toKey).sort().join(",");
+    const localKeys = [...localMetas].map(toKey).sort().join(",");
+
+    if (originalKeys === localKeys) {
+      setShowMetasModal(false);
+      resetForm();
+      setMetasFeedback(null);
+      return;
+    }
+
+    setIsSavingMetas(true);
+    setMetasFeedback(null);
+    try {
+      await api.put("/api/dashboard/metas", {
+        items: localMetas.map((item) => ({
+          produto: item.produto,
+          categoria: item.categoria,
+          meta: item.meta,
+        })),
+      });
+      await loadDashboardData("refresh");
+      setShowMetasModal(false);
+      resetForm();
+    } catch (error: unknown) {
+      console.error("Erro ao salvar metas:", error);
+      const detail = (
+        error as { response?: { data?: { detail?: string } } } | undefined
+      )?.response?.data?.detail;
+      setMetasFeedback({
+        tone: "error",
+        text:
+          typeof detail === "string" && detail.trim()
+            ? detail
+            : "Nao foi possivel salvar as metas.",
+      });
+    } finally {
+      setIsSavingMetas(false);
+    }
+  }, [isSavingMetas, isExtractingMetas, metas, localMetas, loadDashboardData]);
 
   const handleEditClick = (meta: DashboardMeta) => {
     setFormId(meta.id);
@@ -660,9 +718,9 @@ export default function DashboardHome() {
 
     try {
       const importedMetas = await parseMetasFile(selectedMetaFile);
-      const mergedMetas = mergeImportedMetas(metas, importedMetas);
-      await persistMetas(mergedMetas, `${importedMetas.length} meta(s) importada(s) com sucesso.`);
+      setLocalMetas((current) => mergeImportedMetas(current, importedMetas));
       setSelectedMetaFile(null);
+      setMetasFeedback({ tone: "success", text: `${importedMetas.length} meta(s) importada(s).` });
     } catch (error) {
       console.error("Erro ao importar metas:", error);
       setMetasFeedback({
@@ -1259,7 +1317,7 @@ export default function DashboardHome() {
           className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={() => {
             if (!isExtractingMetas && !isSavingMetas) {
-              setShowMetasModal(false);
+              void handleCloseMetasModal();
             }
           }}
         >
@@ -1276,10 +1334,11 @@ export default function DashboardHome() {
               </div>
               <button
                 type="button"
-                onClick={() => setShowMetasModal(false)}
-                className="rounded-full p-1 text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+                onClick={() => void handleCloseMetasModal()}
+                disabled={isSavingMetas}
+                className="rounded-full p-1 text-gray-400 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-50"
               >
-                <X size={24} />
+                {isSavingMetas ? <Loader2 size={24} className="animate-spin" /> : <X size={24} />}
               </button>
             </div>
 
@@ -1374,15 +1433,15 @@ export default function DashboardHome() {
                   <div className="flex items-end gap-2">
                     <button
                       type="button"
-                      onClick={() => void handleSaveMeta()}
-                      disabled={isSavingMetas || isExtractingMetas}
+                      onClick={handleSaveMeta}
+                      disabled={isExtractingMetas}
                       className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-2 text-sm font-bold transition-all ${
                         formId
                           ? "border-yellow-500/20 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500 hover:text-black"
                           : "border-green-500/20 bg-green-500/10 text-green-400 hover:bg-green-500 hover:text-black"
                       } disabled:cursor-not-allowed disabled:opacity-60`}
                     >
-                      {isSavingMetas ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                      <Save size={16} />
                       {formId ? "Salvar" : "Adicionar"}
                     </button>
                   </div>
@@ -1406,17 +1465,29 @@ export default function DashboardHome() {
               <div className="h-px bg-white/5" />
 
               <section className="pb-4">
-                <h3 className="mb-4 text-sm font-semibold text-slate-100">
-                  <Search size={16} className="mr-2 inline text-green-400" />
-                  Metas ({metas.length})
-                </h3>
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-slate-100">
+                    <Search size={16} className="mr-2 inline text-green-400" />
+                    Metas ({localMetas.length})
+                  </h3>
+                  {localMetas.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={handleDeleteAllMetas}
+                      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/10"
+                    >
+                      <Trash2 size={13} />
+                      Eliminar todos
+                    </button>
+                  ) : null}
+                </div>
                 <div className="space-y-2">
-                  {metas.length === 0 ? (
+                  {localMetas.length === 0 ? (
                     <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-sm text-gray-400">
                       Nenhuma meta cadastrada ainda.
                     </div>
                   ) : (
-                    metas.map((meta) => (
+                    localMetas.map((meta) => (
                       <div
                         key={meta.id}
                         className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-3"
@@ -1435,7 +1506,7 @@ export default function DashboardHome() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => void handleDeleteMeta(meta.id)}
+                            onClick={() => handleDeleteMeta(meta.id)}
                             className="rounded-lg bg-white/5 p-2 text-gray-400 transition-colors hover:text-red-400"
                           >
                             <Trash2 size={14} />
