@@ -72,7 +72,30 @@ export function parseDateValue(value: unknown): Date | null {
     return Number.isNaN(value.getTime()) ? null : value;
   }
 
-  const parsed = new Date(String(value));
+  const raw = String(value).trim();
+  if (!raw) {
+    return null;
+  }
+
+  // Prefer day-first parsing for Brazilian date strings from the database,
+  // e.g. 05/03/2026 should be interpreted as 5 March 2026.
+  const dayFirstMatch = raw.match(
+    /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
+  );
+  if (dayFirstMatch) {
+    const day = Number(dayFirstMatch[1]);
+    const month = Number(dayFirstMatch[2]);
+    const year = Number(
+      dayFirstMatch[3].length === 2 ? `20${dayFirstMatch[3]}` : dayFirstMatch[3],
+    );
+    const hour = Number(dayFirstMatch[4] ?? 0);
+    const minute = Number(dayFirstMatch[5] ?? 0);
+    const second = Number(dayFirstMatch[6] ?? 0);
+    const parsedDayFirst = new Date(year, month - 1, day, hour, minute, second);
+    return Number.isNaN(parsedDayFirst.getTime()) ? null : parsedDayFirst;
+  }
+
+  const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 

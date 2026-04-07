@@ -98,6 +98,7 @@ export async function loadMetas(): Promise<MetaRecord[]> {
 
 const PRODUCT_ALIASES = new Map<string, string>([
   ["GOIABA VERMELHA EMBALADA", "GOIABA VERMELHA"],
+  ["LIMAO TAHITI", "LIMAO"],
   ["MACA GALA", "MACA GALA NACIONAL"],
   ["MACA GALA NACIONAL", "MACA GALA NACIONAL"],
   ["MACA GRAMSSMITH", "MACA GRANNY SMITH"],
@@ -109,13 +110,16 @@ const PRODUCT_ALIASES = new Map<string, string>([
   ["REPOLHO MIX FATIADO", "REPOLHO VERDE HIGIENIZADO FATIADO"],
   ["SALSA COM CEBOLINHA", "SALSA E CEBOLINHA"],
   ["TOMATE SWEETT GRAPE", "TOMATE SWEET GRAPE"],
+  ["UVA VITORIA BANDEJA", "UVA VITORIA"],
 ]);
 
-const COMPARISON_IGNORED_TOKENS = new Set(["KG", "UN"]);
+const COMPARISON_IGNORED_TOKENS = new Set(["BANDEJA", "EMBALADA", "KG", "UN"]);
 
 function normalizeProductName(value: string): string {
   return normalizeText(value)
+    .replace(/\bHIDROPONIC[OA]S?\b/g, "HIDROPONIC")
     .replace(/\bGRAMSSMITH\b/g, "GRANNY SMITH")
+    .replace(/\bMORANGO BANDEJA\b/g, "MORANGO")
     .replace(/\bPAPAIA\b/g, "PAPAYA")
     .replace(/\bSWEETT\b/g, "SWEET")
     .replace(/\bWILLIANS\b/g, "WILLIAMS")
