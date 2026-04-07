@@ -1,1 +1,5 @@
-export { default } from "../precos/page";
+import { redirect } from "next/navigation";
+
+export default function PrecosPage() {
+  redirect("/dashboard/precos");
+}
