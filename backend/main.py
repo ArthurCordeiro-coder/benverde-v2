@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api_auth import get_current_user, router as auth_router
 from openai import OpenAI
+import pdfplumber
 
 from data_processor import (
     calcular_estoque,
@@ -966,6 +967,204 @@ _MITA_MODEL = "grok-4.20-0309-reasoning"
 _MITA_SYSTEM_PROMPT = """Voce e a Mita, gerente de dados inteligente da Benverde, uma distribuidora de bananas e hortifruti.
 Voce tem acesso ao contexto operacional atual (estoque, precos, caixas das lojas e metas) e deve responder de forma clara,
 objetiva e em portugues brasileiro. Seja direta, use numeros quando relevante e aponte riscos ou oportunidades quando identificar."""
+_MITA_PDF_SYSTEM_PROMPT = """Voce e a Mita lendo notas fiscais em PDF da Benverde.
+Sua tarefa eh extrair apenas itens de banana e responder somente com JSON valido.
+Formato exato de saida:
+{"resultado":[{"produto":"BANANA NANICA","quant":12.5,"unidade":"KG","valor_unit":0,"valor_total":0}]}
+
+Regras:
+- Retorne apenas JSON, sem markdown.
+- Considere somente itens que tenham BANANA no nome.
+- Normalize o produto em caixa alta.
+- quant precisa ser numero maior que zero.
+- Use KG, UN ou CX apenas quando isso estiver claro no texto; caso contrario, use KG.
+- Quando valor_unit ou valor_total nao aparecerem, use 0.
+- Se nao houver itens validos, retorne {"resultado":[]}.
+"""
+
+
+def _coerce_mita_number(value: object) -> float | None:
+    raw = str(value or "").strip()
+    if not raw or raw.lower() in {"none", "null", "nan", "-"}:
+        return None
+
+    cleaned = re.sub(r"[^\d,.\-]", "", raw)
+    if not cleaned:
+        return None
+
+    if "," in cleaned and "." in cleaned:
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+    elif "," in cleaned:
+        cleaned = cleaned.replace(",", ".")
+
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _extract_pdf_text_for_mita(caminho_pdf: str, max_pages: int = 6, max_chars: int = 24000) -> str:
+    partes: list[str] = []
+    collected = 0
+
+    with pdfplumber.open(caminho_pdf) as pdf:
+        for page_number, pagina in enumerate(pdf.pages[:max_pages], start=1):
+            texto = (pagina.extract_text(x_tolerance=2, y_tolerance=2) or "").strip()
+            if not texto:
+                continue
+
+            bloco = f"[PAGINA {page_number}]\n{texto}"
+            remaining = max_chars - collected
+            if remaining <= 0:
+                break
+            if len(bloco) > remaining:
+                bloco = bloco[:remaining]
+
+            partes.append(bloco)
+            collected += len(bloco)
+            if collected >= max_chars:
+                break
+
+    return "\n\n".join(partes).strip()
+
+
+def _extract_json_like_payload(raw_content: str) -> dict | list | None:
+    content = raw_content.strip()
+    if not content:
+        return None
+
+    candidates = [content]
+    for pattern in (r"\{.*\}", r"\[.*\]"):
+        match = re.search(pattern, content, re.DOTALL)
+        if match:
+            candidates.append(match.group(0))
+
+    for candidate in candidates:
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+
+    return None
+
+
+def _normalize_mita_pdf_items(payload: object) -> list[dict]:
+    raw_items = payload.get("resultado") if isinstance(payload, dict) else payload
+    if not isinstance(raw_items, list):
+        return []
+
+    merged: dict[tuple[str, str], dict] = {}
+
+    for raw_item in raw_items:
+        if not isinstance(raw_item, dict):
+            continue
+
+        produto = str(
+            raw_item.get("produto")
+            or raw_item.get("item")
+            or raw_item.get("descricao")
+            or ""
+        ).strip().upper()
+        if not produto or "BANANA" not in produto:
+            continue
+
+        quant = _coerce_mita_number(
+            raw_item.get("quant")
+            or raw_item.get("quantidade")
+            or raw_item.get("peso")
+        )
+        if quant is None or quant <= 0:
+            continue
+
+        unidade = str(raw_item.get("unidade") or "KG").strip().upper() or "KG"
+        if unidade not in {"KG", "UN", "CX"}:
+            unidade = "KG"
+
+        valor_unit = _coerce_mita_number(
+            raw_item.get("valor_unit")
+            or raw_item.get("valorUnit")
+            or raw_item.get("valor_unitario")
+            or raw_item.get("preco_unitario")
+        ) or 0.0
+        valor_total = _coerce_mita_number(
+            raw_item.get("valor_total")
+            or raw_item.get("valorTotal")
+            or raw_item.get("total")
+        ) or 0.0
+
+        if valor_total <= 0 and valor_unit > 0:
+            valor_total = round(quant * valor_unit, 2)
+        if valor_unit <= 0 and valor_total > 0 and quant > 0:
+            valor_unit = round(valor_total / quant, 4)
+
+        key = (produto, unidade)
+        current = merged.setdefault(
+            key,
+            {
+                "produto": produto,
+                "quant": 0.0,
+                "unidade": unidade,
+                "valor_unit": 0.0,
+                "valor_total": 0.0,
+            },
+        )
+        current["quant"] = round(float(current["quant"]) + quant, 3)
+        current["valor_total"] = round(float(current["valor_total"]) + valor_total, 2)
+        if valor_unit > 0:
+            current["valor_unit"] = valor_unit
+
+    items = list(merged.values())
+    for item in items:
+        if item["valor_unit"] <= 0 and item["valor_total"] > 0 and item["quant"] > 0:
+            item["valor_unit"] = round(item["valor_total"] / item["quant"], 4)
+
+    items.sort(key=lambda current: current["produto"])
+    return items
+
+
+def _extract_bananas_pdf_with_mita(caminho_pdf: str, nome_arquivo: str) -> list[dict]:
+    xai_api_key = os.getenv("XAI_API_KEY", "").strip()
+    if not xai_api_key:
+        return []
+
+    try:
+        texto_pdf = _extract_pdf_text_for_mita(caminho_pdf)
+    except Exception as exc:
+        logger.warning("Upload PDF '%s': falha ao extrair texto para MITA: %s", nome_arquivo, exc)
+        return []
+
+    if not texto_pdf:
+        return []
+
+    prompt = (
+        f"Arquivo: {nome_arquivo or Path(caminho_pdf).name}\n"
+        "Extraia somente os itens de banana do texto abaixo.\n\n"
+        f"{texto_pdf}"
+    )
+
+    try:
+        client = OpenAI(api_key=xai_api_key, base_url="https://api.x.ai/v1")
+        completion = client.chat.completions.create(
+            model=_MITA_MODEL,
+            messages=[
+                {"role": "system", "content": _MITA_PDF_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        answer = (completion.choices[0].message.content or "").strip()
+    except Exception as exc:
+        logger.warning("Upload PDF '%s': falha ao consultar a MITA: %s", nome_arquivo, exc)
+        return []
+
+    payload = _extract_json_like_payload(answer)
+    if payload is None:
+        logger.warning("Upload PDF '%s': MITA retornou resposta sem JSON valido.", nome_arquivo)
+        return []
+
+    return _normalize_mita_pdf_items(payload)
 
 
 def _build_mita_context() -> str:
@@ -1079,8 +1278,24 @@ async def upload_pdf(
                     break
                 out_file.write(chunk)
 
-        resultado = extrair_bananas_pdf_upload(str(temp_path))
-        return {"arquivo": file.filename, "resultado": resultado}
+        processamento = "parser"
+        try:
+            resultado = extrair_bananas_pdf_upload(str(temp_path))
+        except Exception as exc:
+            logger.warning("Upload PDF '%s': parser local falhou: %s", file.filename, exc)
+            resultado = []
+
+        if not resultado:
+            logger.info("Upload PDF '%s': acionando leitura inteligente da MITA.", file.filename)
+            resultado = _extract_bananas_pdf_with_mita(str(temp_path), file.filename or "")
+            if resultado:
+                processamento = "mita-ai"
+
+        return {
+            "arquivo": file.filename,
+            "resultado": resultado,
+            "processamento": processamento,
+        }
     finally:
         await file.close()
         if temp_path.exists():
