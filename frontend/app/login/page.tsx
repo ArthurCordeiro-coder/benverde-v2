@@ -16,6 +16,32 @@ type ApiError = {
   };
 };
 
+type LoginResponse = {
+  user?: {
+    funcionalidade?: string;
+  };
+};
+
+function getRedirectPath(funcionalidade?: string) {
+  const normalized = String(funcionalidade ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (normalized === "busca de precos") {
+    return "/precos";
+  }
+
+  if (normalized === "registro de estoque") {
+    return "/dashboard/estoque";
+  }
+
+  if (normalized === "registro de caixas") {
+    return "/dashboard/caixas";
+  }
+
+  return "/dashboard";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -30,12 +56,12 @@ export default function LoginPage() {
     setError("");
 
     try {
-      await api.post("/api/login", {
+      const response = await api.post<LoginResponse>("/api/login", {
         username: username.trim(),
         password,
       });
 
-      router.push("/dashboard");
+      router.push(getRedirectPath(response.data?.user?.funcionalidade));
     } catch (err: unknown) {
       const detail = (err as ApiError | undefined)?.response?.data?.detail;
       setError(

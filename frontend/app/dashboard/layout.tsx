@@ -30,6 +30,12 @@ type PendingUser = {
   funcionalidade: string | null;
 };
 
+type MeResponse = {
+  role?: string;
+  is_admin?: boolean;
+  funcionalidade?: string | null;
+};
+
 type ApiError = {
   response?: {
     status?: number;
@@ -55,6 +61,26 @@ const navItems = [
   { href: "/dashboard/precos", label: "Precos Concorrentes", icon: <Tags size={18} /> },
   { href: "/dashboard/mita-ai", label: "Mita AI", icon: <MessageCircleMore size={18} /> },
 ];
+
+function normalizeFuncionalidade(value?: string | null) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function getAllowedDashboardPaths(funcionalidade?: string | null) {
+  const normalized = normalizeFuncionalidade(funcionalidade);
+
+  if (normalized === "registro de estoque") {
+    return ["/dashboard/estoque"];
+  }
+
+  if (normalized === "registro de caixas") {
+    return ["/dashboard/caixas"];
+  }
+
+  return navItems.map((item) => item.href);
+}
 
 function getNavClass(active: boolean, isHighlight = false) {
   return `w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 font-medium text-sm ${
@@ -105,12 +131,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [funcionalidade, setFuncionalidade] = useState<string>("administracao geral");
   const [pendingModalOpen, setPendingModalOpen] = useState(false);
   const [pendingUsers, setPendingUsers] = useState<PendingUser[]>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [pendingError, setPendingError] = useState("");
   const [pendingSuccess, setPendingSuccess] = useState("");
   const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
+
+  const allowedDashboardPaths = getAllowedDashboardPaths(funcionalidade);
+  const visibleNavItems = navItems.filter((item) => allowedDashboardPaths.includes(item.href));
 
   const carregarPendentes = async () => {
     if (!isAdmin) {
@@ -180,18 +210,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   useEffect(() => {
     const carregarPerfil = async () => {
       try {
-        const meResponse = await api.get("/api/me");
+        const meResponse = await api.get<MeResponse>("/api/me");
         const admin = Boolean(
           meResponse.data?.role === "admin" || meResponse.data?.is_admin === true,
         );
+        const nextFuncionalidade = meResponse.data?.funcionalidade || "administracao geral";
+
         setIsAdmin(admin);
+        setFuncionalidade(nextFuncionalidade);
 
         if (!admin) {
           setPendingModalOpen(false);
           setPendingUsers([]);
         }
+
+        const nextAllowedPaths = getAllowedDashboardPaths(nextFuncionalidade);
+        if (!nextAllowedPaths.includes(pathname)) {
+          router.replace(nextAllowedPaths[0] ?? "/login");
+        }
       } catch {
         setIsAdmin(false);
+        setFuncionalidade("administracao geral");
         setPendingModalOpen(false);
         setPendingUsers([]);
         router.replace("/login");
@@ -199,7 +238,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     };
 
     void carregarPerfil();
-  }, [router]);
+  }, [pathname, router]);
 
   return (
     <DesktopOnlyGate>
@@ -217,10 +256,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
           <nav className="flex-1 space-y-2 overflow-y-auto p-4">
             <p className="mb-2 mt-4 px-4 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              Painel Gerencial
+              {visibleNavItems.length <= 1 ? "Painel Operacional" : "Painel Gerencial"}
             </p>
 
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <NavItem
                 key={item.href}
                 href={item.href}

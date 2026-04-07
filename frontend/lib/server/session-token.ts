@@ -5,6 +5,7 @@ export const SESSION_COOKIE_NAME = "benverde_token";
 export type SessionPayload = {
   sub: string;
   role: string;
+  funcionalidade: string;
   exp: number;
 };
 
@@ -68,6 +69,10 @@ function decodePayload(token: string): SessionPayload | null {
     return {
       sub: payload.sub,
       role: typeof payload.role === "string" ? payload.role : "operacional",
+      funcionalidade:
+        typeof payload.funcionalidade === "string"
+          ? payload.funcionalidade
+          : "administracao geral",
       exp: payload.exp,
     };
   } catch {
@@ -78,6 +83,7 @@ function decodePayload(token: string): SessionPayload | null {
 export async function createSessionToken(input: {
   username: string;
   role: string;
+  funcionalidade: string;
   expiresInSeconds: number;
 }): Promise<string> {
   const header = toBase64Url(
@@ -88,6 +94,7 @@ export async function createSessionToken(input: {
       JSON.stringify({
         sub: input.username,
         role: input.role,
+        funcionalidade: input.funcionalidade,
         exp: Math.floor(Date.now() / 1000) + input.expiresInSeconds,
       }),
     ),

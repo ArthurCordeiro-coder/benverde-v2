@@ -90,6 +90,25 @@ export async function requireAdminUser(): Promise<PublicUser> {
   return user;
 }
 
+export async function requireFuncionalidade(
+  funcionalidades: string | string[],
+): Promise<PublicUser> {
+  const user = await requireUser();
+  const allowedFuncionalidades = Array.isArray(funcionalidades)
+    ? funcionalidades
+    : [funcionalidades];
+  const normalizedCurrent = user.funcionalidade.trim().toLowerCase();
+  const isAllowed = allowedFuncionalidades.some(
+    (item) => item.trim().toLowerCase() === normalizedCurrent,
+  );
+
+  if (!isAllowed) {
+    forbidden("Voce nao tem permissao para acessar esta area.");
+  }
+
+  return user;
+}
+
 export function setSessionCookie(response: NextResponse, token: string): void {
   response.cookies.set(SESSION_COOKIE_NAME, token, buildCookieOptions(SESSION_DURATION_SECONDS));
 }
@@ -158,6 +177,7 @@ export async function loginWithPassword(input: {
   const token = await createSessionToken({
     username: publicUser.username,
     role: publicUser.role,
+    funcionalidade: publicUser.funcionalidade,
     expiresInSeconds: SESSION_DURATION_SECONDS,
   });
 

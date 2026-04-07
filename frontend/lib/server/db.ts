@@ -63,8 +63,17 @@ export async function ensureDatabase(): Promise<void> {
           meta BIGINT,
           categoria TEXT
         )`,
-        `CREATE TABLE IF NOT EXISTS pedidos_importados (
-          key TEXT PRIMARY KEY,
+        `CREATE TABLE IF NOT EXISTS cache_pedidos (
+          id SERIAL PRIMARY KEY,
+          arquivo_pdf TEXT,
+          data TIMESTAMPTZ,
+          loja TEXT,
+          produto TEXT,
+          unidade TEXT,
+          quant DOUBLE PRECISION,
+          valor_total DOUBLE PRECISION,
+          valor_unit DOUBLE PRECISION,
+          key TEXT,
           payload JSONB,
           updated_at TIMESTAMPTZ DEFAULT now()
         )`,

@@ -26,6 +26,7 @@ type RegisterForm = {
 const FUNCTION_OPTIONS = [
   { value: "administracao geral", label: "Administracao geral" },
   { value: "busca de precos", label: "Busca de precos" },
+  { value: "registro de estoque", label: "Registro de estoque" },
   { value: "registro de caixas", label: "Registro de caixas" },
 ];
 

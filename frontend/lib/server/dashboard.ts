@@ -25,6 +25,11 @@ type MetaRecord = {
   Categoria: string | null;
 };
 
+type PedidoCacheRecord = {
+  produto: string;
+  quant: number;
+};
+
 const CATEGORY_KEYWORDS: Record<DashboardCategory, string[]> = {
   Frutas: [
     "BANANA",
@@ -91,33 +96,141 @@ export async function loadMetas(): Promise<MetaRecord[]> {
   }));
 }
 
-export async function fetchPedidosImportados(): Promise<Array<Record<string, unknown>>> {
-  const rows = await queryRows<Record<string, unknown>>(
-    `SELECT key, payload
-     FROM pedidos_importados
-     WHERE payload IS NOT NULL
-     ORDER BY updated_at ASC NULLS LAST, key ASC`,
-  );
+const PRODUCT_ALIASES = new Map<string, string>([
+  ["GOIABA VERMELHA EMBALADA", "GOIABA VERMELHA"],
+  ["MACA GALA", "MACA GALA NACIONAL"],
+  ["MACA GALA NACIONAL", "MACA GALA NACIONAL"],
+  ["MACA GRAMSSMITH", "MACA GRANNY SMITH"],
+  ["MAMAO PAPAIA", "MAMAO PAPAYA"],
+  ["MANDIOCA A VACUO", "MANDIOCA"],
+  ["MELANCIA BABY CEPI", "MELANCIA BABY"],
+  ["MILHO VERDE", "MILHO VERDE BANDEJA"],
+  ["PERA WILLIANS", "PERA WILLIAMS"],
+  ["REPOLHO MIX FATIADO", "REPOLHO VERDE HIGIENIZADO FATIADO"],
+  ["SALSA COM CEBOLINHA", "SALSA E CEBOLINHA"],
+  ["TOMATE SWEETT GRAPE", "TOMATE SWEET GRAPE"],
+]);
 
-  const registros: Array<Record<string, unknown>> = [];
-  for (const row of rows) {
-    const key = String(row.key ?? "");
-    const payload = row.payload;
-    if (key === "default" && Array.isArray(payload)) {
-      payload.forEach((item) => {
-        if (item && typeof item === "object") {
-          registros.push(item as Record<string, unknown>);
-        }
-      });
+const COMPARISON_IGNORED_TOKENS = new Set(["KG", "UN"]);
+
+function normalizeProductName(value: string): string {
+  return normalizeText(value)
+    .replace(/\bGRAMSSMITH\b/g, "GRANNY SMITH")
+    .replace(/\bPAPAIA\b/g, "PAPAYA")
+    .replace(/\bSWEETT\b/g, "SWEET")
+    .replace(/\bWILLIANS\b/g, "WILLIAMS")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function extractPackageMultiplier(tokens: string[]): number {
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    const compactMatch = token.match(/^(?:CX|CAIXA|SC|SACOLA)(\d+(?:[.,]\d+)?)KG?$/);
+    if (compactMatch) {
+      const parsed = Number(compactMatch[1].replace(",", "."));
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+
+    if (!["CX", "CAIXA", "SC", "SACOLA"].includes(token)) {
       continue;
     }
 
-    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-      registros.push(payload as Record<string, unknown>);
+    const numericToken = tokens[index + 1] === "KG" ? tokens[index + 2] : tokens[index + 1];
+    if (!numericToken) {
+      continue;
+    }
+
+    const strippedNumeric = numericToken.replace(/KG$/, "");
+    if (!/^\d+(?:[.,]\d+)?$/.test(strippedNumeric)) {
+      continue;
+    }
+
+    const parsed = Number(strippedNumeric.replace(",", "."));
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
     }
   }
 
-  return registros;
+  return 1;
+}
+
+function toComparableProductKey(value: string): string {
+  const normalized = normalizeProductName(value);
+  if (!normalized) {
+    return "";
+  }
+
+  const rawTokens = normalized.split(" ").filter(Boolean);
+  const tokens: string[] = [];
+
+  for (let index = 0; index < rawTokens.length; index += 1) {
+    const token = rawTokens[index];
+    if (/^(?:CX|CAIXA|SC|SACOLA)\d+(?:[.,]\d+)?KG?$/.test(token)) {
+      continue;
+    }
+
+    if (["CX", "CAIXA", "SC", "SACOLA"].includes(token)) {
+      const nextToken = rawTokens[index + 1];
+      const afterNextToken = rawTokens[index + 2];
+      if (nextToken === "KG") {
+        index += afterNextToken ? 2 : 1;
+      } else if (nextToken && /^\d+(?:[.,]\d+)?KG?$/.test(nextToken)) {
+        index += 1;
+        if (rawTokens[index + 1] === "KG") {
+          index += 1;
+        }
+      }
+      continue;
+    }
+
+    if (COMPARISON_IGNORED_TOKENS.has(token)) {
+      continue;
+    }
+
+    tokens.push(token);
+  }
+
+  const cleaned = tokens.join(" ").trim();
+  if (!cleaned) {
+    return "";
+  }
+
+  const aliased = PRODUCT_ALIASES.get(cleaned) ?? cleaned;
+  return aliased
+    .split(" ")
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right, "pt-BR"))
+    .join(" ");
+}
+
+function getEffectivePedidoQuantity(produto: string, quant: unknown): number {
+  const baseQuantity = Number(quant ?? 0);
+  if (!Number.isFinite(baseQuantity) || baseQuantity <= 0) {
+    return 0;
+  }
+
+  const multiplier = extractPackageMultiplier(normalizeProductName(produto).split(" ").filter(Boolean));
+  return Math.round(baseQuantity * multiplier * 1000) / 1000;
+}
+
+export async function fetchPedidosImportados(): Promise<PedidoCacheRecord[]> {
+  const rows = await queryRows<Record<string, unknown>>(
+    `SELECT produto, quant
+     FROM cache_pedidos
+     WHERE produto IS NOT NULL
+       AND quant IS NOT NULL
+     ORDER BY updated_at ASC NULLS LAST, id ASC`,
+  );
+
+  return rows
+    .map((row) => ({
+      produto: String(row.produto ?? "").trim(),
+      quant: getEffectivePedidoQuantity(String(row.produto ?? ""), row.quant),
+    }))
+    .filter((row) => row.produto && row.quant > 0);
 }
 
 export function inferDashboardCategory(
@@ -147,22 +260,6 @@ export function inferDashboardCategory(
   return "Frutas";
 }
 
-function metaMatchesProduct(metaName: string, importedProduct: string): boolean {
-  if (!metaName || !importedProduct) {
-    return false;
-  }
-  if (metaName === importedProduct) {
-    return true;
-  }
-  if (importedProduct.startsWith(`${metaName} `)) {
-    return true;
-  }
-  if (` ${importedProduct} `.includes(` ${metaName} `)) {
-    return true;
-  }
-  return metaName.startsWith(`${importedProduct} `);
-}
-
 export async function buildDashboardMetaItems(): Promise<DashboardMetaItem[]> {
   const rawMetas = await loadMetas();
   const baseItems: Array<{
@@ -180,7 +277,7 @@ export async function buildDashboardMetaItems(): Promise<DashboardMetaItem[]> {
       return;
     }
 
-    const normalizedProduct = normalizeText(produto);
+    const normalizedProduct = toComparableProductKey(produto);
     const metaValue = Math.trunc(Number(rawMeta.Meta ?? 0));
     if (!normalizedProduct || seenProducts.has(normalizedProduct) || metaValue <= 0) {
       return;
@@ -203,28 +300,20 @@ export async function buildDashboardMetaItems(): Promise<DashboardMetaItem[]> {
   const aggregatedOrders = Object.fromEntries(
     baseItems.map((item) => [item.normalized, 0]),
   ) as Record<string, number>;
-  const targets = [...baseItems]
-    .map((item) => [item.normalized, item.produto] as const)
-    .sort((left, right) => right[0].length - left[0].length);
 
   const pedidosImportados = await fetchPedidosImportados();
   for (const pedidoImportado of pedidosImportados) {
-    const normalizedProduct = normalizeText(
-      pedidoImportado.Produto ?? pedidoImportado.produto ?? "",
-    );
-    const quantity = Number(pedidoImportado.QUANT ?? pedidoImportado.quant ?? 0);
+    const normalizedProduct = toComparableProductKey(pedidoImportado.produto);
+    const quantity = pedidoImportado.quant;
     if (!normalizedProduct || !Number.isFinite(quantity) || quantity <= 0) {
       continue;
     }
 
-    const matchedMeta = targets.find(([normalizedMeta]) =>
-      metaMatchesProduct(normalizedMeta, normalizedProduct),
-    )?.[0];
-    if (!matchedMeta) {
+    if (!(normalizedProduct in aggregatedOrders)) {
       continue;
     }
 
-    aggregatedOrders[matchedMeta] += quantity;
+    aggregatedOrders[normalizedProduct] += quantity;
   }
 
   return baseItems.map((item) => {
