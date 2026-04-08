@@ -2,6 +2,13 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import api from "@/lib/api";
+import {
+  asArray,
+  coerceNumber,
+  coerceString,
+  getApiErrorMessage,
+  isRecord,
+} from "@/lib/dashboard/client";
 import * as XLSX from "xlsx";
 import html2canvas from "html2canvas";
 import {
@@ -20,18 +27,18 @@ import {
 } from "lucide-react";
 
 type CaixaRegistro = {
-  id?: number;
-  data?: string | null;
-  loja?: string;
-  n_loja?: number;
-  caixas_benverde?: number;
-  caixas_ccj?: number;
-  ccj_banca?: number;
-  ccj_mercadoria?: number;
-  ccj_retirada?: number;
-  caixas_bananas?: number;
-  total?: number;
-  entregue?: string;
+  id: number;
+  data: string | null;
+  loja: string | null;
+  n_loja: number;
+  caixas_benverde: number;
+  caixas_ccj: number;
+  ccj_banca: number;
+  ccj_mercadoria: number;
+  ccj_retirada: number;
+  caixas_bananas: number;
+  total: number;
+  entregue: "sim" | "nao";
 };
 
 type GlassCardProps = {
@@ -42,6 +49,41 @@ type GlassCardProps = {
   trend?: "up" | "neutral";
   iconColor?: string;
 };
+
+type Feedback = {
+  tone: "success" | "error";
+  text: string;
+} | null;
+
+function normalizeEntregue(value: unknown): "sim" | "nao" {
+  return String(value ?? "").trim().toLowerCase() === "sim" ? "sim" : "nao";
+}
+
+function sanitizeCaixaRegistro(raw: unknown): CaixaRegistro | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const id = Math.trunc(coerceNumber(raw.id));
+  if (id <= 0) {
+    return null;
+  }
+
+  return {
+    id,
+    data: coerceString(raw.data) || null,
+    loja: coerceString(raw.loja) || null,
+    n_loja: Math.trunc(coerceNumber(raw.n_loja)),
+    caixas_benverde: Math.trunc(coerceNumber(raw.caixas_benverde)),
+    caixas_ccj: Math.trunc(coerceNumber(raw.caixas_ccj)),
+    ccj_banca: Math.trunc(coerceNumber(raw.ccj_banca)),
+    ccj_mercadoria: Math.trunc(coerceNumber(raw.ccj_mercadoria)),
+    ccj_retirada: Math.trunc(coerceNumber(raw.ccj_retirada)),
+    caixas_bananas: Math.trunc(coerceNumber(raw.caixas_bananas)),
+    total: Math.trunc(coerceNumber(raw.total)),
+    entregue: normalizeEntregue(raw.entregue),
+  };
+}
 
 function GlassCard({
   title,
@@ -75,8 +117,11 @@ function GlassCard({
 export default function CaixasPage() {
   const [registros, setRegistros] = useState<CaixaRegistro[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<Feedback>(null);
 
   // Campos do formulário
   const [loja, setLoja] = useState("");
@@ -103,29 +148,66 @@ export default function CaixasPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const carregarRegistros = async () => {
-    setIsLoading(true);
+  const carregarRegistros = async (mode: "initial" | "refresh" = "refresh") => {
+    if (mode === "initial") {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
     try {
       const response = await api.get("/api/caixas");
-      setRegistros(Array.isArray(response.data) ? response.data : []);
+      const registrosSanitizados = asArray(response.data)
+        .map(sanitizeCaixaRegistro)
+        .filter((item): item is CaixaRegistro => item !== null);
+      setRegistros(registrosSanitizados);
+      setFeedback(null);
     } catch (error) {
       console.error("Erro ao carregar caixas:", error);
+      setFeedback({
+        tone: "error",
+        text: getApiErrorMessage(error, "Não foi possível carregar os registros de caixas."),
+      });
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
-    void carregarRegistros();
+    void carregarRegistros("initial");
   }, []);
 
-  const toggleStatus = (globalIndex: number) => {
-    setRegistros((prev) =>
-      prev.map((item, i) => {
-        if (i !== globalIndex) return item;
-        return { ...item, entregue: item.entregue === "sim" ? "não" : "sim" };
-      }),
-    );
+  const toggleStatus = async (row: CaixaRegistro) => {
+    const nextStatus = row.entregue === "sim" ? "nao" : "sim";
+    setUpdatingStatusId(row.id);
+    try {
+      const response = await api.patch(`/api/caixas/${row.id}`, { entregue: nextStatus });
+      const updatedRecord = sanitizeCaixaRegistro(
+        isRecord(response.data) ? response.data.item : null,
+      );
+
+      setRegistros((current) =>
+        current.map((item) =>
+          item.id === row.id ? updatedRecord ?? { ...item, entregue: nextStatus } : item,
+        ),
+      );
+      setFeedback({
+        tone: "success",
+        text:
+          nextStatus === "sim"
+            ? "Status atualizado para entregue."
+            : "Status atualizado para não entregue.",
+      });
+    } catch (error) {
+      console.error("Erro ao atualizar status da caixa:", error);
+      setFeedback({
+        tone: "error",
+        text: getApiErrorMessage(error, "Não foi possível atualizar o status da caixa."),
+      });
+    } finally {
+      setUpdatingStatusId(null);
+    }
   };
 
   const metrics = useMemo(() => {
@@ -182,7 +264,7 @@ export default function CaixasPage() {
       "CCJ Retirada": row.ccj_retirada ?? 0,
       Bananas: row.caixas_bananas ?? 0,
       Total: row.total ?? 0,
-      Status: row.entregue === "sim" ? "Entregue" : "Não Entregue",
+      Status: row.entregue === "sim" ? "Entregue" : "Não entregue",
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataParaExcel);
@@ -245,9 +327,14 @@ export default function CaixasPage() {
       setLoja("");
       setData("");
       setQuantidade("");
-      await carregarRegistros();
+      setFeedback({ tone: "success", text: "Registro de caixa salvo com sucesso." });
+      await carregarRegistros("refresh");
     } catch (error) {
       console.error("Erro ao salvar registro de caixa:", error);
+      setFeedback({
+        tone: "error",
+        text: getApiErrorMessage(error, "Não foi possível salvar o registro de caixa."),
+      });
     } finally {
       setSalvando(false);
     }
@@ -276,10 +363,11 @@ export default function CaixasPage() {
         <div className="flex w-full gap-3 md:w-auto">
           <button
             type="button"
-            onClick={() => void carregarRegistros()}
+            onClick={() => void carregarRegistros("refresh")}
             className="flex flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-2.5 text-sm font-medium text-green-300 shadow-[0_0_15px_rgba(74,222,128,0.1)] backdrop-blur-lg transition-all hover:bg-white/10 hover:shadow-[0_0_25px_rgba(74,222,128,0.2)] md:flex-none"
+            disabled={isRefreshing}
           >
-            <RefreshCw size={16} />
+            {isRefreshing ? <RefreshCw size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             Atualizar
           </button>
           <button
@@ -291,6 +379,18 @@ export default function CaixasPage() {
           </button>
         </div>
       </header>
+
+      {feedback ? (
+        <div
+          className={`rounded-2xl border px-5 py-4 text-sm ${
+            feedback.tone === "success"
+              ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+              : "border-red-400/30 bg-red-500/10 text-red-200"
+          }`}
+        >
+          {feedback.text}
+        </div>
+      ) : null}
 
       {/* Cards de Métricas */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -387,7 +487,7 @@ export default function CaixasPage() {
               >
                 <option value="Todos">Todos os Status</option>
                 <option value="sim">Entregue</option>
-                <option value="não">Não Entregue</option>
+                <option value="nao">Não Entregue</option>
               </select>
               <ChevronDown
                 size={14}
@@ -478,11 +578,10 @@ export default function CaixasPage() {
                   </td>
                 </tr>
               ) : (
-                filteredRows.map((row, index) => {
-                  const globalIndex = registros.indexOf(row);
+                filteredRows.map((row) => {
                   return (
                     <tr
-                      key={`${row.data ?? ""}-${row.loja ?? ""}-${index}`}
+                      key={row.id}
                       className="group transition-all hover:bg-white/[0.04]"
                     >
                       <td className="px-6 py-5">
@@ -515,14 +614,17 @@ export default function CaixasPage() {
                       <td className="px-6 py-5 text-center">
                         <button
                           type="button"
-                          onClick={() => toggleStatus(globalIndex)}
+                          onClick={() => void toggleStatus(row)}
+                          disabled={updatingStatusId === row.id}
                           className={`inline-flex min-w-[90px] items-center justify-center gap-2 rounded-full border px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
                             row.entregue === "sim"
                               ? "border-green-500/30 bg-green-500/10 text-green-300 hover:bg-green-500/20"
                               : "border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20"
-                          }`}
+                          } disabled:cursor-not-allowed disabled:opacity-60`}
                         >
-                          {row.entregue === "sim" ? (
+                          {updatingStatusId === row.id ? (
+                            "Atualizando..."
+                          ) : row.entregue === "sim" ? (
                             <>
                               <Check size={12} /> Sim
                             </>

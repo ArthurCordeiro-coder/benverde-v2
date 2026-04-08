@@ -21,6 +21,10 @@ import {
 } from "@/lib/server/normalization";
 
 type PriceRow = Record<string, unknown>;
+type PriceTableMatch = {
+  table_schema?: string;
+  table_name?: string;
+};
 
 export type PriceSnapshotItem = {
   produto: string;
@@ -161,7 +165,8 @@ async function loadCsvDatasets(): Promise<Record<string, PriceRow[]>> {
         accumulator[item!.key] = item!.rows;
         return accumulator;
       }, {});
-  } catch {
+  } catch (error) {
+    console.error(`Falha ao carregar os CSVs de preços em "${directory}".`, error);
     return {};
   }
 }
@@ -208,13 +213,49 @@ function getPricesTableName(): string {
   return process.env.PRECOS_TABLE?.trim() || "precos";
 }
 
+async function resolvePricesTableName(): Promise<string | null> {
+  const configuredTableName = getPricesTableName();
+  if (await tableExists(configuredTableName)) {
+    return configuredTableName;
+  }
+
+  const unqualifiedTableName =
+    configuredTableName.split(".").filter(Boolean).pop()?.trim() || configuredTableName;
+  if (!unqualifiedTableName) {
+    return null;
+  }
+
+  const matches = await queryRows<PriceTableMatch>(
+    `SELECT table_schema, table_name
+     FROM information_schema.tables
+     WHERE table_name = $1
+     ORDER BY CASE WHEN table_schema = 'public' THEN 0 ELSE 1 END, table_schema, table_name
+     LIMIT 1`,
+    [unqualifiedTableName],
+  );
+
+  const matchedTable = matches[0];
+  if (!matchedTable?.table_schema || !matchedTable.table_name) {
+    console.warn(`Tabela de preços "${configuredTableName}" não encontrada no banco.`);
+    return null;
+  }
+
+  const resolvedTableName = `${matchedTable.table_schema}.${matchedTable.table_name}`;
+  console.warn(
+    `Tabela de preços configurada como "${configuredTableName}" não encontrada; usando "${resolvedTableName}".`,
+  );
+  return resolvedTableName;
+}
+
 async function loadDbDatasets(): Promise<Record<string, PriceRow[]>> {
-  const tableName = getPricesTableName();
+  let tableName = process.env.PRECOS_TABLE?.trim() || "precos";
 
   try {
-    if (!(await tableExists(tableName))) {
+    const resolvedTableName = await resolvePricesTableName();
+    if (!resolvedTableName) {
       return {};
     }
+    tableName = resolvedTableName;
 
     const qualifiedTableName = formatQualifiedIdentifier(tableName);
     const rows = await queryRows<PriceRow>(`SELECT * FROM ${qualifiedTableName}`);

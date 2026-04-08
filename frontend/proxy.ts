@@ -2,33 +2,14 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import {
+  canAccessDashboardScope,
+  getDefaultDashboardPath,
+  isDashboardPathAllowed,
+} from "@/lib/dashboard/access";
+import {
   SESSION_COOKIE_NAME,
   verifySessionToken,
 } from "@/lib/server/session-token";
-
-function normalizeFuncionalidade(value: string | null | undefined) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase();
-}
-
-function getRestrictedDashboardPath(funcionalidade: string) {
-  const normalized = normalizeFuncionalidade(funcionalidade);
-
-  if (normalized === "busca de precos") {
-    return "/Precos";
-  }
-
-  if (normalized === "registro de estoque") {
-    return "/dashboard/estoque";
-  }
-
-  if (normalized === "registro de caixas") {
-    return "/dashboard/caixas";
-  }
-
-  return null;
-}
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -73,9 +54,13 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  const restrictedDashboardPath = getRestrictedDashboardPath(payload.funcionalidade);
-  if (restrictedDashboardPath && pathname !== restrictedDashboardPath) {
-    const allowedUrl = new URL(restrictedDashboardPath, request.url);
+  if (isDashboardRoute && !isDashboardPathAllowed(payload.funcionalidade, pathname)) {
+    const allowedUrl = new URL(getDefaultDashboardPath(payload.funcionalidade), request.url);
+    return NextResponse.redirect(allowedUrl);
+  }
+
+  if (isPriceRoute && !canAccessDashboardScope(payload.funcionalidade, "precos")) {
+    const allowedUrl = new URL(getDefaultDashboardPath(payload.funcionalidade), request.url);
     return NextResponse.redirect(allowedUrl);
   }
 

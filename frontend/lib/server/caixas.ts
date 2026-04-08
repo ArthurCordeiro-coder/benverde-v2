@@ -5,6 +5,7 @@ import { execute, queryRows } from "@/lib/server/db";
 import { parseDateValue } from "@/lib/server/normalization";
 
 export type CaixaRegistro = {
+  id: number;
   data: string | null;
   loja: string | null;
   n_loja: number;
@@ -28,12 +29,13 @@ function toInteger(value: unknown): number {
 
 function normalizeEntregue(value: unknown): string {
   const raw = String(value ?? "").trim().toLowerCase();
-  return raw === "sim" ? "sim" : "não";
+  return raw === "sim" ? "sim" : "nao";
 }
 
 function serializeCaixa(row: Record<string, unknown>): CaixaRegistro {
   const data = parseDateValue(row.data);
   return {
+    id: toInteger(row.id),
     data: data ? data.toISOString().slice(0, 10) : null,
     loja: row.loja ? String(row.loja) : null,
     n_loja: toInteger(row.n_loja),
@@ -50,10 +52,10 @@ function serializeCaixa(row: Record<string, unknown>): CaixaRegistro {
 
 export async function getCaixas(): Promise<CaixaRegistro[]> {
   const rows = await queryRows<Record<string, unknown>>(
-    `SELECT data, loja, n_loja, caixas_benverde, caixas_ccj, ccj_banca,
+    `SELECT id, data, loja, n_loja, caixas_benverde, caixas_ccj, ccj_banca,
             ccj_mercadoria, ccj_retirada, caixas_bananas, total, entregue
      FROM caixas_lojas
-     ORDER BY data DESC NULLS LAST, loja, n_loja`,
+     ORDER BY data DESC NULLS LAST, id DESC`,
   );
   return rows.map(serializeCaixa);
 }
@@ -108,4 +110,26 @@ export async function createCaixa(payload: unknown): Promise<void> {
       normalizeEntregue(raw.entregue),
     ],
   );
+}
+
+export async function updateCaixaEntregue(id: number, payload: unknown): Promise<CaixaRegistro> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    badRequest("Payload deve ser um objeto JSON.");
+  }
+
+  const entregue = normalizeEntregue((payload as Record<string, unknown>).entregue);
+  const rows = await queryRows<Record<string, unknown>>(
+    `UPDATE caixas_lojas
+     SET entregue = $2
+     WHERE id = $1
+     RETURNING id, data, loja, n_loja, caixas_benverde, caixas_ccj, ccj_banca,
+               ccj_mercadoria, ccj_retirada, caixas_bananas, total, entregue`,
+    [id, entregue],
+  );
+
+  if (rows.length === 0) {
+    badRequest("Registro de caixa não encontrado.");
+  }
+
+  return serializeCaixa(rows[0]);
 }

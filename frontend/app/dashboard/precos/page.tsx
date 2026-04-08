@@ -1,6 +1,14 @@
 "use client";
 
 import api from "@/lib/api";
+import {
+  asArray,
+  coerceNumber,
+  coerceString,
+  getApiErrorMessage,
+  isRecord,
+  normalizeDashboardText,
+} from "@/lib/dashboard/client";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx";
 import {
@@ -110,9 +118,9 @@ type RowStatus = {
 
 const GENERAL_KEY = "GERAL";
 const QUICK_QUESTIONS = [
-  "Qual concorrente esta com o preco mais agressivo hoje?",
-  "Quais produtos o Semar esta perdendo em preco?",
-  "Compare o preco das bananas entre as lojas e sugira uma mudanca.",
+  "Qual concorrente está com o preço mais agressivo hoje?",
+  "Quais produtos o Semar está perdendo em preço?",
+  "Compare o preço das bananas entre as lojas e sugira uma mudança.",
 ];
 const MARKET_BAR_CLASSES = [
   "bg-emerald-500/80",
@@ -160,13 +168,7 @@ function GlassCard({ title, value, subtitle, icon, trend }: GlassCardProps) {
 }
 
 function normalizeText(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
+  return normalizeDashboardText(value);
 }
 
 function formatCurrency(value: number | null): string {
@@ -195,6 +197,85 @@ function bubbleClass(role: ChatMessage["role"]) {
   return role === "assistant"
     ? "border border-emerald-400/20 bg-emerald-500/10 text-emerald-50 shadow-sm"
     : "border border-white/10 bg-white/10 text-white";
+}
+
+function sanitizeDateOption(raw: unknown): PriceDateOption | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const key = coerceString(raw.key).trim();
+  if (!key) {
+    return null;
+  }
+
+  return {
+    key,
+    label: coerceString(raw.label).trim() || key,
+  };
+}
+
+function sanitizeStringMap(raw: unknown): Record<string, string> {
+  if (!isRecord(raw)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(raw)
+      .map(([key, value]) => [key, coerceString(value).trim()])
+      .filter((entry) => entry[1] !== ""),
+  );
+}
+
+function sanitizePriceMap(raw: unknown): Record<string, number | null> {
+  if (!isRecord(raw)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(raw).map(([key, value]) => {
+      const numericValue = coerceNumber(value, Number.NaN);
+      return [
+        key,
+        Number.isFinite(numericValue) && numericValue > 0
+          ? Number(numericValue.toFixed(2))
+          : null,
+      ];
+    }),
+  );
+}
+
+function sanitizeSnapshotItem(raw: unknown): PriceSnapshotItem | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const produto = coerceString(raw.produto).trim();
+  if (!produto) {
+    return null;
+  }
+
+  return {
+    produto,
+    prices: sanitizePriceMap(raw.prices),
+    statuses: sanitizeStringMap(raw.statuses),
+    matches: sanitizeStringMap(raw.matches),
+  };
+}
+
+function sanitizeSnapshots(raw: unknown): Record<string, PriceSnapshotItem[]> {
+  if (!isRecord(raw)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(raw).map(([key, value]) => [
+      key,
+      asArray(value)
+        .map(sanitizeSnapshotItem)
+        .filter((item): item is PriceSnapshotItem => item !== null),
+    ]),
+  );
 }
 
 function enrichRow(baseRow: BaseRow): DisplayRow {
@@ -245,7 +326,7 @@ function getRowStatus(row: DisplayRow): RowStatus {
   const semarPrice = row.prices.Semar;
   if (semarPrice === null) {
     return {
-      label: "Sem cotacao",
+      label: "Sem cotação",
       className: STATUS_CLASSNAMES.semCotacao,
       priority: 2,
     };
@@ -347,18 +428,17 @@ export default function PrecosPage() {
 
     try {
       const response = await api.get<PriceOverviewResponse>("/api/precos/overview");
-      const nextDates = Array.isArray(response.data?.dates) ? response.data.dates : [];
-      const nextMarkets =
-        Array.isArray(response.data?.markets) && response.data.markets.length > 0
-          ? response.data.markets
-          : ["Semar"];
-      const nextSnapshots =
-        response.data?.snapshots && typeof response.data.snapshots === "object"
-          ? response.data.snapshots
-          : {};
+      const payload = isRecord(response.data) ? response.data : {};
+      const nextDates = asArray(payload.dates)
+        .map(sanitizeDateOption)
+        .filter((item): item is PriceDateOption => item !== null);
+      const nextMarkets = asArray(payload.markets)
+        .map((market) => coerceString(market).trim())
+        .filter(Boolean);
+      const nextSnapshots = sanitizeSnapshots(payload.snapshots);
 
       setDateOptions(nextDates);
-      setMarkets(nextMarkets);
+      setMarkets(nextMarkets.length > 0 ? nextMarkets : ["Semar"]);
       setSnapshots(nextSnapshots);
       setSelectedDate((current) => {
         if (current === GENERAL_KEY) {
@@ -370,7 +450,9 @@ export default function PrecosPage() {
       setPageError("");
     } catch (error) {
       console.error("Erro ao carregar precos:", error);
-      setPageError("Nao foi possivel carregar os dados de precos concorrentes.");
+      setPageError(
+        getApiErrorMessage(error, "Não foi possível carregar os dados de preços concorrentes."),
+      );
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -525,7 +607,7 @@ export default function PrecosPage() {
 
   const selectedDateLabel = useMemo(() => {
     if (selectedDate === GENERAL_KEY) {
-      return "Media geral";
+      return "Média geral";
     }
     return dateOptions.find((option) => option.key === selectedDate)?.label ?? selectedDate;
   }, [dateOptions, selectedDate]);
@@ -632,10 +714,10 @@ export default function PrecosPage() {
     () =>
       visibleRows.map((row) => ({
         Produto: row.produto,
-        "Preco Semar": row.prices.Semar ?? "",
+        "Preço Semar": row.prices.Semar ?? "",
         "Melhor Concorrente": row.bestCompetitor ?? "",
-        "Preco Concorrente": row.bestCompetitorPrice ?? "",
-        Media: row.averagePrice ?? "",
+        "Preço Concorrente": row.bestCompetitorPrice ?? "",
+        Média: row.averagePrice ?? "",
         Status: getRowStatus(row).label,
       })),
     [visibleRows],
@@ -644,7 +726,7 @@ export default function PrecosPage() {
   const exportTable = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Precos Concorrentes");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Preços Concorrentes");
     XLSX.writeFile(
       workbook,
       `precos-concorrentes-${selectedDate === GENERAL_KEY ? "geral" : selectedDate}.xlsx`,
@@ -685,7 +767,7 @@ export default function PrecosPage() {
       );
 
       if (normalizedQuestion.includes("AGRESSIVO") || normalizedQuestion.includes("CONCORRENTE")) {
-        return `Hoje o concorrente mais agressivo em ${selectedDateLabel.toLowerCase()} e ${stats.competitor}, liderando em ${stats.competitorPerc} dos itens comparaveis. A lideranca do Semar esta em ${stats.winPerc}.`;
+        return `Hoje o concorrente mais agressivo em ${selectedDateLabel.toLowerCase()} é ${stats.competitor}, liderando em ${stats.competitorPerc} dos itens comparáveis. A liderança do Semar está em ${stats.winPerc}.`;
       }
 
       if (
@@ -694,24 +776,24 @@ export default function PrecosPage() {
         normalizedQuestion.includes("PRECO")
       ) {
         if (lossRows.length === 0) {
-          return `No recorte atual de ${selectedDateLabel.toLowerCase()}, o Semar nao aparece atrasado em nenhum item com preco comparavel.`;
+          return `No recorte atual de ${selectedDateLabel.toLowerCase()}, o Semar não aparece atrasado em nenhum item com preço comparável.`;
         }
-        return `Os maiores gaps do Semar estao em ${lossRows
+        return `Os maiores gaps do Semar estão em ${lossRows
           .slice(0, 3)
-          .map((row) => `${row.produto} (${row.semarGapPercent.toFixed(0)}% acima do lider)`)
-          .join(", ")}. Esses sao os primeiros candidatos para ajuste.`;
+          .map((row) => `${row.produto} (${row.semarGapPercent.toFixed(0)}% acima do líder)`)
+          .join(", ")}. Esses são os primeiros candidatos para ajuste.`;
       }
 
       if (normalizedQuestion.includes("BANANA")) {
         if (bananaLossRows.length === 0 && bananaRows.length > 0) {
-          return `Nas bananas, o Semar esta competitivo no recorte atual. A melhor oportunidade agora e sustentar margem sem perder a lideranca.`;
+          return `Nas bananas, o Semar está competitivo no recorte atual. A melhor oportunidade agora é sustentar margem sem perder a liderança.`;
         }
         if (bananaLossRows.length === 0) {
-          return `Nao encontrei itens de banana na base atual de ${selectedDateLabel.toLowerCase()}.`;
+          return `Não encontrei itens de banana na base atual de ${selectedDateLabel.toLowerCase()}.`;
         }
         const topBanana = bananaLossRows[0];
         const leader = topBanana.leaderMarkets.find((market) => market !== "Semar") ?? stats.competitor;
-        return `Em bananas, o principal ajuste esta em ${topBanana.produto}, onde ${leader} lidera o preco e o Semar esta ${topBanana.semarGapPercent.toFixed(0)}% acima do menor valor.`;
+        return `Em bananas, o principal ajuste está em ${topBanana.produto}, onde ${leader} lidera o preço e o Semar está ${topBanana.semarGapPercent.toFixed(0)}% acima do menor valor.`;
       }
 
       if (
@@ -720,10 +802,10 @@ export default function PrecosPage() {
         normalizedQuestion.includes("ESTRATEG")
       ) {
         const firstGap = lossRows[0];
-        return `Resumo estrategico: o Semar lidera em ${stats.winPerc} dos itens comparaveis. O maior risco competitivo hoje e ${stats.competitor}. ${firstGap ? `A principal oportunidade de ajuste esta em ${firstGap.produto}.` : "Nao ha um gap critico evidente no recorte atual."} A variacao recente da cesta Semar esta em ${stats.variationText}.`;
+        return `Resumo estratégico: o Semar lidera em ${stats.winPerc} dos itens comparáveis. O maior risco competitivo hoje é ${stats.competitor}. ${firstGap ? `A principal oportunidade de ajuste está em ${firstGap.produto}.` : "Não há um gap crítico evidente no recorte atual."} A variação recente da cesta Semar está em ${stats.variationText}.`;
       }
 
-      return `Consigo comparar o Semar com ${competitorMarkets.join(", ") || "os concorrentes"} em ${selectedDateLabel.toLowerCase()}, apontar perdas de preco e priorizar ajustes por produto.`;
+      return `Consigo comparar o Semar com ${competitorMarkets.join(", ") || "os concorrentes"} em ${selectedDateLabel.toLowerCase()}, apontar perdas de preço e priorizar ajustes por produto.`;
     },
     [bananaRows, competitorMarkets, selectedDateLabel, selectedRows, stats],
   );
@@ -748,21 +830,21 @@ export default function PrecosPage() {
         const response = await api.post<MitaResponse>(mitaEndpoint, {
           message: question,
           history: previousMessages,
+          scope: "precos",
         });
 
-        if (Array.isArray(response.data?.history) && response.data.history.length > 0) {
-          setChatMessages(
-            response.data.history.filter(
-              (item): item is ChatMessage =>
-                (item.role === "user" || item.role === "assistant") &&
-                typeof item.content === "string",
-            ),
-          );
+        const payload = isRecord(response.data) ? response.data : {};
+        const history = asArray(payload.history).filter(
+          (item): item is ChatMessage =>
+            isRecord(item) &&
+            (item.role === "user" || item.role === "assistant") &&
+            typeof item.content === "string",
+        );
+
+        if (history.length > 0) {
+          setChatMessages(history);
         } else {
-          const answer =
-            typeof response.data?.answer === "string" && response.data.answer.trim()
-              ? response.data.answer.trim()
-              : buildFallbackMitaResponse(question);
+          const answer = coerceString(payload.answer).trim() || buildFallbackMitaResponse(question);
           setChatMessages([...optimisticMessages, { role: "assistant", content: answer }]);
         }
       } catch (error) {
@@ -780,7 +862,7 @@ export default function PrecosPage() {
 
   const generateAIReport = () => {
     void sendMitaMessage(
-      "Faça uma analise estrategica completa da nossa competitividade atual. Quem e nosso maior risco? Em quais produtos devemos baixar o preco?",
+      "Faça uma análise estratégica completa da nossa competitividade atual. Quem é nosso maior risco? Em quais produtos devemos baixar o preço?",
     );
   };
 
@@ -790,15 +872,16 @@ export default function PrecosPage() {
       .sort((left, right) => right.semarGapPercent - left.semarGapPercent)[0];
 
     if (!biggestGapRow) {
-      return `No recorte atual de ${selectedDateLabel.toLowerCase()}, o Semar sustenta boa competitividade. Vale proteger margem e manter monitoramento continuo da cesta.`;
+      return `No recorte atual de ${selectedDateLabel.toLowerCase()}, o Semar sustenta boa competitividade. Vale proteger margem e manter monitoramento contínuo da cesta.`;
     }
 
-    const leader = biggestGapRow.leaderMarkets.find((market) => market !== "Semar") ?? stats.competitor;
-    return `Detectamos pressao competitiva em ${biggestGapRow.produto}. ${leader} lidera esse item e o Semar esta ${biggestGapRow.semarGapPercent.toFixed(0)}% acima do menor preco disponivel.`;
+    const leader =
+      biggestGapRow.leaderMarkets.find((market) => market !== "Semar") ?? stats.competitor;
+    return `Detectamos pressão competitiva em ${biggestGapRow.produto}. ${leader} lidera esse item e o Semar está ${biggestGapRow.semarGapPercent.toFixed(0)}% acima do menor preço disponível.`;
   }, [selectedDateLabel, selectedRows, stats.competitor]);
 
   const selectedDateOptions = useMemo(
-    () => [{ key: GENERAL_KEY, label: "Media de todas" }, ...dateOptions],
+    () => [{ key: GENERAL_KEY, label: "Média de todas" }, ...dateOptions],
     [dateOptions],
   );
 
@@ -817,7 +900,7 @@ export default function PrecosPage() {
               <Sparkles size={18} className="text-yellow-400" />
             </h2>
             <p className="text-sm text-gray-400">
-              Pronta para analisar dados reais e sugerir estrategias.
+              Pronta para analisar dados reais e sugerir estratégias.
             </p>
           </div>
         </div>
@@ -830,7 +913,7 @@ export default function PrecosPage() {
             className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-6 py-2.5 text-sm font-bold text-emerald-300 transition-all hover:bg-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <BrainCircuit size={16} />
-            Relatorio Estrategico
+            Relatório Estratégico
           </button>
           <button
             type="button"
@@ -854,21 +937,21 @@ export default function PrecosPage() {
         <GlassCard
           title="Semar Ganhando"
           value={isLoading ? "Carregando..." : stats.winPerc}
-          subtitle="Produtos com menor preco."
+          subtitle="Produtos com menor preço."
           icon={<Zap className="text-yellow-400" size={24} />}
           trend="up"
         />
         <GlassCard
           title="Melhor Competidor"
           value={isLoading ? "Carregando..." : stats.competitor}
-          subtitle={`Lider em ${stats.competitorPerc} dos itens.`}
+          subtitle={`Líder em ${stats.competitorPerc} dos itens.`}
           icon={<Target className="text-blue-400" size={24} />}
           trend="neutral"
         />
         <GlassCard
-          title="Variacao Recente"
+          title="Variação Recente"
           value={isLoading ? "Carregando..." : stats.variationText}
-          subtitle="Inflacao media da cesta Semar."
+          subtitle="Inflação média da cesta Semar."
           icon={<Activity className="text-emerald-400" size={24} />}
           trend={stats.trend}
         />
@@ -880,7 +963,7 @@ export default function PrecosPage() {
             <div className="rounded-2xl border border-green-500/20 bg-green-500/10 p-3 text-green-400 shadow-inner">
               <Tags size={24} />
             </div>
-            <h3 className="text-xl font-bold tracking-tight text-white">Tabela de Comparacao</h3>
+            <h3 className="text-xl font-bold tracking-tight text-white">Tabela de Comparação</h3>
           </div>
 
           <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row">
@@ -970,7 +1053,7 @@ export default function PrecosPage() {
             }`}
           >
             <Banana size={18} />
-            So Bananas
+            Só Bananas
           </button>
         </div>
 
@@ -1014,7 +1097,7 @@ export default function PrecosPage() {
                       }
                       className="ml-auto flex items-center gap-1"
                     >
-                      Preco Semar
+                      Preço Semar
                       {getSortIcon(sortConfig, "Semar")}
                     </button>
                   </th>
@@ -1022,7 +1105,7 @@ export default function PrecosPage() {
                     Melhor Concorrente
                   </th>
                   <th className="border-r border-white/5 p-5 text-right text-[10px] font-bold uppercase tracking-widest">
-                    Preco Concorrente
+                    Preço Concorrente
                   </th>
                   <th className="border-r border-white/5 p-5 text-right text-[10px] font-bold uppercase tracking-widest">
                     <button
@@ -1038,7 +1121,7 @@ export default function PrecosPage() {
                       }
                       className="ml-auto flex items-center gap-1"
                     >
-                      Media
+                      Média
                       {getSortIcon(sortConfig, "media")}
                     </button>
                   </th>
@@ -1066,7 +1149,7 @@ export default function PrecosPage() {
                 {isLoading ? (
                   <tr>
                     <td colSpan={6} className="p-5 text-gray-400">
-                      Carregando precos...
+                      Carregando preços...
                     </td>
                   </tr>
                 ) : visibleRows.length === 0 ? (
@@ -1181,7 +1264,7 @@ export default function PrecosPage() {
               </div>
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-gray-400" />
-                Sem cotacao
+                Sem cotação
               </div>
             </div>
           </div>
@@ -1193,12 +1276,12 @@ export default function PrecosPage() {
         >
           <h3 className="mb-12 flex items-center gap-2 text-xs font-bold uppercase tracking-tight text-white">
             <BarChart3 size={18} className="text-green-400" />
-            Variacao de Preco Medio - Bananas
+            Variação de Preço Médio - Bananas
           </h3>
 
           {bananaRows.length === 0 || chartMarkets.length === 0 ? (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-gray-400">
-              Nenhum item de banana disponivel para o grafico nesse recorte.
+              Nenhum item de banana disponível para o gráfico nesse recorte.
             </div>
           ) : (
             <>
@@ -1250,7 +1333,7 @@ export default function PrecosPage() {
                   className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 transition-all hover:bg-white/10 hover:text-green-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Download size={14} />
-                  Exportar Grafico
+                  Exportar Gráfico
                 </button>
 
                 <div className="flex flex-wrap justify-center gap-8">
@@ -1281,7 +1364,7 @@ export default function PrecosPage() {
               <Sparkles size={24} />
             </div>
             <div className="space-y-2">
-              <h4 className="text-sm font-bold text-emerald-300">Mita Inteligencia</h4>
+              <h4 className="text-sm font-bold text-emerald-300">Mita Inteligência</h4>
               <p className="max-w-3xl text-xs italic leading-relaxed text-emerald-100/70">
                 {insightText}
               </p>
@@ -1307,7 +1390,7 @@ export default function PrecosPage() {
                 <Bot size={24} />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-white">Mita Intelligence</h2>
+                <h2 className="text-sm font-bold text-white">Mita Inteligência</h2>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-green-400">
                   IA conectada
                 </p>
@@ -1327,22 +1410,22 @@ export default function PrecosPage() {
               <div className="space-y-4 pt-10 text-center">
                 <Sparkles className="mx-auto text-yellow-400" size={32} />
                 <p className="px-4 text-xs text-gray-400">
-                  Posso analisar esses precos agora mesmo e sugerir ajustes estrategicos para o Semar.
+                  Posso analisar esses preços agora mesmo e sugerir ajustes estratégicos para o Semar.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={() => void sendMitaMessage("Qual mercado esta com as bananas mais baratas?")}
+                    onClick={() => void sendMitaMessage("Qual mercado está com as bananas mais baratas?")}
                     className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] transition-all hover:bg-white/10"
                   >
                     Analisar Bananas
                   </button>
                   <button
                     type="button"
-                    onClick={() => void sendMitaMessage("Faca um resumo de competitividade.")}
+                    onClick={() => void sendMitaMessage("Faça um resumo de competitividade.")}
                     className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] transition-all hover:bg-white/10"
                   >
-                    Resumo Estrategico
+                    Resumo Estratégico
                   </button>
                 </div>
               </div>
@@ -1356,7 +1439,7 @@ export default function PrecosPage() {
                 >
                   <div className={`max-w-[85%] rounded-[24px] px-4 py-3 leading-relaxed ${bubbleClass(message.role)}`}>
                     <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      {message.role === "assistant" ? "Mita" : "Voce"}
+                      {message.role === "assistant" ? "Mita" : "Você"}
                     </p>
                     {message.content}
                   </div>
@@ -1368,7 +1451,7 @@ export default function PrecosPage() {
               <div className="flex justify-start animate-pulse">
                 <div className="flex items-center gap-2 rounded-2xl border border-emerald-400/10 bg-emerald-500/5 px-4 py-3 text-xs font-medium italic text-emerald-200">
                   <Activity size={14} className="animate-spin" />
-                  Mita esta processando os dados...
+                  Mita está processando os dados...
                 </div>
               </div>
             ) : null}
@@ -1386,7 +1469,7 @@ export default function PrecosPage() {
                   void sendMitaMessage(currentInput);
                 }
               }}
-              placeholder="Pergunte a IA sobre os precos..."
+              placeholder="Pergunte à IA sobre os preços..."
               className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-gray-600 focus:border-green-500"
             />
             <button

@@ -31,7 +31,7 @@ const MITA_PDF_MODEL = "grok-4-1-fast-reasoning";
 function getXaiApiKey(): string {
   const apiKey = process.env.XAI_API_KEY?.trim();
   if (!apiKey) {
-    serviceUnavailable("Servico de IA nao configurado. Defina XAI_API_KEY no servidor.");
+    serviceUnavailable("Serviço de IA não configurado. Defina XAI_API_KEY no servidor.");
   }
   return apiKey;
 }
@@ -197,7 +197,7 @@ async function uploadFileToXai(file: File, apiKey: string): Promise<string> {
   const payload = (await response.json().catch(() => ({}))) as UploadResponse & { error?: { message?: string } };
   if (!response.ok || !payload.id) {
     const detail =
-      payload?.error?.message?.trim() || "Nao foi possivel enviar o PDF para a MITA-I.";
+      payload?.error?.message?.trim() || "Não foi possível enviar o PDF para a MITA-I.";
     throw new HttpError(502, detail);
   }
 
@@ -214,7 +214,7 @@ async function deleteFileFromXai(fileId: string, apiKey: string): Promise<void> 
       cache: "no-store",
     });
   } catch {
-    // noop
+    console.error(`Falha ao remover arquivo temporário ${fileId} da MITA-I.`);
   }
 }
 
@@ -224,7 +224,7 @@ export async function extractBananasFromPdfWithMita(file: File): Promise<{
   resultado: MitaPdfItem[];
 }> {
   if (!file.name.toLowerCase().endsWith(".pdf")) {
-    badRequest("Envie um arquivo PDF valido.");
+    badRequest("Envie um arquivo PDF válido.");
   }
 
   const apiKey = getXaiApiKey();
@@ -246,15 +246,15 @@ export async function extractBananasFromPdfWithMita(file: File): Promise<{
               {
                 type: "input_text",
                 text: [
-                  "Leia o PDF anexado e extraia somente itens de banana para lancamento de entrada de estoque.",
-                  'Responda somente com JSON valido no formato {"resultado":[{"produto":"BANANA NANICA","quant":12.5,"unidade":"KG","valor_unit":0,"valor_total":0}]}',
+                  "Leia o PDF anexado e extraia somente itens de banana para lançamento de entrada de estoque.",
+                  'Responda somente com JSON válido no formato {"resultado":[{"produto":"BANANA NANICA","quant":12.5,"unidade":"KG","valor_unit":0,"valor_total":0}]}',
                   "Regras:",
                   "- inclua apenas produtos com BANANA no nome;",
-                  "- o campo produto deve ser EXATAMENTE um destes quatro valores, sem variacao: \"BANANA NANICA\", \"BANANA DA TERRA\", \"BANANA PRATA\" ou \"BANANA MACA\";",
-                  "- escolha a variedade mais proxima do que esta no documento; se nao for possivel identificar, use \"BANANA NANICA\";",
-                  "- quant precisa ser numero maior que zero;",
+                  "- o campo produto deve ser EXATAMENTE um destes quatro valores, sem variação: \"BANANA NANICA\", \"BANANA DA TERRA\", \"BANANA PRATA\" ou \"BANANA MACA\";",
+                  "- escolha a variedade mais próxima do que está no documento; se não for possível identificar, use \"BANANA NANICA\";",
+                  "- quant precisa ser número maior que zero;",
                   "- use KG, UN ou CX apenas quando isso estiver claro;",
-                  "- se nao houver item valido, responda com {\"resultado\":[]}.",
+                  "- se não houver item válido, responda com {\"resultado\":[]}.",
                 ].join("\n"),
               },
               {
@@ -280,7 +280,7 @@ export async function extractBananasFromPdfWithMita(file: File): Promise<{
         typeof payload.error.message === "string" &&
         payload.error.message.trim()
           ? payload.error.message
-          : "Nao foi possivel processar o PDF com a MITA-I.";
+          : "Não foi possível processar o PDF com a MITA-I.";
       throw new HttpError(502, detail);
     }
 

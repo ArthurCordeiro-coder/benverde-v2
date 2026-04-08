@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireUser } from "@/lib/server/auth";
+import { requireDashboardScope } from "@/lib/server/auth";
 import { badRequest, toErrorResponse } from "@/lib/server/errors";
 import { extractBananasFromPdfWithMita } from "@/lib/server/mita-pdf";
 
@@ -10,7 +10,7 @@ function isPdfFile(file: File): boolean {
 
 export async function POST(request: Request) {
   try {
-    await requireUser();
+    await requireDashboardScope("estoque");
     const body = await request.formData();
     const file = body.get("file");
 

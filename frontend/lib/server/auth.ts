@@ -3,6 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
 
+import { canAccessDashboardScope, type DashboardScope } from "@/lib/dashboard/access";
 import { badRequest, forbidden, unauthorized } from "@/lib/server/errors";
 import { normalizeEmail } from "@/lib/server/normalization";
 import {
@@ -104,6 +105,19 @@ export async function requireFuncionalidade(
 
   if (!isAllowed) {
     forbidden("Voce nao tem permissao para acessar esta area.");
+  }
+
+  return user;
+}
+
+export async function requireDashboardScope(scope: DashboardScope): Promise<PublicUser> {
+  const user = await requireUser();
+  if (user.role === "admin" || user.is_admin === true) {
+    return user;
+  }
+
+  if (!canAccessDashboardScope(user.funcionalidade, scope)) {
+    forbidden("Você não tem permissão para acessar esta área.");
   }
 
   return user;

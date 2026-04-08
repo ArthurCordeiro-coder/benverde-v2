@@ -1,24 +1,26 @@
 import { NextResponse } from "next/server";
 
 import { requireDashboardScope } from "@/lib/server/auth";
+import { updateCaixaEntregue } from "@/lib/server/caixas";
 import { badRequest, toErrorResponse } from "@/lib/server/errors";
-import { removeMovimentacao } from "@/lib/server/estoque";
+import { readJsonBody } from "@/lib/server/http";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-export async function DELETE(_: Request, context: RouteContext) {
+export async function PATCH(request: Request, context: RouteContext) {
   try {
-    await requireDashboardScope("estoque");
+    await requireDashboardScope("caixas");
     const { id } = await context.params;
     const parsedId = Number(id);
     if (!Number.isInteger(parsedId) || parsedId <= 0) {
-      badRequest("ID invalido.");
+      badRequest("ID inválido.");
     }
 
-    await removeMovimentacao(parsedId);
-    return NextResponse.json({ success: true, deleted_id: parsedId });
+    const payload = await readJsonBody(request);
+    const item = await updateCaixaEntregue(parsedId, payload);
+    return NextResponse.json({ success: true, item });
   } catch (error) {
     return toErrorResponse(error);
   }

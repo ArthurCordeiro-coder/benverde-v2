@@ -1,6 +1,7 @@
 "use client";
 
 import DesktopOnlyGate from "@/components/DesktopOnlyGate";
+import { type DashboardPath, getAllowedDashboardPaths } from "@/lib/dashboard/access";
 import api from "@/lib/api";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -54,33 +55,13 @@ type NavItemProps = {
   onClick?: () => void;
 };
 
-const navItems = [
+const navItems: Array<{ href: DashboardPath; label: string; icon: ReactNode }> = [
   { href: "/dashboard", label: "Resumo & Metas", icon: <BarChart3 size={18} /> },
   { href: "/dashboard/estoque", label: "Estoque de Bananas", icon: <Banana size={18} /> },
   { href: "/dashboard/caixas", label: "Caixas das Lojas", icon: <PackageSearch size={18} /> },
-  { href: "/dashboard/precos", label: "Precos Concorrentes", icon: <Tags size={18} /> },
+  { href: "/dashboard/precos", label: "Preços Concorrentes", icon: <Tags size={18} /> },
   { href: "/dashboard/mita-ai", label: "Mita AI", icon: <MessageCircleMore size={18} /> },
 ];
-
-function normalizeFuncionalidade(value?: string | null) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase();
-}
-
-function getAllowedDashboardPaths(funcionalidade?: string | null) {
-  const normalized = normalizeFuncionalidade(funcionalidade);
-
-  if (normalized === "registro de estoque") {
-    return ["/dashboard/estoque"];
-  }
-
-  if (normalized === "registro de caixas") {
-    return ["/dashboard/caixas"];
-  }
-
-  return navItems.map((item) => item.href);
-}
 
 function getNavClass(active: boolean, isHighlight = false) {
   return `w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 font-medium text-sm ${
@@ -124,7 +105,7 @@ function getErrorStatus(error: unknown): number | undefined {
 
 function formatPendingEmail(email?: string | null) {
   const normalizedEmail = email?.trim();
-  return normalizedEmail ? normalizedEmail : "E-mail nao informado";
+  return normalizedEmail ? normalizedEmail : "E-mail não informado";
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
@@ -167,7 +148,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       setPendingError(
         typeof detail === "string"
           ? detail
-          : "Nao foi possivel carregar as solicitacoes pendentes.",
+          : "Não foi possível carregar as solicitações pendentes.",
       );
     } finally {
       setPendingLoading(false);
@@ -182,14 +163,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       await api.post(`/api/admin/pending/${encodeURIComponent(username)}/${action}`);
       setPendingSuccess(
         action === "approve"
-          ? `Usuario ${username} aprovado com sucesso.`
-          : `Solicitacao de ${username} rejeitada.`,
+          ? `Usuário ${username} aprovado com sucesso.`
+          : `Solicitação de ${username} rejeitada.`,
       );
       await carregarPendentes();
     } catch (error: unknown) {
       const detail = getErrorDetail(error);
       setPendingError(
-        typeof detail === "string" ? detail : "Nao foi possivel processar essa solicitacao.",
+        typeof detail === "string" ? detail : "Não foi possível processar essa solicitação.",
       );
     } finally {
       setPendingActionKey(null);
@@ -225,7 +206,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         }
 
         const nextAllowedPaths = getAllowedDashboardPaths(nextFuncionalidade);
-        if (!nextAllowedPaths.includes(pathname)) {
+        if (!nextAllowedPaths.some((path) => path === pathname)) {
           router.replace(nextAllowedPaths[0] ?? "/login");
         }
       } catch {
@@ -250,7 +231,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-white">Benverde</h1>
-              <p className="text-xs font-medium text-green-400">Gestao Inteligente</p>
+              <p className="text-xs font-medium text-green-400">Gestão Inteligente</p>
             </div>
           </div>
 
@@ -272,11 +253,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             {isAdmin ? (
               <>
                 <p className="mb-2 mt-8 px-4 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                  Administracao
+                  Administração
                 </p>
                 <NavItem
                   icon={<Users size={18} />}
-                  label="Usuarios Pendentes"
+                  label="Usuários Pendentes"
                   active={pendingModalOpen}
                   isHighlight
                   onClick={() => {
@@ -321,7 +302,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 <div>
                   <h2 className="text-lg font-semibold text-white">Aprovar acessos</h2>
                   <p className="mt-1 text-sm text-slate-300">
-                    Revise solicitacoes pendentes e aprove ou rejeite novos usuarios.
+                    Revise solicitações pendentes e aprove ou rejeite novos usuários.
                   </p>
                 </div>
 
@@ -361,11 +342,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               {pendingLoading ? (
                 <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-4 py-4 text-sm text-slate-200">
                   <AlertCircle className="h-4 w-4 text-emerald-300" />
-                  Carregando solicitacoes...
+                  Carregando solicitações...
                 </div>
               ) : pendingUsers.length === 0 ? (
                 <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-4 text-sm text-slate-300">
-                  Nenhuma solicitacao pendente no momento.
+                  Nenhuma solicitação pendente no momento.
                 </div>
               ) : (
                 <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
@@ -411,10 +392,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
                             <div>
                               <p className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">
-                                Funcao
+                                Função
                               </p>
                               <p className="mt-1 text-sm text-slate-100">
-                                {pendingUser.funcionalidade || "Administracao geral"}
+                                {pendingUser.funcionalidade || "Administração geral"}
                               </p>
                             </div>
                           </div>

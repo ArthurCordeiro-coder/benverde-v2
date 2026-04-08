@@ -1,5 +1,6 @@
 import "server-only";
 
+import { type DashboardScope } from "@/lib/dashboard/access";
 import { HttpError, serviceUnavailable, badRequest } from "@/lib/server/errors";
 import { getCaixas } from "@/lib/server/caixas";
 import { buildDashboardMetaItems } from "@/lib/server/dashboard";
@@ -24,70 +25,93 @@ function formatQuantity(value: number): string {
   });
 }
 
-async function buildMitaContext(): Promise<string> {
+function shouldIncludeScope(
+  requestedScope: DashboardScope,
+  section: "estoque" | "precos" | "caixas" | "metas",
+): boolean {
+  if (requestedScope === "overview" || requestedScope === "mita-ai") {
+    return true;
+  }
+
+  return requestedScope === section;
+}
+
+function logMitaContextError(section: string, error: unknown): void {
+  console.error(`Falha ao montar o contexto da Mita para ${section}.`, error);
+}
+
+async function buildMitaContext(scope: DashboardScope): Promise<string> {
   const sections: string[] = [];
 
-  try {
-    const estoque = await getSaldoEstoque();
-    const ultimasMovimentacoes = estoque.historico
-      .slice(-20)
-      .map(
-        (item) =>
-          `- [${String(item.tipo ?? "").toUpperCase()}] ${item.data ?? "?"} | ${item.produto ?? "-"} | ${formatQuantity(Number(item.quant ?? 0))} ${item.unidade ?? "KG"}`,
-      )
-      .join("\n");
-
-    sections.push(
-      [
-        "## ESTOQUE ATUAL",
-        `Saldo atual: ${formatQuantity(estoque.saldo)} kg`,
-        "Ultimas movimentacoes:",
-        ultimasMovimentacoes || "Nenhuma movimentacao recente.",
-      ].join("\n"),
-    );
-  } catch {
-    // noop
-  }
-
-  try {
-    sections.push(`## PRECOS CONCORRENTES\n${await summarizePricesForPrompt()}`);
-  } catch {
-    // noop
-  }
-
-  try {
-    const caixas = await getCaixas();
-    const pendentes = caixas.filter((item) => item.entregue !== "sim");
-    sections.push(
-      [
-        "## CAIXAS DAS LOJAS",
-        `Total de registros: ${caixas.length}`,
-        `Registros nao entregues: ${pendentes.length}`,
-        ...pendentes.slice(0, 20).map(
+  if (shouldIncludeScope(scope, "estoque")) {
+    try {
+      const estoque = await getSaldoEstoque();
+      const ultimasMovimentacoes = estoque.historico
+        .slice(-20)
+        .map(
           (item) =>
-            `- ${item.data ?? "?"} | ${item.loja ?? "Sem loja"} | total ${item.total} | entregue ${item.entregue}`,
-        ),
-      ].join("\n"),
-    );
-  } catch {
-    // noop
-  }
+            `- [${String(item.tipo ?? "").toUpperCase()}] ${item.data ?? "?"} | ${item.produto ?? "-"} | ${formatQuantity(Number(item.quant ?? 0))} ${item.unidade ?? "KG"}`,
+        )
+        .join("\n");
 
-  try {
-    const metas = await buildDashboardMetaItems();
-    if (metas.length > 0) {
       sections.push(
         [
-          "## METAS POR PRODUTO",
-          ...metas.slice(0, 30).map(
+          "## ESTOQUE ATUAL",
+          `Saldo atual: ${formatQuantity(estoque.saldo)} kg`,
+          "Ultimas movimentacoes:",
+          ultimasMovimentacoes || "Nenhuma movimentacao recente.",
+        ].join("\n"),
+      );
+    } catch (error) {
+      logMitaContextError("estoque", error);
+    }
+  }
+
+  if (shouldIncludeScope(scope, "precos")) {
+    try {
+      sections.push(`## PRECOS CONCORRENTES\n${await summarizePricesForPrompt()}`);
+    } catch (error) {
+      logMitaContextError("precos", error);
+    }
+  }
+
+  if (shouldIncludeScope(scope, "caixas")) {
+    try {
+      const caixas = await getCaixas();
+      const pendentes = caixas.filter((item) => item.entregue !== "sim");
+      sections.push(
+        [
+          "## CAIXAS DAS LOJAS",
+          `Total de registros: ${caixas.length}`,
+          `Registros nao entregues: ${pendentes.length}`,
+          ...pendentes.slice(0, 20).map(
             (item) =>
-              `- ${item.produto}: meta ${item.meta}, pedido ${formatQuantity(item.pedido)}, progresso ${formatQuantity(item.progresso)}%, status ${item.status}`,
+              `- ${item.data ?? "?"} | ${item.loja ?? "Sem loja"} | total ${item.total} | entregue ${item.entregue}`,
           ),
         ].join("\n"),
       );
+    } catch (error) {
+      logMitaContextError("caixas", error);
     }
-  } catch {
-    // noop
+  }
+
+  if (shouldIncludeScope(scope, "metas")) {
+    try {
+      const metas = await buildDashboardMetaItems();
+      if (metas.length > 0) {
+        sections.push(
+          [
+            "## METAS POR PRODUTO",
+            ...metas.slice(0, 30).map(
+              (item) =>
+                `- ${item.produto}: meta ${item.meta}, pedido ${formatQuantity(item.pedido)}, progresso ${formatQuantity(item.progresso)}%, status ${item.status}`,
+            ),
+          ].join("\n"),
+        );
+      }
+    } catch (error) {
+      logMitaContextError("metas", error);
+    }
   }
 
   return sections.join("\n\n") || "Nenhum dado operacional disponivel no momento.";
@@ -115,7 +139,7 @@ function extractAssistantMessage(payload: unknown): string {
   return "";
 }
 
-export async function chatWithMita(payload: unknown): Promise<{
+export async function chatWithMita(payload: unknown, scope: DashboardScope): Promise<{
   answer: string;
   history: ChatMessage[];
 }> {
@@ -151,7 +175,7 @@ export async function chatWithMita(payload: unknown): Promise<{
   const messages = [
     {
       role: "system",
-      content: `${MITA_SYSTEM_PROMPT}\n\n${await buildMitaContext()}`,
+      content: `${MITA_SYSTEM_PROMPT}\n\n${await buildMitaContext(scope)}`,
     },
     ...history,
     { role: "user", content: userMessage },

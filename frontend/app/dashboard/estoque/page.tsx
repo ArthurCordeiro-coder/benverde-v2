@@ -1,6 +1,14 @@
 "use client";
 
 import api from "@/lib/api";
+import {
+  asArray,
+  coerceNumber,
+  coerceString,
+  getApiErrorMessage,
+  isRecord,
+  normalizeDashboardText,
+} from "@/lib/dashboard/client";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx";
 import {
@@ -76,8 +84,8 @@ type ProdutoRanking = {
 
 const MITA_QUESTIONS = [
   "Qual variedade corre mais risco de ruptura?",
-  "Como esta a tendencia de saida semanal?",
-  "Houve bonificacoes nesta ultima carga?",
+  "Como está a tendência de saída semanal?",
+  "Houve bonificações nesta última carga?",
 ];
 
 function GlassCard({
@@ -108,13 +116,23 @@ function GlassCard({
 }
 
 function normalizeText(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
+  return normalizeDashboardText(value);
+}
+
+function sanitizeHistoricoItem(raw: unknown): HistoricoItem | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  return {
+    data: coerceString(raw.data) || null,
+    tipo: coerceString(raw.tipo) || undefined,
+    produto: coerceString(raw.produto) || undefined,
+    quant: coerceNumber(raw.quant, 0),
+    unidade: coerceString(raw.unidade) || undefined,
+    loja: coerceString(raw.loja) || undefined,
+    arquivo: coerceString(raw.arquivo) || undefined,
+  };
 }
 
 function formatQuantity(value: number, unit = "kg"): string {
@@ -200,8 +218,11 @@ export default function EstoquePage() {
 
     try {
       const response = await api.get("/api/estoque/saldo");
-      const saldoAtual = Number(response.data?.saldo ?? 0);
-      const historicoAtual = Array.isArray(response.data?.historico) ? response.data.historico : [];
+      const payload = isRecord(response.data) ? response.data : {};
+      const saldoAtual = coerceNumber(payload.saldo, 0);
+      const historicoAtual = asArray(payload.historico)
+        .map(sanitizeHistoricoItem)
+        .filter((item): item is HistoricoItem => item !== null);
 
       historicoAtual.sort((left: HistoricoItem, right: HistoricoItem) => {
         const leftTime = new Date(left.data ?? "").getTime();
@@ -214,7 +235,7 @@ export default function EstoquePage() {
       setPageError("");
     } catch (error) {
       console.error("Erro ao carregar estoque:", error);
-      setPageError("Nao foi possivel carregar os dados de estoque.");
+      setPageError(getApiErrorMessage(error, "Não foi possível carregar os dados de estoque."));
     } finally {
       setCarregando(false);
       setIsRefreshing(false);
@@ -307,7 +328,7 @@ export default function EstoquePage() {
     if (!produto.trim() || !quant || quant <= 0) {
       setFeedback({
         tone: "error",
-        text: "Preencha produto e quantidade validos.",
+        text: "Preencha produto e quantidade válidos.",
       });
       return;
     }
@@ -328,20 +349,14 @@ export default function EstoquePage() {
       setTipo("entrada");
       setFeedback({
         tone: "success",
-        text: "Movimentacao registrada com sucesso.",
+        text: "Movimentação registrada com sucesso.",
       });
       await buscarEstoque("refresh");
     } catch (error: unknown) {
       console.error("Erro ao salvar movimentacao:", error);
-      const detail = (
-        error as { response?: { data?: { detail?: string } } } | undefined
-      )?.response?.data?.detail;
       setFeedback({
         tone: "error",
-        text:
-          typeof detail === "string" && detail.trim()
-            ? detail
-            : "Nao foi possivel salvar a movimentacao.",
+        text: getApiErrorMessage(error, "Não foi possível salvar a movimentação."),
       });
     } finally {
       setSalvandoMovimentacao(false);
@@ -382,25 +397,25 @@ export default function EstoquePage() {
       const normalizedQuestion = normalizeText(question);
 
       if (normalizedQuestion.includes("ESTOQUE") || normalizedQuestion.includes("SALDO")) {
-        return `Temos ${formatQuantity(stats.saldoAtual)} em estoque. A variedade ${stats.topVariedade.nome} representa o maior volume disponivel agora.`;
+        return `Temos ${formatQuantity(stats.saldoAtual)} em estoque. A variedade ${stats.topVariedade.nome} representa o maior volume disponível agora.`;
       }
 
       if (normalizedQuestion.includes("RUPTURA") || normalizedQuestion.includes("RISCO") || normalizedQuestion.includes("TERRA")) {
         if (stats.riscoVariedade.saldo <= 0) {
-          return `A variedade ${stats.riscoVariedade.nome} esta sem saldo positivo. Recomendo revisar as ultimas saidas e programar reposicao imediata.`;
+          return `A variedade ${stats.riscoVariedade.nome} está sem saldo positivo. Recomendo revisar as últimas saídas e programar reposição imediata.`;
         }
-        return `A variedade ${stats.riscoVariedade.nome} e a que mais merece atencao agora, com ${formatQuantity(stats.riscoVariedade.saldo)} disponiveis.`;
+        return `A variedade ${stats.riscoVariedade.nome} é a que mais merece atenção agora, com ${formatQuantity(stats.riscoVariedade.saldo)} disponíveis.`;
       }
 
       if (normalizedQuestion.includes("SAIDA") || normalizedQuestion.includes("TENDENCIA")) {
-        return `Registramos ${formatQuantity(stats.totalSaidas)} em saidas acumuladas no historico atual. Nos movimentos mais recentes, sairam ${formatQuantity(stats.saidaRecente)}.`;
+        return `Registramos ${formatQuantity(stats.totalSaidas)} em saídas acumuladas no histórico atual. Nos movimentos mais recentes, saíram ${formatQuantity(stats.saidaRecente)}.`;
       }
 
       if (normalizedQuestion.includes("BONIFICAC")) {
-        return "Nao encontrei um indicador explicito de bonificacao nesse historico. Hoje eu enxergo entradas, saidas, produto, loja e arquivo de origem.";
+        return "Não encontrei um indicador explícito de bonificação nesse histórico. Hoje eu enxergo entradas, saídas, produto, loja e arquivo de origem.";
       }
 
-      return `Consigo analisar entradas, saidas, risco de ruptura e distribuicao por variedade. Hoje o saldo total esta em ${formatQuantity(stats.saldoAtual)}.`;
+      return `Consigo analisar entradas, saídas, risco de ruptura e distribuição por variedade. Hoje o saldo total está em ${formatQuantity(stats.saldoAtual)}.`;
     },
     [stats],
   );
@@ -425,6 +440,7 @@ export default function EstoquePage() {
         const response = await api.post<MitaResponse>(mitaEndpoint, {
           message: question,
           history: previousMessages,
+          scope: "estoque",
         });
 
         if (Array.isArray(response.data?.history) && response.data.history.length > 0) {
@@ -457,8 +473,8 @@ export default function EstoquePage() {
 
   const insightText =
     stats.riscoVariedade.saldo <= 0
-      ? `Detectamos saldo zerado para ${stats.riscoVariedade.nome}. Vale priorizar reposicao imediata para evitar ruptura nas lojas.`
-      : `Detectamos menor cobertura para ${stats.riscoVariedade.nome}. Com ${formatQuantity(stats.riscoVariedade.saldo)} disponiveis, vale programar reposicao nas proximas 48h.`;
+      ? `Detectamos saldo zerado para ${stats.riscoVariedade.nome}. Vale priorizar reposição imediata para evitar ruptura nas lojas.`
+      : `Detectamos menor cobertura para ${stats.riscoVariedade.nome}. Com ${formatQuantity(stats.riscoVariedade.saldo)} disponíveis, vale programar reposição nas próximas 48h.`;
 
   return (
     <section className="mx-auto max-w-7xl space-y-8 pb-20 text-gray-100">
@@ -470,8 +486,8 @@ export default function EstoquePage() {
             </div>
           </div>
           <div>
-            <h2 className="text-lg font-semibold tracking-tight text-white">Mita Monitora: Gestao de Estoque</h2>
-            <p className="text-sm text-gray-400">Saldo e movimentacoes de bananas em tempo real.</p>
+            <h2 className="text-lg font-semibold tracking-tight text-white">Mita Monitora: Gestão de Estoque</h2>
+            <p className="text-sm text-gray-400">Saldo e movimentações de bananas em tempo real.</p>
           </div>
         </div>
 
@@ -490,7 +506,7 @@ export default function EstoquePage() {
             onClick={() => setModalAberto(true)}
             className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-5 py-2.5 text-sm font-semibold text-emerald-200 transition-all hover:bg-emerald-500/20"
           >
-            Nova Movimentacao
+            Nova Movimentação
           </button>
         </div>
       </header>
@@ -523,17 +539,17 @@ export default function EstoquePage() {
           trend={stats.saldoAtual >= 0 ? "up" : "down"}
         />
         <GlassCard
-          title="Saidas Recentes"
+          title="Saídas Recentes"
           value={carregando ? "Carregando..." : formatQuantity(stats.totalSaidas)}
-          subtitle="Fluxo acumulado das saidas registradas."
+          subtitle="Fluxo acumulado das saídas registradas."
           icon={<ShoppingCart size={24} />}
           colorClass="text-orange-400"
           trend="neutral"
         />
         <GlassCard
-          title="Variedade Lider"
+          title="Variedade Líder"
           value={stats.topVariedade.nome.split(" ").pop() ?? stats.topVariedade.nome}
-          subtitle={`${formatQuantity(stats.topVariedade.saldo)} disponiveis.`}
+          subtitle={`${formatQuantity(stats.topVariedade.saldo)} disponíveis.`}
           icon={<Banana size={24} />}
           colorClass="text-emerald-400"
           trend="up"
@@ -547,12 +563,12 @@ export default function EstoquePage() {
         >
           <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-white">
             <History size={18} className="text-green-400" />
-            Fluxo de Movimentacao
+            Fluxo de Movimentação
           </h3>
           <div className="space-y-4">
             {carregando ? (
               <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-gray-400">
-                Carregando movimentacoes...
+                Carregando movimentações...
               </div>
             ) : historico.length === 0 ? (
               <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-gray-400">
@@ -581,7 +597,7 @@ export default function EstoquePage() {
                           {item.produto || "Sem produto"}
                         </p>
                         <p className="text-[10px] uppercase text-gray-500">
-                          {(item.loja || item.arquivo || "Operacao manual").toString()} · {formatDate(item.data)}
+                          {(item.loja || item.arquivo || "Operação manual").toString()} · {formatDate(item.data)}
                         </p>
                       </div>
                     </div>
@@ -606,12 +622,12 @@ export default function EstoquePage() {
           <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-xl backdrop-blur-md">
             <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-white">
               <PieChart size={18} className="text-yellow-400" />
-              Distribuicao de Saldo
+              Distribuição de Saldo
             </h3>
             <div className="space-y-6">
               {stats.ranking.length === 0 ? (
                 <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-gray-400">
-                  Sem variedades disponiveis para comparar.
+                  Sem variedades disponíveis para comparar.
                 </div>
               ) : (
                 stats.ranking.map((item) => {
@@ -645,10 +661,10 @@ export default function EstoquePage() {
                 <Sparkles size={24} />
               </div>
               <div className="space-y-2">
-                <h4 className="text-sm font-bold text-emerald-300">Mita Inteligencia</h4>
+                <h4 className="text-sm font-bold text-emerald-300">Mita Inteligência</h4>
                 <p className="text-xs italic leading-relaxed text-emerald-100/70">{insightText}</p>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200/60">
-                  Ultima atualizacao: {formatDateTime(historico[0]?.data)}
+                  Última atualização: {formatDateTime(historico[0]?.data)}
                 </p>
               </div>
             </div>
@@ -669,7 +685,7 @@ export default function EstoquePage() {
                     }`}
                   >
                     <Download size={14} />
-                    Exportar Movimentacoes
+                    Exportar Movimentações
                   </button>
 
                   {showExportMenu ? (
@@ -741,7 +757,7 @@ export default function EstoquePage() {
               <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
                 <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/80">
                   <BarChart3 size={14} />
-                  Leitura rapida da operacao
+                  Leitura rápida da operação
                 </div>
                 <div className="grid grid-cols-1 gap-3 text-sm text-gray-300 sm:grid-cols-3">
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
@@ -749,7 +765,7 @@ export default function EstoquePage() {
                     <p className="mt-2 text-lg font-bold text-white">{formatQuantity(stats.totalEntradas)}</p>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Saidas</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Saídas</p>
                     <p className="mt-2 text-lg font-bold text-white">{formatQuantity(stats.totalSaidas)}</p>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
@@ -786,7 +802,7 @@ export default function EstoquePage() {
               <div>
                 <h2 className="text-sm font-bold text-white">Chat da Mita</h2>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-green-400">
-                  Gestao de Estoque
+                  Gestão de Estoque
                 </p>
               </div>
             </div>
@@ -806,7 +822,7 @@ export default function EstoquePage() {
                   <Bot size={40} />
                 </div>
                 <p className="italic text-gray-500">
-                  &quot;Mita, como esta o saldo de bananas hoje?&quot;
+                  &quot;Mita, como está o saldo de bananas hoje?&quot;
                 </p>
               </div>
             ) : (
@@ -827,7 +843,7 @@ export default function EstoquePage() {
             {isMitaTyping ? (
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 animate-pulse">
                 <Bot size={14} />
-                Mita analisando...
+                Mita está analisando...
               </div>
             ) : null}
 
@@ -844,7 +860,7 @@ export default function EstoquePage() {
                   void sendMitaMessage(currentInput);
                 }
               }}
-              placeholder="Duvidas sobre o estoque..."
+              placeholder="Dúvidas sobre o estoque..."
               className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-gray-600 focus:border-green-500"
             />
             <button
@@ -873,7 +889,7 @@ export default function EstoquePage() {
                   <BarChart3 size={20} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">Registrar Movimentacao</h3>
+                  <h3 className="text-lg font-bold text-white">Registrar Movimentação</h3>
                   <p className="text-xs text-gray-400">Atualize o estoque sem sair do dashboard.</p>
                 </div>
               </div>
@@ -923,7 +939,7 @@ export default function EstoquePage() {
                     className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-green-500"
                   >
                     <option value="entrada">Entrada</option>
-                    <option value="saida">Saida</option>
+                    <option value="saida">Saída</option>
                   </select>
                 </div>
               </div>
@@ -941,7 +957,7 @@ export default function EstoquePage() {
                   disabled={salvandoMovimentacao}
                   className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition-all hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {salvandoMovimentacao ? "Salvando..." : "Salvar movimentacao"}
+                  {salvandoMovimentacao ? "Salvando..." : "Salvar movimentação"}
                 </button>
               </div>
             </form>

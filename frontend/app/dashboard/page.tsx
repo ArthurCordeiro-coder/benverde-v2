@@ -1,6 +1,15 @@
 "use client";
 
 import api from "@/lib/api";
+import {
+  asArray,
+  coerceNumber,
+  coerceString,
+  createDraftId,
+  getApiErrorMessage,
+  isRecord,
+  normalizeDashboardText,
+} from "@/lib/dashboard/client";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx";
 import {
@@ -121,6 +130,21 @@ const EMPTY_SUMMARY: DashboardSummary = {
   pedidosImportados: 0,
 };
 
+function sanitizeDashboardSummary(raw: unknown): DashboardSummary {
+  const summary = isRecord(raw) ? raw : {};
+
+  return {
+    saldoEstoque: coerceNumber(summary.saldoEstoque, 0),
+    caixasDisponiveis: coerceNumber(summary.caixasDisponiveis, 0),
+    precoMedio: coerceNumber(summary.precoMedio, 0),
+    caixasRegistradas: coerceNumber(summary.caixasRegistradas, 0),
+    precosRegistrados: coerceNumber(summary.precosRegistrados, 0),
+    metasAtivas: coerceNumber(summary.metasAtivas, 0),
+    mediaEntrega: coerceNumber(summary.mediaEntrega, 0),
+    pedidosImportados: coerceNumber(summary.pedidosImportados, 0),
+  };
+}
+
 function GlassCard({ title, value, subtitle, icon, trend }: GlassCardProps) {
   return (
     <div className="relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition-all hover:bg-white/[0.05]">
@@ -141,13 +165,7 @@ function GlassCard({ title, value, subtitle, icon, trend }: GlassCardProps) {
 }
 
 function normalizeText(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
+  return normalizeDashboardText(value);
 }
 
 function inferCategory(produto: string, categoria?: string): DashboardCategory {
@@ -233,6 +251,15 @@ function mapMetaItem(raw: Record<string, unknown>, index: number): DashboardMeta
   };
 }
 
+function sanitizeMetaItem(raw: unknown, index: number): DashboardMeta | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const item = mapMetaItem(raw, index);
+  return item.produto ? item : null;
+}
+
 function roundProgress(value: number): number {
   return Math.round(value * 10) / 10;
 }
@@ -256,7 +283,7 @@ function formatCurrency(value: number): string {
 async function parseMetasFile(file: File): Promise<ImportedMeta[]> {
   const normalizedExtension = file.name.split(".").pop()?.toLowerCase();
   if (normalizedExtension && ["png", "jpg", "jpeg", "webp"].includes(normalizedExtension)) {
-    throw new Error("A importacao automatica suporta planilhas Excel ou CSV neste projeto.");
+    throw new Error("A importação automática suporta planilhas Excel ou CSV neste projeto.");
   }
 
   const buffer = await file.arrayBuffer();
@@ -266,7 +293,7 @@ async function parseMetasFile(file: File): Promise<ImportedMeta[]> {
     workbook.SheetNames[0];
 
   if (!preferredSheet) {
-    throw new Error("Nenhuma aba valida foi encontrada no arquivo enviado.");
+    throw new Error("Nenhuma aba válida foi encontrada no arquivo enviado.");
   }
 
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[preferredSheet], {
@@ -274,7 +301,7 @@ async function parseMetasFile(file: File): Promise<ImportedMeta[]> {
   });
 
   if (rows.length === 0) {
-    throw new Error("A planilha enviada esta vazia.");
+    throw new Error("A planilha enviada está vazia.");
   }
 
   const availableKeys = Object.keys(rows[0] ?? {});
@@ -304,13 +331,17 @@ async function parseMetasFile(file: File): Promise<ImportedMeta[]> {
   }
 
   if (deduped.size === 0) {
-    throw new Error("Nenhuma meta valida foi encontrada na planilha.");
+    throw new Error("Nenhuma meta válida foi encontrada na planilha.");
   }
 
   return Array.from(deduped.values());
 }
 
-function mergeImportedMetas(currentMetas: DashboardMeta[], importedMetas: ImportedMeta[]): DashboardMeta[] {
+function mergeImportedMetas(
+  currentMetas: DashboardMeta[],
+  importedMetas: ImportedMeta[],
+  allocateDraftMetaId: (seed: string) => number,
+): DashboardMeta[] {
   const merged = new Map<string, DashboardMeta>();
 
   for (const item of currentMetas) {
@@ -321,7 +352,7 @@ function mergeImportedMetas(currentMetas: DashboardMeta[], importedMetas: Import
     const key = normalizeText(item.produto);
     const current = merged.get(key);
     merged.set(key, {
-      id: current?.id ?? Date.now() + merged.size,
+      id: current?.id ?? allocateDraftMetaId(item.produto),
       produto: item.produto,
       categoria: item.categoria,
       meta: item.meta,
@@ -405,6 +436,12 @@ export default function DashboardHome() {
   const mitaMenuRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const tableSectionRef = useRef<HTMLDivElement | null>(null);
+  const draftMetaIndexRef = useRef(0);
+
+  const allocateDraftMetaId = useCallback((seed: string) => {
+    draftMetaIndexRef.current += 1;
+    return createDraftId(`${seed}:${draftMetaIndexRef.current}`);
+  }, []);
 
   const loadDashboardData = useCallback(async (mode: "initial" | "refresh" = "refresh") => {
     if (mode === "initial") {
@@ -415,20 +452,20 @@ export default function DashboardHome() {
 
     try {
       const response = await api.get<DashboardResponse>("/api/dashboard/summary");
-      const nextSummary = {
-        ...EMPTY_SUMMARY,
-        ...(response.data?.summary ?? {}),
-      };
-      const nextMetas = Array.isArray(response.data?.metas)
-        ? response.data.metas.map((item, index) => mapMetaItem(item, index))
-        : [];
+      const payload = isRecord(response.data) ? response.data : {};
+      const nextSummary = sanitizeDashboardSummary(payload.summary);
+      const nextMetas = asArray(payload.metas)
+        .map((item, index) => sanitizeMetaItem(item, index))
+        .filter((item): item is DashboardMeta => item !== null);
 
       setSummary(nextSummary);
       setMetas(nextMetas);
       setDashboardError("");
     } catch (error) {
       console.error("Erro ao carregar o dashboard:", error);
-      setDashboardError("Nao foi possivel carregar o resumo do dashboard.");
+      setDashboardError(
+        getApiErrorMessage(error, "Não foi possível carregar o resumo do dashboard."),
+      );
     } finally {
       setIsLoadingDashboard(false);
       setIsRefreshingDashboard(false);
@@ -441,6 +478,7 @@ export default function DashboardHome() {
 
   useEffect(() => {
     if (showMetasModal) {
+      draftMetaIndexRef.current = 0;
       setLocalMetas(metas);
       setMetasFeedback(null);
     }
@@ -576,15 +614,9 @@ export default function DashboardHome() {
         setMetasFeedback({ tone: "success", text: successText });
       } catch (error: unknown) {
         console.error("Erro ao salvar metas:", error);
-        const detail = (
-          error as { response?: { data?: { detail?: string } } } | undefined
-        )?.response?.data?.detail;
         setMetasFeedback({
           tone: "error",
-          text:
-            typeof detail === "string" && detail.trim()
-              ? detail
-              : "Nao foi possivel salvar as metas.",
+          text: getApiErrorMessage(error, "Não foi possível salvar as metas."),
         });
       } finally {
         setIsSavingMetas(false);
@@ -624,7 +656,7 @@ export default function DashboardHome() {
       : [
           ...localMetas,
           {
-            id: Date.now(),
+            id: allocateDraftMetaId(produto),
             produto,
             categoria: formCategoria,
             meta: formMeta,
@@ -680,15 +712,9 @@ export default function DashboardHome() {
       resetForm();
     } catch (error: unknown) {
       console.error("Erro ao salvar metas:", error);
-      const detail = (
-        error as { response?: { data?: { detail?: string } } } | undefined
-      )?.response?.data?.detail;
       setMetasFeedback({
         tone: "error",
-        text:
-          typeof detail === "string" && detail.trim()
-            ? detail
-            : "Nao foi possivel salvar as metas.",
+        text: getApiErrorMessage(error, "Não foi possível salvar as metas."),
       });
     } finally {
       setIsSavingMetas(false);
@@ -718,14 +744,19 @@ export default function DashboardHome() {
 
     try {
       const importedMetas = await parseMetasFile(selectedMetaFile);
-      setLocalMetas((current) => mergeImportedMetas(current, importedMetas));
+      setLocalMetas((current) =>
+        mergeImportedMetas(current, importedMetas, allocateDraftMetaId),
+      );
       setSelectedMetaFile(null);
       setMetasFeedback({ tone: "success", text: `${importedMetas.length} meta(s) importada(s).` });
     } catch (error) {
       console.error("Erro ao importar metas:", error);
       setMetasFeedback({
         tone: "error",
-        text: error instanceof Error ? error.message : "Nao foi possivel importar a planilha de metas.",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Não foi possível importar a planilha de metas.",
       });
     } finally {
       setIsExtractingMetas(false);
@@ -769,7 +800,7 @@ export default function DashboardHome() {
       const bestProduct = top5[0]?.produto ?? "Nenhum produto";
 
       if (normalizedQuestion.includes("RESUMO")) {
-        return `Hoje temos ${metas.length} meta(s) ativa(s), ${formatQuantity(totalPedidos, "kg")} associados as metas e media global de ${summary.mediaEntrega.toFixed(1)}% de atingimento. O melhor desempenho atual e ${bestProduct}.`;
+        return `Hoje temos ${metas.length} meta(s) ativa(s), ${formatQuantity(totalPedidos, "kg")} associados às metas e média global de ${summary.mediaEntrega.toFixed(1)}% de atingimento. O melhor desempenho atual é ${bestProduct}.`;
       }
 
       if (normalizedQuestion.includes("EVOLUCAO DE")) {
@@ -819,21 +850,21 @@ export default function DashboardHome() {
         const response = await api.post<MitaResponse>(mitaEndpoint, {
           message: question,
           history: previousMessages,
+          scope: "overview",
         });
 
-        if (Array.isArray(response.data?.history) && response.data.history.length > 0) {
-          setChatMessages(
-            response.data.history.filter(
-              (item): item is ChatMessage =>
-                (item.role === "user" || item.role === "assistant") &&
-                typeof item.content === "string",
-            ),
-          );
+        const payload = isRecord(response.data) ? response.data : {};
+        const history = asArray(payload.history).filter(
+          (item): item is ChatMessage =>
+            isRecord(item) &&
+            (item.role === "user" || item.role === "assistant") &&
+            typeof item.content === "string",
+        );
+
+        if (history.length > 0) {
+          setChatMessages(history);
         } else {
-          const answer =
-            typeof response.data?.answer === "string" && response.data.answer.trim()
-              ? response.data.answer.trim()
-              : buildFallbackMitaResponse(question);
+          const answer = coerceString(payload.answer).trim() || buildFallbackMitaResponse(question);
           setChatMessages([...optimisticMessages, { role: "assistant", content: answer }]);
         }
       } catch (error) {
@@ -881,7 +912,7 @@ export default function DashboardHome() {
         <div className="flex items-start gap-4">
           <AlertCircle size={24} className="mt-0.5 shrink-0 text-amber-400" />
           <p className="text-sm font-medium">
-            Este resumo consolida estoque, metas, caixas, precos e indicadores operacionais ativos do sistema.
+            Este resumo consolida estoque, metas, caixas, preços e indicadores operacionais ativos do sistema.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wider text-amber-50/80">
@@ -889,7 +920,7 @@ export default function DashboardHome() {
             {summary.caixasRegistradas} caixas
           </span>
           <span className="rounded-full border border-amber-300/20 bg-black/10 px-3 py-1">
-            {summary.precosRegistrados} precos
+            {summary.precosRegistrados} preços
           </span>
         </div>
       </div>
@@ -904,7 +935,7 @@ export default function DashboardHome() {
         <GlassCard
           title="Saldo de Estoque"
           value={isLoadingDashboard ? "Carregando..." : formatQuantity(summary.saldoEstoque, "kg")}
-          subtitle="Consolidado real das movimentacoes registradas."
+          subtitle="Consolidado real das movimentações registradas."
           icon={<Banana className="text-yellow-400" size={24} />}
           trend={summary.saldoEstoque > 0 ? "up" : "down"}
         />
@@ -916,9 +947,9 @@ export default function DashboardHome() {
           trend="neutral"
         />
         <GlassCard
-          title="Media de Entrega"
+          title="Média de Entrega"
           value={isLoadingDashboard ? "Carregando..." : `${summary.mediaEntrega.toFixed(1)}%`}
-          subtitle={`${formatQuantity(totalPedidosMetas, "kg")} ja associado(s) as metas.`}
+          subtitle={`${formatQuantity(totalPedidosMetas, "kg")} já associado(s) às metas.`}
           icon={<Tags className="text-emerald-400" size={24} />}
           trend={summary.mediaEntrega >= 80 ? "up" : summary.mediaEntrega > 0 ? "down" : "neutral"}
         />
@@ -1189,7 +1220,7 @@ export default function DashboardHome() {
         <div className="flex h-80 flex-col rounded-3xl border border-white/10 bg-white/[0.02] p-8 backdrop-blur-md">
           <h3 className="mb-8 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white">
             <BarChart3 size={18} className="text-green-400" />
-            Media por Categoria
+            Média por Categoria
           </h3>
           <div className="flex flex-1 items-end justify-around px-4">
             {categoriasProgresso.map((item, index) => (
@@ -1258,7 +1289,7 @@ export default function DashboardHome() {
                   <Sparkles className="text-emerald-400" size={32} />
                 </div>
                 <p className="max-w-xs text-sm font-medium text-gray-400">
-                  Ola! Eu sou a Mita. Selecione uma pergunta rapida ou digite abaixo para analisarmos sua operacao.
+                  Olá! Eu sou a Mita. Selecione uma pergunta rápida ou digite abaixo para analisarmos sua operação.
                 </p>
               </div>
             ) : (
@@ -1269,7 +1300,7 @@ export default function DashboardHome() {
                 >
                   <div className={`max-w-[85%] rounded-[24px] px-4 py-3 text-sm leading-relaxed shadow-sm ${bubbleClass(message.role)}`}>
                     <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      {message.role === "assistant" ? "Mita" : "Voce"}
+                      {message.role === "assistant" ? "Mita" : "Você"}
                     </p>
                     <p className="whitespace-pre-wrap">{message.content}</p>
                   </div>
@@ -1280,7 +1311,7 @@ export default function DashboardHome() {
             {isMitaTyping ? (
               <div className="flex justify-start">
                 <div className="rounded-2xl border border-emerald-400/10 bg-emerald-500/5 px-4 py-3 text-xs font-medium italic text-emerald-200">
-                  Mita esta analisando os dados...
+                  Mita está analisando os dados...
                 </div>
               </div>
             ) : null}
@@ -1294,7 +1325,7 @@ export default function DashboardHome() {
                 rows={2}
                 value={currentInput}
                 onChange={(event) => setCurrentInput(event.target.value)}
-                placeholder="Ex: Como está o estoque hoje?"
+                placeholder="Ex: Como está a operação hoje?"
                 className="resize-none border-none bg-transparent p-2 text-sm text-white outline-none placeholder:text-gray-600"
               />
               <div className="flex justify-end px-2 pb-2">
@@ -1364,7 +1395,7 @@ export default function DashboardHome() {
                       {selectedMetaFile ? selectedMetaFile.name : "Clique ou arraste uma planilha"}
                     </p>
                     <p className="mt-1 text-[11px] text-gray-500">
-                      Excel e CSV funcionam automaticamente. Imagens ainda nao tem OCR neste fluxo.
+                      Excel e CSV funcionam automaticamente. Imagens ainda não têm OCR neste fluxo.
                     </p>
                   </label>
 
@@ -1407,7 +1438,7 @@ export default function DashboardHome() {
 
               <section id="form-section">
                 <h3 className="mb-4 text-sm font-semibold text-slate-100">
-                  {formId ? "Editando Meta" : "Adicao Manual"}
+                  {formId ? "Editando Meta" : "Adição Manual"}
                 </h3>
                 <div className="grid grid-cols-1 gap-4 rounded-2xl border border-white/5 bg-white/5 p-4 shadow-inner md:grid-cols-4">
                   <div className="md:col-span-2">
