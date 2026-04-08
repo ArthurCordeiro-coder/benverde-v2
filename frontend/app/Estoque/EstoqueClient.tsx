@@ -1,7 +1,7 @@
 "use client";
 
 import api from "@/lib/api";
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Banana,
   FileText,
@@ -16,11 +16,35 @@ import {
 } from "lucide-react";
 
 const LOJAS_ESTOQUE = [
-  "Loja 01", "Loja 02", "Loja 03", "Loja 04", "Loja 05",
-  "Loja 06", "Loja 07", "Loja 08", "Loja 09", "Loja 10",
-  "Loja 11", "Loja 12", "Loja 13", "Loja 14", "Loja 15",
-  "Loja 16", "Loja 17", "Loja 18", "Loja 19", "Loja 20",
-  "Frutas/Legumes", "Outra",
+  "Loja 01 - SUZANO",
+  "Loja 04 - SÃO PAULO",
+  "Loja 05 - GUAIANAZES",
+  "Loja 06 - MAUA",
+  "Loja 07 - MOGI DAS CRUZES",
+  "Loja 08 - MOGI DAS CRUZES",
+  "Loja 10 - TAUBATE",
+  "Loja 11 - PINDAMONHANGABA",
+  "Loja 12 - SÃO SEBASTIÃO",
+  "Loja 13 - CARAGUATATUBA",
+  "Loja 14 - UBATUBA",
+  "Loja 16 - PINDAMONHANGABA",
+  "Loja 17 - POÁ",
+  "Loja 18 - TAUBATE",
+  "Loja 19 - NOVA LORENA",
+  "Loja 20 - GUARATINGUETA",
+  "Loja 21 - BERTIOGA",
+  "Loja 22 - MOGI DAS CRUZES",
+  "Loja 23 - FERRAZ DE VASCONCELOS",
+  "Loja 25 - SÃO SEBASTIÃO",
+  "Loja 26 - UBATUBA",
+  "Loja 27 - SUZANO",
+  "Loja 29 - ARUJA",
+  "Loja 30 - SÃO JOSÉ DOS CAMPOS",
+  "Loja 31 - SUZANO",
+  "Loja 32 - ITAQUAQUECETUBA",
+  "Loja 33 - ITAQUAQUECETUBA",
+  "Frutas/Legumes",
+  "Outra",
 ];
 
 const VARIEDADES = [
@@ -77,10 +101,14 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return typeof detail === "string" && detail.trim() ? detail : fallback;
 };
 
+
 export default function EstoqueClient() {
-  const gerarLinhasVazias = (qtd: number): Linha[] =>
+  const idCounter = useRef(5);
+  const nextId = () => ++idCounter.current;
+
+  const gerarLinhasVazias = (qtd: number, startId = 0): Linha[] =>
     Array.from({ length: qtd }).map((_, i) => ({
-      id: Date.now() + Math.random() + i,
+      id: startId + i,
       sel: false,
       variedade: VARIEDADES[0],
       quant: 0,
@@ -161,7 +189,7 @@ export default function EstoqueClient() {
   };
 
   const adicionarLinha = () => {
-    setLinhas([...linhas, { id: Date.now(), sel: false, variedade: VARIEDADES[0], quant: 0, loja: "Entrada", tipo: "entrada" }]);
+    setLinhas([...linhas, { id: nextId(), sel: false, variedade: VARIEDADES[0], quant: 0, loja: "Entrada", tipo: "entrada" }]);
   };
 
   const removerSelecionadas = () => {
@@ -189,9 +217,9 @@ export default function EstoqueClient() {
       }
 
       const novasLinhas: Linha[] = resultado.map(item => ({
-        id: Date.now() + Math.random(),
+        id: nextId(),
         sel: false,
-        variedade: String(item.produto ?? VARIEDADES[0]).trim(),
+        variedade: String(item.produto ?? VARIEDADES[0]).trim() || VARIEDADES[0],
         quant: Number(item.quant ?? 0),
         loja: "Entrada",
         tipo: "entrada",
@@ -233,7 +261,7 @@ export default function EstoqueClient() {
       );
 
       setFeedback({ tone: "success", text: `${validas.length} registro(s) salvo(s) com sucesso!` });
-      setLinhas(gerarLinhasVazias(5));
+      setLinhas(gerarLinhasVazias(5, nextId()));
       setSelAll(false);
       setTipoAll("─");
       await carregarEstoque();
