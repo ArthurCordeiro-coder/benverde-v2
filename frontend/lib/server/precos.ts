@@ -204,8 +204,12 @@ function findDateColumn(columns: string[]): string | null {
   );
 }
 
+function getPricesTableName(): string {
+  return process.env.PRECOS_TABLE?.trim() || "precos";
+}
+
 async function loadDbDatasets(): Promise<Record<string, PriceRow[]>> {
-  const tableName = "precos";
+  const tableName = getPricesTableName();
 
   try {
     if (!(await tableExists(tableName))) {
@@ -240,7 +244,8 @@ async function loadDbDatasets(): Promise<Record<string, PriceRow[]>> {
         accumulator[key] = cleanPriceRows(value.rows);
         return accumulator;
       }, {});
-  } catch {
+  } catch (error) {
+    console.error(`Falha ao carregar precos da tabela "${tableName}".`, error);
     return {};
   }
 }
