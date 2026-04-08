@@ -32,11 +32,11 @@ function getRedirectPath(funcionalidade?: string) {
   }
 
   if (normalized === "registro de estoque") {
-    return "/dashboard/estoque";
+    return "/Estoque";
   }
 
   if (normalized === "registro de caixas") {
-    return "/dashboard/caixas";
+    return "/Caixas";
   }
 
   return "/dashboard";
