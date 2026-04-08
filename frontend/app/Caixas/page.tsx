@@ -1,9 +1,24 @@
 "use client";
 
 import api from "@/lib/api";
-import { buildLojaOptions, getLojaByLabel } from "@/lib/lojas";
-import { AlertCircle, Boxes, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import React, { useState, useEffect, useCallback, FormEvent } from "react";
+import {
+  Box,
+  History,
+  CheckCircle2,
+  AlertCircle,
+  ChevronDown,
+  Loader2,
+} from "lucide-react";
+
+const LOJAS_CAIXAS = [
+  { id: 1,  nome: "SUZANO" },
+  { id: 4,  nome: "SÃO PAULO" },
+  { id: 5,  nome: "GUAIANAZES" },
+  { id: 6,  nome: "MAUA" },
+  { id: 13, nome: "CARAGUATATUBA" },
+  { id: 30, nome: "SÃO JOSÉ DOS CAMPOS" },
+];
 
 type CaixaRegistro = {
   data: string | null;
@@ -11,515 +26,294 @@ type CaixaRegistro = {
   n_loja: number;
   caixas_benverde: number;
   caixas_ccj: number;
-  ccj_banca: number;
-  ccj_mercadoria: number;
-  ccj_retirada: number;
   caixas_bananas: number;
   total: number;
-  entregue: string;
 };
 
-type Feedback = {
-  tone: "success" | "error";
-  text: string;
-} | null;
+type ApiError = { response?: { status?: number; data?: { detail?: string } } };
 
-type ApiError = {
-  response?: {
-    status?: number;
-    data?: {
-      detail?: string;
-    };
-  };
-};
-
-type CaixaFormState = {
-  loja: string;
-  data: string;
-  caixasBenverde: string;
-  caixasBananas: string;
-  caixasCcj: string;
-  ccjBanca: string;
-  ccjMercadoria: string;
-  ccjRetirada: string;
-};
-
-function createInitialForm(): CaixaFormState {
-  return {
-    loja: "",
-    data: new Date().toISOString().slice(0, 10),
-    caixasBenverde: "",
-    caixasBananas: "",
-    caixasCcj: "",
-    ccjBanca: "",
-    ccjMercadoria: "",
-    ccjRetirada: "",
-  };
-}
-
-function parseWholeNumber(value: string): number {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return 0;
-  }
-  return Math.trunc(parsed);
-}
-
-function formatDate(value?: string | null): string {
-  if (!value) {
-    return "-";
-  }
-
-  const parts = value.split("-");
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-
-  return value;
-}
-
-function getErrorMessage(error: unknown, fallback: string): string {
+const getErrorMessage = (error: unknown, fallback: string) => {
   const detail = (error as ApiError | undefined)?.response?.data?.detail;
   const status = (error as ApiError | undefined)?.response?.status;
-
-  if (status === 401) {
-    return "Sua sessao expirou. Faca login novamente para continuar.";
-  }
-
+  if (status === 401) return "Sua sessão expirou. Faça login novamente para continuar.";
   return typeof detail === "string" && detail.trim() ? detail : fallback;
-}
+};
 
-export default function CaixasPage() {
-  const [registros, setRegistros] = useState<CaixaRegistro[]>([]);
+const formatDate = (value?: string | null) => {
+  if (!value) return "-";
+  const parts = value.split("-");
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return value;
+};
+
+export default function RegistroCaixas() {
+  const [lojaSelecionada, setLojaSelecionada] = useState(LOJAS_CAIXAS[0].id);
+  const [caixasBenverde, setCaixasBenverde] = useState<number | "">("");
+  const [caixasBananas, setCaixasBananas] = useState<number | "">("");
+  const [caixasCCJ, setCaixasCCJ] = useState<number | "">("");
+  const [ccjBanca, setCcjBanca] = useState<number | "">("");
+  const [ccjMercadoria, setCcjMercadoria] = useState<number | "">("");
+  const [ccjRetirada, setCcjRetirada] = useState<number | "">("");
+
+  const [historico, setHistorico] = useState<CaixaRegistro[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [feedback, setFeedback] = useState<Feedback>(null);
-  const [pageError, setPageError] = useState("");
-  const [form, setForm] = useState<CaixaFormState>(() => createInitialForm());
+  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
-  const carregarRegistros = useCallback(async () => {
+  // Limpa o aviso de erro ao alterar os inputs CCJ após tentativa falha
+  useEffect(() => {
+    if (feedback?.tone === "error") {
+      setFeedback(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caixasCCJ, ccjBanca, ccjMercadoria, ccjRetirada]);
+
+  const carregarHistorico = useCallback(async () => {
     setIsLoading(true);
-    setPageError("");
-
     try {
       const response = await api.get<CaixaRegistro[]>("/api/caixas");
-      const dados = Array.isArray(response.data) ? response.data : [];
-      dados.sort((left, right) => {
-        const leftValue = left.data ?? "";
-        const rightValue = right.data ?? "";
-        if (leftValue === rightValue) {
-          return String(left.loja ?? "").localeCompare(String(right.loja ?? ""), "pt-BR");
-        }
-        return rightValue.localeCompare(leftValue);
-      });
-      setRegistros(dados);
+      const todos = Array.isArray(response.data) ? response.data : [];
+      const deLoja = todos
+        .filter(r => r.n_loja === lojaSelecionada)
+        .sort((a, b) => (b.data ?? "").localeCompare(a.data ?? ""))
+        .slice(0, 15);
+      setHistorico(deLoja);
     } catch (error) {
-      setPageError(getErrorMessage(error, "Nao foi possivel carregar os registros de caixas."));
+      setFeedback({ tone: "error", text: getErrorMessage(error, "Não foi possível carregar o histórico.") });
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [lojaSelecionada]);
 
   useEffect(() => {
-    void carregarRegistros();
-  }, [carregarRegistros]);
+    void carregarHistorico();
+  }, [carregarHistorico]);
 
-  const lojaOptions = useMemo(
-    () => buildLojaOptions(registros.map((registro) => registro.loja)),
-    [registros],
-  );
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
 
-  const totalsFromForm = useMemo(() => {
-    const caixasBenverde = parseWholeNumber(form.caixasBenverde);
-    const caixasBananas = parseWholeNumber(form.caixasBananas);
-    const caixasCcj = parseWholeNumber(form.caixasCcj);
-    const ccjBanca = parseWholeNumber(form.ccjBanca);
-    const ccjMercadoria = parseWholeNumber(form.ccjMercadoria);
-    const ccjRetirada = parseWholeNumber(form.ccjRetirada);
+    const num = (v: number | "") => Number(v) || 0;
+    const somaCcj = num(ccjBanca) + num(ccjMercadoria) + num(ccjRetirada);
+    const totalCcj = num(caixasCCJ);
 
-    return {
-      caixasBenverde,
-      caixasBananas,
-      caixasCcj,
-      ccjBanca,
-      ccjMercadoria,
-      ccjRetirada,
-      total: caixasBenverde + caixasBananas + caixasCcj,
-      ccjDistribuido: ccjBanca + ccjMercadoria + ccjRetirada,
-    };
-  }, [form]);
-
-  const updateFormField = (field: keyof CaixaFormState, value: string) => {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  };
-
-  const resetForm = () => {
-    setForm(createInitialForm());
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setFeedback(null);
-
-    const loja = getLojaByLabel(form.loja);
-    if (!loja) {
-      setFeedback({ tone: "error", text: "Selecione uma loja valida para salvar o registro." });
-      return;
-    }
-
-    if (!form.data) {
-      setFeedback({ tone: "error", text: "Informe a data do fechamento das caixas." });
-      return;
-    }
-
-    if (totalsFromForm.total <= 0) {
-      setFeedback({ tone: "error", text: "Informe pelo menos uma quantidade maior que zero." });
-      return;
-    }
-
-    if (totalsFromForm.ccjDistribuido > totalsFromForm.caixasCcj) {
+    if (somaCcj > totalCcj) {
       setFeedback({
         tone: "error",
-        text: "A soma da distribuicao CCJ nao pode ser maior que o total de caixas CCJ.",
+        text: `A soma das categorias CCJ (${somaCcj}) não pode ser maior que o total de Caixas CCJ (${totalCcj}).`,
       });
       return;
     }
 
-    setIsSaving(true);
+    const loja = LOJAS_CAIXAS.find(l => l.id === lojaSelecionada);
+    if (!loja) return;
 
+    const benverde = num(caixasBenverde);
+    const bananas = num(caixasBananas);
+
+    setIsSaving(true);
+    setFeedback(null);
     try {
       await api.post("/api/caixas", {
-        data: form.data,
-        loja: loja.label,
+        data: new Date().toISOString().slice(0, 10),
+        loja: loja.nome,
         n_loja: loja.id,
-        caixas_benverde: totalsFromForm.caixasBenverde,
-        caixas_bananas: totalsFromForm.caixasBananas,
-        caixas_ccj: totalsFromForm.caixasCcj,
-        ccj_banca: totalsFromForm.ccjBanca,
-        ccj_mercadoria: totalsFromForm.ccjMercadoria,
-        ccj_retirada: totalsFromForm.ccjRetirada,
-        total: totalsFromForm.total,
+        caixas_benverde: benverde,
+        caixas_bananas: bananas,
+        caixas_ccj: totalCcj,
+        ccj_banca: num(ccjBanca),
+        ccj_mercadoria: num(ccjMercadoria),
+        ccj_retirada: num(ccjRetirada),
+        total: benverde + bananas + totalCcj,
         entregue: "nao",
       });
 
-      setFeedback({ tone: "success", text: "Registro de caixas salvo com sucesso." });
-      resetForm();
-      await carregarRegistros();
+      setFeedback({ tone: "success", text: "Registro de caixas salvo com sucesso!" });
+      setCaixasBenverde(""); setCaixasBananas(""); setCaixasCCJ("");
+      setCcjBanca(""); setCcjMercadoria(""); setCcjRetirada("");
+      await carregarHistorico();
     } catch (error) {
-      setFeedback({
-        tone: "error",
-        text: getErrorMessage(error, "Nao foi possivel salvar o registro de caixas."),
-      });
+      setFeedback({ tone: "error", text: getErrorMessage(error, "Não foi possível salvar o registro.") });
     } finally {
       setIsSaving(false);
     }
   };
 
+  const currentLojaNome = LOJAS_CAIXAS.find(l => l.id === lojaSelecionada)?.nome ?? "";
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.18),_transparent_38%),_#07130d] px-4 py-8 text-gray-100">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <header className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-2xl backdrop-blur-xl">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-emerald-300">
-                  <Boxes size={24} />
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.15),_transparent_38%),_#07130d] px-4 py-8 text-gray-100">
+      <div className="mx-auto max-w-3xl space-y-8 animate-in fade-in duration-300">
+
+        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-6 shadow-xl backdrop-blur-md text-center">
+          <div className="mx-auto bg-blue-500/20 text-blue-400 p-3 rounded-full w-14 h-14 flex items-center justify-center mb-4">
+            <Box size={28} />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Registro de Caixas</h1>
+          <p className="text-sm text-gray-400">Informe o fechamento de caixas da sua loja</p>
+        </div>
+
+        <div className="relative">
+          <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-gray-500">
+            Selecione sua Loja
+          </label>
+          <div className="relative">
+            <select
+              value={lojaSelecionada}
+              onChange={e => setLojaSelecionada(Number(e.target.value))}
+              className="w-full appearance-none rounded-xl border border-blue-500/30 bg-blue-500/5 px-4 py-4 text-base font-bold text-white outline-none focus:border-blue-400"
+            >
+              {LOJAS_CAIXAS.map(l => (
+                <option key={l.id} value={l.id} className="bg-black text-white">
+                  Loja {l.id} — {l.nome}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-400 pointer-events-none" />
+          </div>
+        </div>
+
+        {feedback && (
+          <div className={`rounded-xl border px-5 py-4 text-sm flex items-center gap-3 ${
+            feedback.tone === "success"
+              ? "border-green-500/20 bg-green-500/10 text-green-300"
+              : "border-red-500/20 bg-red-500/10 text-red-200"
+          }`}>
+            {feedback.tone === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+            {feedback.text}
+          </div>
+        )}
+
+        <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-xl backdrop-blur-md">
+          <form onSubmit={e => void handleSubmit(e)} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-400">Caixas Benverde</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={caixasBenverde}
+                  onChange={e => setCaixasBenverde(e.target.value ? Number(e.target.value) : "")}
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-lg font-mono text-white outline-none focus:border-blue-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-400">Caixas Bananas</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={caixasBananas}
+                  onChange={e => setCaixasBananas(e.target.value ? Number(e.target.value) : "")}
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-lg font-mono text-white outline-none focus:border-blue-500"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-gray-400">Caixas CCJ</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={caixasCCJ}
+                  onChange={e => setCaixasCCJ(e.target.value ? Number(e.target.value) : "")}
+                  className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-lg font-mono text-white outline-none focus:border-blue-500"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-white/5 pt-6">
+              <label className="mb-3 block text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                Distribuição CCJ
+              </label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="mb-1 block text-xs text-gray-400">Na Banca</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={ccjBanca}
+                    onChange={e => setCcjBanca(e.target.value ? Number(e.target.value) : "")}
+                    className="w-full rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
+                    placeholder="0"
+                  />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-black tracking-tight text-white">Registro de Caixas</h1>
-                  <p className="text-sm text-gray-300">Fechamento diario de caixas por loja.</p>
+                  <label className="mb-1 block text-xs text-gray-400">C/ Mercadoria</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={ccjMercadoria}
+                    onChange={e => setCcjMercadoria(e.target.value ? Number(e.target.value) : "")}
+                    className="w-full rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-gray-400">P/ Retirada</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={ccjRetirada}
+                    onChange={e => setCcjRetirada(e.target.value ? Number(e.target.value) : "")}
+                    className="w-full rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
+                    placeholder="0"
+                  />
                 </div>
               </div>
             </div>
 
             <button
-              type="button"
-              onClick={() => void carregarRegistros()}
-              disabled={isLoading}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              type="submit"
+              disabled={isSaving}
+              className="w-full py-4 rounded-xl bg-blue-600 text-white font-bold tracking-wide hover:bg-blue-500 transition-colors shadow-[0_0_20px_rgba(37,99,235,0.3)] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100 flex items-center justify-center gap-2"
             >
-              {isLoading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-              Atualizar dados
+              {isSaving ? <Loader2 size={18} className="animate-spin" /> : null}
+              Salvar Caixas da Loja
             </button>
-          </div>
-        </header>
-
-        {pageError ? (
-          <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-5 py-4 text-sm text-red-200">
-            {pageError}
-          </div>
-        ) : null}
-
-        {feedback ? (
-          <div
-            className={`flex items-center gap-3 rounded-2xl border px-5 py-4 text-sm ${
-              feedback.tone === "success"
-                ? "border-green-500/25 bg-green-500/10 text-green-200"
-                : "border-red-500/25 bg-red-500/10 text-red-200"
-            }`}
-          >
-            {feedback.tone === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-            {feedback.text}
-          </div>
-        ) : null}
-
-        <section className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-xl backdrop-blur-md">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="rounded-2xl border border-blue-400/20 bg-blue-500/10 p-3 text-blue-300">
-              <Boxes size={22} />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">Novo fechamento</h2>
-              <p className="text-sm text-gray-400">Preencha os dados da loja e confirme o total do dia.</p>
-            </div>
-          </div>
-
-          <form className="space-y-6" onSubmit={(event) => void handleSubmit(event)}>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                  Loja
-                </label>
-                <select
-                  value={form.loja}
-                  onChange={(event) => updateFormField("loja", event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400"
-                >
-                  <option value="">Selecione uma loja</option>
-                  {lojaOptions.map((loja) => (
-                    <option key={loja} value={loja} className="bg-[#07130d]">
-                      {loja}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                  Data
-                </label>
-                <input
-                  type="date"
-                  value={form.data}
-                  onChange={(event) => updateFormField("data", event.target.value)}
-                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div>
-                <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                  Caixas Benverde
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.caixasBenverde}
-                  onChange={(event) => updateFormField("caixasBenverde", event.target.value)}
-                  placeholder="0"
-                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                  Caixas Bananas
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.caixasBananas}
-                  onChange={(event) => updateFormField("caixasBananas", event.target.value)}
-                  placeholder="0"
-                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                  Caixas CCJ
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.caixasCcj}
-                  onChange={(event) => updateFormField("caixasCcj", event.target.value)}
-                  placeholder="0"
-                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400"
-                />
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-bold text-white">Distribuicao de CCJ</h3>
-                  <p className="text-xs text-gray-400">
-                    Detalhe a quantidade de caixas CCJ ja separadas para a loja.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-right">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                    Distribuido
-                  </p>
-                  <p className="text-lg font-bold text-white">
-                    {totalsFromForm.ccjDistribuido}/{totalsFromForm.caixasCcj}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div>
-                  <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                    Na banca
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.ccjBanca}
-                    onChange={(event) => updateFormField("ccjBanca", event.target.value)}
-                    placeholder="0"
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                    Com mercadoria
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.ccjMercadoria}
-                    onChange={(event) => updateFormField("ccjMercadoria", event.target.value)}
-                    placeholder="0"
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">
-                    Para retirada
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.ccjRetirada}
-                    onChange={(event) => updateFormField("ccjRetirada", event.target.value)}
-                    placeholder="0"
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4 rounded-3xl border border-emerald-400/20 bg-emerald-500/5 p-5 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-200/80">
-                  Total calculado
-                </p>
-                <p className="mt-2 text-3xl font-black text-white">{totalsFromForm.total}</p>
-                <p className="text-sm text-emerald-100/70">
-                  O total considera Benverde, Bananas e CCJ.
-                </p>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-6 py-3 text-sm font-bold text-[#082015] transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSaving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                Salvar fechamento
-              </button>
-            </div>
           </form>
-        </section>
+        </div>
 
-        <section className="rounded-[32px] border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-xl">
-          <div className="flex flex-col gap-3 border-b border-white/10 p-6 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-white">Historico de caixas</h2>
-              <p className="text-sm text-gray-400">{registros.length} registro(s) carregados.</p>
+        <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-xl backdrop-blur-md">
+          <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-white mb-6">
+            <History size={18} className="text-blue-400" /> Últimos registros — {currentLojaNome}
+          </h3>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center gap-2 py-6 text-sm text-gray-400">
+              <Loader2 size={16} className="animate-spin" /> Carregando...
             </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm text-gray-200">
-              <thead className="border-b border-white/10 bg-black/20 text-[10px] font-bold uppercase tracking-[0.22em] text-gray-500">
-                <tr>
-                  <th className="px-6 py-4">Data</th>
-                  <th className="px-6 py-4">Loja</th>
-                  <th className="px-6 py-4 text-center">Benverde</th>
-                  <th className="px-6 py-4 text-center">Bananas</th>
-                  <th className="px-6 py-4 text-center">CCJ</th>
-                  <th className="px-6 py-4 text-center">Total</th>
-                  <th className="px-6 py-4 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {isLoading ? (
+          ) : historico.length === 0 ? (
+            <p className="text-sm text-gray-400 p-4 border border-white/5 rounded-xl text-center bg-black/20">
+              Nenhum registro encontrado para esta loja.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-gray-300">
+                <thead className="text-[10px] uppercase tracking-widest text-gray-500 border-b border-white/10">
                   <tr>
-                    <td className="px-6 py-8 text-sm text-gray-400" colSpan={7}>
-                      Carregando registros...
-                    </td>
+                    <th className="pb-3">Data</th>
+                    <th className="pb-3 text-center">Benverde</th>
+                    <th className="pb-3 text-center">Bananas</th>
+                    <th className="pb-3 text-center">CCJ</th>
+                    <th className="pb-3 text-center">Total</th>
                   </tr>
-                ) : registros.length === 0 ? (
-                  <tr>
-                    <td className="px-6 py-8 text-sm text-gray-400" colSpan={7}>
-                      Nenhum registro encontrado.
-                    </td>
-                  </tr>
-                ) : (
-                  registros.map((registro, index) => (
-                    <tr
-                      key={`${registro.data ?? "sem-data"}-${registro.loja ?? "sem-loja"}-${index}`}
-                      className="hover:bg-white/[0.03]"
-                    >
-                      <td className="px-6 py-4 font-mono text-xs text-gray-300">
-                        {formatDate(registro.data)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="font-semibold text-white">{registro.loja ?? "-"}</div>
-                        {registro.n_loja > 0 ? (
-                          <div className="text-xs text-gray-500">Loja No {registro.n_loja}</div>
-                        ) : null}
-                      </td>
-                      <td className="px-6 py-4 text-center">{registro.caixas_benverde}</td>
-                      <td className="px-6 py-4 text-center">{registro.caixas_bananas}</td>
-                      <td className="px-6 py-4 text-center">
-                        <div>{registro.caixas_ccj}</div>
-                        {(registro.ccj_banca || registro.ccj_mercadoria || registro.ccj_retirada) > 0 ? (
-                          <div className="text-xs text-gray-500">
-                            {registro.ccj_banca}/{registro.ccj_mercadoria}/{registro.ccj_retirada}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-6 py-4 text-center font-bold text-emerald-300">
-                        {registro.total}
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span
-                          className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${
-                            registro.entregue === "sim"
-                              ? "border-green-500/30 bg-green-500/10 text-green-300"
-                              : "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                          }`}
-                        >
-                          {registro.entregue === "sim" ? "Entregue" : "Nao entregue"}
-                        </span>
-                      </td>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {historico.map((h, idx) => (
+                    <tr key={`${h.data}-${idx}`} className="hover:bg-white/5 transition-colors">
+                      <td className="py-3 font-mono text-xs">{formatDate(h.data)}</td>
+                      <td className="py-3 text-center">{h.caixas_benverde}</td>
+                      <td className="py-3 text-center">{h.caixas_bananas}</td>
+                      <td className="py-3 text-center">{h.caixas_ccj}</td>
+                      <td className="py-3 font-bold text-white text-center">{h.total}</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
