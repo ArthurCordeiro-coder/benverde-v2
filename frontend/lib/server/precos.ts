@@ -172,37 +172,41 @@ async function loadCsvDatasets(): Promise<Record<string, PriceRow[]>> {
 }
 
 function findDateColumn(columns: string[]): string | null {
+  const exactMatches = new Set([
+    "data",
+    "date",
+    "data pesquisa",
+    "data da pesquisa",
+    "data coleta",
+    "data consulta",
+    "dt",
+    "dt pesquisa",
+    "data_pesquisa",
+    "data_coleta",
+    "created at",
+    "created_at",
+    "updated at",
+    "updated_at",
+    "imported at",
+    "imported_at",
+    "timestamp",
+    "arquivo",
+    "nome arquivo",
+    "arquivo origem",
+    "source file",
+    "file name",
+    "filename",
+  ]);
+
   for (const column of columns) {
-    if (normalizeColumnName(column) === "data_pesquisa") {
+    if (exactMatches.has(normalizeColumnName(column))) {
       return column;
     }
   }
 
-  return null;
-}
-
-function parsePriceResearchDate(value: unknown): Date | null {
-  if (value instanceof Date) {
-    return Number.isNaN(value.getTime())
-      ? null
-      : new Date(value.getFullYear(), value.getMonth(), value.getDate());
-  }
-
-  const raw = String(value ?? "").trim();
-  if (!raw) {
-    return null;
-  }
-
-  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[ T])/);
-  if (!isoMatch) {
-    return null;
-  }
-
-  const year = Number(isoMatch[1]);
-  const month = Number(isoMatch[2]);
-  const day = Number(isoMatch[3]);
-  const parsed = new Date(year, month - 1, day);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return (
+    columns.find((column) => normalizeColumnName(column).startsWith("data ")) ?? null
+  );
 }
 
 function getPricesTableName(): string {
@@ -265,10 +269,7 @@ async function loadDbDatasets(): Promise<Record<string, PriceRow[]>> {
 
     for (const row of rows) {
       const rawDate = dateColumn ? row[dateColumn] : null;
-      const parsedDate = parsePriceResearchDate(rawDate);
-      if (!parsedDate) {
-        continue;
-      }
+      const parsedDate = parseDateValue(rawDate) ?? new Date();
       const key = formatDateKey(parsedDate);
       const current = grouped.get(key);
       if (current) {
