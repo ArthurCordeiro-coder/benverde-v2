@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import api from "@/lib/api";
 import {
@@ -61,7 +61,7 @@ type DashboardSummary = {
   pedidosImportados: number;
 };
 
-type DashboardMetaStatus = "Atingida" | "PrÃ³xima" | "Pendente";
+type DashboardMetaStatus = "Atingida" | "Próxima" | "Pendente";
 type DashboardCategory = "Frutas" | "Legumes" | "Verduras";
 
 type DashboardMeta = {
@@ -229,7 +229,7 @@ function statusFromValue(value: unknown): DashboardMetaStatus {
     return "Atingida";
   }
   if (normalizedStatus === "PROXIMA") {
-    return "PrÃ³xima";
+    return "Próxima";
   }
   return "Pendente";
 }
@@ -283,7 +283,7 @@ function formatCurrency(value: number): string {
 async function parseMetasFile(file: File): Promise<ImportedMeta[]> {
   const normalizedExtension = file.name.split(".").pop()?.toLowerCase();
   if (normalizedExtension && ["png", "jpg", "jpeg", "webp"].includes(normalizedExtension)) {
-    throw new Error("A importaÃ§Ã£o automÃ¡tica suporta planilhas Excel ou CSV neste projeto.");
+    throw new Error("A importação automática suporta planilhas Excel ou CSV neste projeto.");
   }
 
   const buffer = await file.arrayBuffer();
@@ -293,7 +293,7 @@ async function parseMetasFile(file: File): Promise<ImportedMeta[]> {
     workbook.SheetNames[0];
 
   if (!preferredSheet) {
-    throw new Error("Nenhuma aba vÃ¡lida foi encontrada no arquivo enviado.");
+    throw new Error("Nenhuma aba válida foi encontrada no arquivo enviado.");
   }
 
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[preferredSheet], {
@@ -301,7 +301,7 @@ async function parseMetasFile(file: File): Promise<ImportedMeta[]> {
   });
 
   if (rows.length === 0) {
-    throw new Error("A planilha enviada estÃ¡ vazia.");
+    throw new Error("A planilha enviada está vazia.");
   }
 
   const availableKeys = Object.keys(rows[0] ?? {});
@@ -331,7 +331,7 @@ async function parseMetasFile(file: File): Promise<ImportedMeta[]> {
   }
 
   if (deduped.size === 0) {
-    throw new Error("Nenhuma meta vÃ¡lida foi encontrada na planilha.");
+    throw new Error("Nenhuma meta válida foi encontrada na planilha.");
   }
 
   return Array.from(deduped.values());
@@ -363,7 +363,7 @@ function mergeImportedMetas(
           ? current.pedido / item.meta >= 1
             ? "Atingida"
             : current.pedido / item.meta >= 0.8
-              ? "PrÃ³xima"
+              ? "Próxima"
               : "Pendente"
           : "Pendente",
     });
@@ -464,7 +464,7 @@ export default function DashboardHome() {
     } catch (error) {
       console.error("Erro ao carregar o dashboard:", error);
       setDashboardError(
-        getApiErrorMessage(error, "NÃ£o foi possÃ­vel carregar o resumo do dashboard."),
+        getApiErrorMessage(error, "Não foi possível carregar o resumo do dashboard."),
       );
     } finally {
       setIsLoadingDashboard(false);
@@ -616,7 +616,7 @@ export default function DashboardHome() {
         console.error("Erro ao salvar metas:", error);
         setMetasFeedback({
           tone: "error",
-          text: getApiErrorMessage(error, "NÃ£o foi possÃ­vel salvar as metas."),
+          text: getApiErrorMessage(error, "Não foi possível salvar as metas."),
         });
       } finally {
         setIsSavingMetas(false);
@@ -714,7 +714,7 @@ export default function DashboardHome() {
       console.error("Erro ao salvar metas:", error);
       setMetasFeedback({
         tone: "error",
-        text: getApiErrorMessage(error, "NÃ£o foi possÃ­vel salvar as metas."),
+        text: getApiErrorMessage(error, "Não foi possível salvar as metas."),
       });
     } finally {
       setIsSavingMetas(false);
@@ -756,7 +756,7 @@ export default function DashboardHome() {
         text:
           error instanceof Error
             ? error.message
-            : "NÃ£o foi possÃ­vel importar a planilha de metas.",
+            : "Não foi possível importar a planilha de metas.",
       });
     } finally {
       setIsExtractingMetas(false);
@@ -800,7 +800,7 @@ export default function DashboardHome() {
       const bestProduct = top5[0]?.produto ?? "Nenhum produto";
 
       if (normalizedQuestion.includes("RESUMO")) {
-        return `Hoje temos ${metas.length} meta(s) ativa(s), ${formatQuantity(totalPedidos, "kg")} associados Ã s metas e mÃ©dia global de ${summary.mediaEntrega.toFixed(1)}% de atingimento. O melhor desempenho atual Ã© ${bestProduct}.`;
+        return `Hoje temos ${metas.length} meta(s) ativa(s), ${formatQuantity(totalPedidos, "kg")} associados às metas e média global de ${summary.mediaEntrega.toFixed(1)}% de atingimento. O melhor desempenho atual é ${bestProduct}.`;
       }
 
       if (normalizedQuestion.includes("EVOLUCAO DE")) {
@@ -808,23 +808,23 @@ export default function DashboardHome() {
           normalizedQuestion.includes(normalizeText(item.categoria)),
         );
         if (category) {
-          return `A categoria ${category.categoria} estÃ¡ com ${category.progresso.toFixed(1)}% de progresso mÃ©dio. Vale olhar com atenÃ§Ã£o os itens abaixo de 80% para fechar o mÃªs com mais conforto.`;
+          return `A categoria ${category.categoria} está com ${category.progresso.toFixed(1)}% de progresso médio. Vale olhar com atenção os itens abaixo de 80% para fechar o mês com mais conforto.`;
         }
       }
 
       if (normalizedQuestion.includes("TOP 5") || normalizedQuestion.includes("CINCO PRODUTOS")) {
-        return `Os 5 produtos com maior avanÃ§o agora sÃ£o ${top5.map((item) => item.produto).join(", ")}. ${top5.length > 0 ? `O lÃ­der atual Ã© ${top5[0].produto} com ${top5[0].progresso.toFixed(1)}% da meta.` : ""}`;
+        return `Os 5 produtos com maior avanço agora são ${top5.map((item) => item.produto).join(", ")}. ${top5.length > 0 ? `O líder atual é ${top5[0].produto} com ${top5[0].progresso.toFixed(1)}% da meta.` : ""}`;
       }
 
       if (normalizedQuestion.includes("ESTOQUE")) {
-        return `O saldo atual de estoque estÃ¡ em ${formatQuantity(summary.saldoEstoque, "kg")}. Esse nÃºmero vem do consolidado real de movimentaÃ§Ãµes da operaÃ§Ã£o.`;
+        return `O saldo atual de estoque está em ${formatQuantity(summary.saldoEstoque, "kg")}. Esse número vem do consolidado real de movimentações da operação.`;
       }
 
       if (normalizedQuestion.includes("PRECO")) {
-        return `O preÃ§o mÃ©dio consolidado estÃ¡ em ${formatCurrency(summary.precoMedio)} com ${summary.precosRegistrados} registro(s) vÃ¡lidos na base atual.`;
+        return `O preço médio consolidado está em ${formatCurrency(summary.precoMedio)} com ${summary.precosRegistrados} registro(s) válidos na base atual.`;
       }
 
-      return `A operaÃ§Ã£o estÃ¡ com ${summary.mediaEntrega.toFixed(1)}% de mÃ©dia de entrega, ${summary.caixasRegistradas} registro(s) de caixas e ${summary.precosRegistrados} preÃ§o(s) consolidados. Posso detalhar metas atrasadas, evoluÃ§Ã£o por categoria ou situaÃ§Ã£o de estoque.`;
+      return `A operação está com ${summary.mediaEntrega.toFixed(1)}% de média de entrega, ${summary.caixasRegistradas} registro(s) de caixas e ${summary.precosRegistrados} preço(s) consolidados. Posso detalhar metas atrasadas, evolução por categoria ou situação de estoque.`;
     },
     [categoriasProgresso, metas, summary, top5],
   );
@@ -912,7 +912,7 @@ export default function DashboardHome() {
         <div className="flex items-start gap-4">
           <AlertCircle size={24} className="mt-0.5 shrink-0 text-amber-400" />
           <p className="text-sm font-medium">
-            Este resumo consolida estoque, metas, caixas, preÃ§os e indicadores operacionais ativos do sistema.
+            Este resumo consolida estoque, metas, caixas, preços e indicadores operacionais ativos do sistema.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-wider text-amber-50/80">
@@ -920,7 +920,7 @@ export default function DashboardHome() {
             {summary.caixasRegistradas} caixas
           </span>
           <span className="rounded-full border border-amber-300/20 bg-black/10 px-3 py-1">
-            {summary.precosRegistrados} preÃ§os
+            {summary.precosRegistrados} preços
           </span>
         </div>
       </div>
@@ -935,7 +935,7 @@ export default function DashboardHome() {
         <GlassCard
           title="Saldo de Estoque"
           value={isLoadingDashboard ? "Carregando..." : formatQuantity(summary.saldoEstoque, "kg")}
-          subtitle="Consolidado real das movimentaÃ§Ãµes registradas."
+          subtitle="Consolidado real das movimentações registradas."
           icon={<Banana className="text-yellow-400" size={24} />}
           trend={summary.saldoEstoque > 0 ? "up" : "down"}
         />
@@ -947,9 +947,9 @@ export default function DashboardHome() {
           trend="neutral"
         />
         <GlassCard
-          title="MÃ©dia de Entrega"
+          title="Média de Entrega"
           value={isLoadingDashboard ? "Carregando..." : `${summary.mediaEntrega.toFixed(1)}%`}
-          subtitle={`${formatQuantity(totalPedidosMetas, "kg")} jÃ¡ associado(s) Ã s metas.`}
+          subtitle={`${formatQuantity(totalPedidosMetas, "kg")} já associado(s) às metas.`}
           icon={<Tags className="text-emerald-400" size={24} />}
           trend={summary.mediaEntrega >= 80 ? "up" : summary.mediaEntrega > 0 ? "down" : "neutral"}
         />
@@ -1022,11 +1022,11 @@ export default function DashboardHome() {
                 <div className="py-2">
                   <button
                     type="button"
-                    onClick={() => void sendLumiiMessage("FaÃ§a-me um resumo de todas as metas desse mÃªs.")}
+                    onClick={() => void sendLumiiMessage("Faça-me um resumo de todas as metas desse mês.")}
                     className="flex w-full items-center gap-2 border-b border-white/5 px-4 py-3 text-left text-[11px] text-gray-300 transition-colors hover:bg-white/5 hover:text-green-400"
                   >
                     <Sparkles size={14} />
-                    Resumo das metas do mÃªs
+                    Resumo das metas do mês
                   </button>
                   <button
                     type="button"
@@ -1035,13 +1035,13 @@ export default function DashboardHome() {
                   >
                     <span className="flex items-center gap-2">
                       <TrendingUp size={14} />
-                      Como anda a evoluÃ§Ã£o...
+                      Como anda a evolução...
                     </span>
                     <ChevronRight size={14} />
                   </button>
                   <button
                     type="button"
-                    onClick={() => void sendLumiiMessage("Qual foi a evoluÃ§Ã£o dos cinco produtos que mais estÃ£o vendendo?")}
+                    onClick={() => void sendLumiiMessage("Qual foi a evolução dos cinco produtos que mais estão vendendo?")}
                     className="flex w-full items-center gap-2 px-4 py-3 text-left text-[11px] text-gray-300 transition-colors hover:bg-white/5 hover:text-green-400"
                   >
                     <PackageSearch size={14} />
@@ -1055,13 +1055,13 @@ export default function DashboardHome() {
                     onClick={() => setLumiiSubmenu(null)}
                     className="flex w-full items-center gap-2 border-b border-white/5 px-4 py-2 text-left text-[10px] font-bold uppercase text-gray-500 transition-colors hover:text-white"
                   >
-                    â† Voltar
+                    ← Voltar
                   </button>
                   {CATEGORY_OPTIONS.map((category) => (
                     <button
                       key={category}
                       type="button"
-                      onClick={() => void sendLumiiMessage(`Como anda a evoluÃ§Ã£o de ${category.toLowerCase()}`)}
+                      onClick={() => void sendLumiiMessage(`Como anda a evolução de ${category.toLowerCase()}`)}
                       className="w-full border-b border-white/5 px-4 py-3 text-left text-[11px] capitalize text-gray-300 transition-colors last:border-0 hover:bg-white/5 hover:text-green-400"
                     >
                       {category.toLowerCase()}
@@ -1168,7 +1168,7 @@ export default function DashboardHome() {
                         className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
                           row.status === "Atingida"
                             ? "border border-green-500/20 bg-green-500/20 text-green-400"
-                            : row.status === "PrÃ³xima"
+                            : row.status === "Próxima"
                               ? "border border-yellow-500/20 bg-yellow-500/20 text-yellow-400"
                               : "border border-red-500/20 bg-red-500/20 text-red-400"
                         }`}
@@ -1220,7 +1220,7 @@ export default function DashboardHome() {
         <div className="flex h-80 flex-col rounded-3xl border border-white/10 bg-white/[0.02] p-8 backdrop-blur-md">
           <h3 className="mb-8 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white">
             <BarChart3 size={18} className="text-green-400" />
-            MÃ©dia por Categoria
+            Média por Categoria
           </h3>
           <div className="flex flex-1 items-end justify-around px-4">
             {categoriasProgresso.map((item, index) => (
@@ -1289,7 +1289,7 @@ export default function DashboardHome() {
                   <Sparkles className="text-emerald-400" size={32} />
                 </div>
                 <p className="max-w-xs text-sm font-medium text-gray-400">
-                  OlÃ¡! Eu sou a Lumii. Selecione uma pergunta rÃ¡pida ou digite abaixo para analisarmos sua operaÃ§Ã£o.
+                  Olá! Eu sou a Lumii. Selecione uma pergunta rápida ou digite abaixo para analisarmos sua operação.
                 </p>
               </div>
             ) : (
@@ -1300,7 +1300,7 @@ export default function DashboardHome() {
                 >
                   <div className={`max-w-[85%] rounded-[24px] px-4 py-3 text-sm leading-relaxed shadow-sm ${bubbleClass(message.role)}`}>
                     <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      {message.role === "assistant" ? "Lumii" : "VocÃª"}
+                      {message.role === "assistant" ? "Lumii" : "Você"}
                     </p>
                     <p className="whitespace-pre-wrap">{message.content}</p>
                   </div>
@@ -1311,7 +1311,7 @@ export default function DashboardHome() {
             {isLumiiTyping ? (
               <div className="flex justify-start">
                 <div className="rounded-2xl border border-emerald-400/10 bg-emerald-500/5 px-4 py-3 text-xs font-medium italic text-emerald-200">
-                  Lumii estÃ¡ analisando os dados...
+                  Lumii está analisando os dados...
                 </div>
               </div>
             ) : null}
@@ -1325,7 +1325,7 @@ export default function DashboardHome() {
                 rows={2}
                 value={currentInput}
                 onChange={(event) => setCurrentInput(event.target.value)}
-                placeholder="Ex: Como estÃ¡ a operaÃ§Ã£o hoje?"
+                placeholder="Ex: Como está a operação hoje?"
                 className="resize-none border-none bg-transparent p-2 text-sm text-white outline-none placeholder:text-gray-600"
               />
               <div className="flex justify-end px-2 pb-2">
@@ -1395,7 +1395,7 @@ export default function DashboardHome() {
                       {selectedMetaFile ? selectedMetaFile.name : "Clique ou arraste uma planilha"}
                     </p>
                     <p className="mt-1 text-[11px] text-gray-500">
-                      Excel e CSV funcionam automaticamente. Imagens ainda nÃ£o tÃªm OCR neste fluxo.
+                      Excel e CSV funcionam automaticamente. Imagens ainda não têm OCR neste fluxo.
                     </p>
                   </label>
 
@@ -1438,7 +1438,7 @@ export default function DashboardHome() {
 
               <section id="form-section">
                 <h3 className="mb-4 text-sm font-semibold text-slate-100">
-                  {formId ? "Editando Meta" : "AdiÃ§Ã£o Manual"}
+                  {formId ? "Editando Meta" : "Adição Manual"}
                 </h3>
                 <div className="grid grid-cols-1 gap-4 rounded-2xl border border-white/5 bg-white/5 p-4 shadow-inner md:grid-cols-4">
                   <div className="md:col-span-2">
@@ -1525,7 +1525,7 @@ export default function DashboardHome() {
                       >
                         <div>
                           <p className="text-sm font-semibold text-white">{meta.produto}</p>
-                          <p className="text-xs text-gray-400">{formatQuantity(meta.meta, "kg")} â€¢ {meta.categoria}</p>
+                          <p className="text-xs text-gray-400">{formatQuantity(meta.meta, "kg")} • {meta.categoria}</p>
                         </div>
                         <div className="flex gap-2">
                           <button

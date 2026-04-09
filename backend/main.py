@@ -449,7 +449,7 @@ def _build_price_snapshot_items(df) -> tuple[list[dict], list[str]]:
 
     # Fix: when a generic "preco" column exists without a market in parentheses,
     # and "Semar" is not already mapped to a price column, assign it to Semar.
-    # This handles DB columns like "preco" instead of "PreÃ§o (Semar)".
+    # This handles DB columns like "preco" instead of "Preço (Semar)".
     if "Semar" not in price_columns:
         # Check for orphan price columns whose key doesn't match any known market pattern
         orphan_keys = [

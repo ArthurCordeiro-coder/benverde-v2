@@ -123,7 +123,7 @@ export default function CaixasPage() {
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
 
-  // Campos do formulÃ¡rio
+  // Campos do formulário
   const [loja, setLoja] = useState("");
   const [data, setData] = useState("");
   const [quantidade, setQuantidade] = useState("");
@@ -133,7 +133,7 @@ export default function CaixasPage() {
   const [filterLoja, setFilterLoja] = useState("Todas");
   const [filterStatus, setFilterStatus] = useState("Todos");
 
-  // Menu de exportaÃ§Ã£o
+  // Menu de exportação
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const tableSectionRef = useRef<HTMLElement>(null);
@@ -166,7 +166,7 @@ export default function CaixasPage() {
       console.error("Erro ao carregar caixas:", error);
       setFeedback({
         tone: "error",
-        text: getApiErrorMessage(error, "NÃ£o foi possÃ­vel carregar os registros de caixas."),
+        text: getApiErrorMessage(error, "Não foi possível carregar os registros de caixas."),
       });
     } finally {
       setIsLoading(false);
@@ -197,13 +197,13 @@ export default function CaixasPage() {
         text:
           nextStatus === "sim"
             ? "Status atualizado para entregue."
-            : "Status atualizado para nÃ£o entregue.",
+            : "Status atualizado para não entregue.",
       });
     } catch (error) {
       console.error("Erro ao atualizar status da caixa:", error);
       setFeedback({
         tone: "error",
-        text: getApiErrorMessage(error, "NÃ£o foi possÃ­vel atualizar o status da caixa."),
+        text: getApiErrorMessage(error, "Não foi possível atualizar o status da caixa."),
       });
     } finally {
       setUpdatingStatusId(null);
@@ -264,7 +264,7 @@ export default function CaixasPage() {
       "CCJ Retirada": row.ccj_retirada ?? 0,
       Bananas: row.caixas_bananas ?? 0,
       Total: row.total ?? 0,
-      Status: row.entregue === "sim" ? "Entregue" : "NÃ£o entregue",
+      Status: row.entregue === "sim" ? "Entregue" : "Não entregue",
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataParaExcel);
@@ -333,7 +333,7 @@ export default function CaixasPage() {
       console.error("Erro ao salvar registro de caixa:", error);
       setFeedback({
         tone: "error",
-        text: getApiErrorMessage(error, "NÃ£o foi possÃ­vel salvar o registro de caixa."),
+        text: getApiErrorMessage(error, "Não foi possível salvar o registro de caixa."),
       });
     } finally {
       setSalvando(false);
@@ -392,12 +392,12 @@ export default function CaixasPage() {
         </div>
       ) : null}
 
-      {/* Cards de MÃ©tricas */}
+      {/* Cards de Métricas */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
         <GlassCard
           title="LUMII Pendentes"
           value={`${metrics.totalLUMII} un`}
-          subtitle="Caixas plÃ¡sticas LUMII."
+          subtitle="Caixas plásticas LUMII."
           icon={<PackageSearch size={24} />}
           trend="up"
           iconColor="text-blue-400"
@@ -413,14 +413,14 @@ export default function CaixasPage() {
         <GlassCard
           title="Caixas Bananas"
           value={`${metrics.totalBananas} un`}
-          subtitle="Modelos especÃ­ficos."
+          subtitle="Modelos específicos."
           icon={<Banana size={24} />}
           trend="neutral"
           iconColor="text-yellow-400"
         />
         <GlassCard
-          title="Maior ConcentraÃ§Ã£o"
-          value={String(metrics.topStore[0]).split(" ").pop() ?? "â€”"}
+          title="Maior Concentração"
+          value={String(metrics.topStore[0]).split(" ").pop() ?? "—"}
           subtitle={`${metrics.topStore[1]} caixas nesta loja.`}
           icon={<TrendingUp size={24} />}
           trend="up"
@@ -428,7 +428,7 @@ export default function CaixasPage() {
         />
       </div>
 
-      {/* SeÃ§Ã£o da Tabela */}
+      {/* Seção da Tabela */}
       <section ref={tableSectionRef} className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-2xl">
         {/* Barra de Filtros */}
         <div className="flex flex-col gap-4 border-b border-white/5 p-6 md:flex-row md:items-center md:justify-between">
@@ -487,7 +487,7 @@ export default function CaixasPage() {
               >
                 <option value="Todos">Todos os Status</option>
                 <option value="sim">Entregue</option>
-                <option value="nao">NÃ£o Entregue</option>
+                <option value="nao">Não Entregue</option>
               </select>
               <ChevronDown
                 size={14}
@@ -495,7 +495,7 @@ export default function CaixasPage() {
               />
             </div>
 
-            {/* BotÃ£o Exportar com Dropdown */}
+            {/* Botão Exportar com Dropdown */}
             <div className="relative" ref={exportMenuRef}>
               <button
                 type="button"
@@ -630,7 +630,7 @@ export default function CaixasPage() {
                             </>
                           ) : (
                             <>
-                              <X size={12} /> NÃ£o
+                              <X size={12} /> Não
                             </>
                           )}
                         </button>

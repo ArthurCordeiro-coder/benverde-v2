@@ -118,9 +118,9 @@ type RowStatus = {
 
 const GENERAL_KEY = "GERAL";
 const QUICK_QUESTIONS = [
-  "Qual concorrente estÃ¡ com o preÃ§o mais agressivo hoje?",
-  "Quais produtos o Semar estÃ¡ perdendo em preÃ§o?",
-  "Compare o preÃ§o das bananas entre as lojas e sugira uma mudanÃ§a.",
+  "Qual concorrente está com o preço mais agressivo hoje?",
+  "Quais produtos o Semar está perdendo em preço?",
+  "Compare o preço das bananas entre as lojas e sugira uma mudança.",
 ];
 const MARKET_BAR_CLASSES = [
   "bg-emerald-500/80",
@@ -326,7 +326,7 @@ function getRowStatus(row: DisplayRow): RowStatus {
   const semarPrice = row.prices.Semar;
   if (semarPrice === null) {
     return {
-      label: "Sem cotaÃ§Ã£o",
+      label: "Sem cotação",
       className: STATUS_CLASSNAMES.semCotacao,
       priority: 2,
     };
@@ -451,7 +451,7 @@ export default function PrecosPage() {
     } catch (error) {
       console.error("Erro ao carregar precos:", error);
       setPageError(
-        getApiErrorMessage(error, "NÃ£o foi possÃ­vel carregar os dados de preÃ§os concorrentes."),
+        getApiErrorMessage(error, "Não foi possível carregar os dados de preços concorrentes."),
       );
     } finally {
       setIsLoading(false);
@@ -607,7 +607,7 @@ export default function PrecosPage() {
 
   const selectedDateLabel = useMemo(() => {
     if (selectedDate === GENERAL_KEY) {
-      return "MÃ©dia geral";
+      return "Média geral";
     }
     return dateOptions.find((option) => option.key === selectedDate)?.label ?? selectedDate;
   }, [dateOptions, selectedDate]);
@@ -726,7 +726,7 @@ export default function PrecosPage() {
   const exportTable = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportRows);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "PreÃ§os Concorrentes");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Preços Concorrentes");
     XLSX.writeFile(
       workbook,
       `precos-concorrentes-${selectedDate === GENERAL_KEY ? "geral" : selectedDate}.xlsx`,
@@ -767,7 +767,7 @@ export default function PrecosPage() {
       );
 
       if (normalizedQuestion.includes("AGRESSIVO") || normalizedQuestion.includes("CONCORRENTE")) {
-        return `Hoje o concorrente mais agressivo em ${selectedDateLabel.toLowerCase()} Ã© ${stats.competitor}, liderando em ${stats.competitorPerc} dos itens comparÃ¡veis. A lideranÃ§a do Semar estÃ¡ em ${stats.winPerc}.`;
+        return `Hoje o concorrente mais agressivo em ${selectedDateLabel.toLowerCase()} é ${stats.competitor}, liderando em ${stats.competitorPerc} dos itens comparáveis. A liderança do Semar está em ${stats.winPerc}.`;
       }
 
       if (
@@ -776,24 +776,24 @@ export default function PrecosPage() {
         normalizedQuestion.includes("PRECO")
       ) {
         if (lossRows.length === 0) {
-          return `No recorte atual de ${selectedDateLabel.toLowerCase()}, o Semar nÃ£o aparece atrasado em nenhum item com preÃ§o comparÃ¡vel.`;
+          return `No recorte atual de ${selectedDateLabel.toLowerCase()}, o Semar não aparece atrasado em nenhum item com preço comparável.`;
         }
-        return `Os maiores gaps do Semar estÃ£o em ${lossRows
+        return `Os maiores gaps do Semar estão em ${lossRows
           .slice(0, 3)
-          .map((row) => `${row.produto} (${row.semarGapPercent.toFixed(0)}% acima do lÃ­der)`)
-          .join(", ")}. Esses sÃ£o os primeiros candidatos para ajuste.`;
+          .map((row) => `${row.produto} (${row.semarGapPercent.toFixed(0)}% acima do líder)`)
+          .join(", ")}. Esses são os primeiros candidatos para ajuste.`;
       }
 
       if (normalizedQuestion.includes("BANANA")) {
         if (bananaLossRows.length === 0 && bananaRows.length > 0) {
-          return `Nas bananas, o Semar estÃ¡ competitivo no recorte atual. A melhor oportunidade agora Ã© sustentar margem sem perder a lideranÃ§a.`;
+          return `Nas bananas, o Semar está competitivo no recorte atual. A melhor oportunidade agora é sustentar margem sem perder a liderança.`;
         }
         if (bananaLossRows.length === 0) {
-          return `NÃ£o encontrei itens de banana na base atual de ${selectedDateLabel.toLowerCase()}.`;
+          return `Não encontrei itens de banana na base atual de ${selectedDateLabel.toLowerCase()}.`;
         }
         const topBanana = bananaLossRows[0];
         const leader = topBanana.leaderMarkets.find((market) => market !== "Semar") ?? stats.competitor;
-        return `Em bananas, o principal ajuste estÃ¡ em ${topBanana.produto}, onde ${leader} lidera o preÃ§o e o Semar estÃ¡ ${topBanana.semarGapPercent.toFixed(0)}% acima do menor valor.`;
+        return `Em bananas, o principal ajuste está em ${topBanana.produto}, onde ${leader} lidera o preço e o Semar está ${topBanana.semarGapPercent.toFixed(0)}% acima do menor valor.`;
       }
 
       if (
@@ -802,10 +802,10 @@ export default function PrecosPage() {
         normalizedQuestion.includes("ESTRATEG")
       ) {
         const firstGap = lossRows[0];
-        return `Resumo estratÃ©gico: o Semar lidera em ${stats.winPerc} dos itens comparÃ¡veis. O maior risco competitivo hoje Ã© ${stats.competitor}. ${firstGap ? `A principal oportunidade de ajuste estÃ¡ em ${firstGap.produto}.` : "NÃ£o hÃ¡ um gap crÃ­tico evidente no recorte atual."} A variaÃ§Ã£o recente da cesta Semar estÃ¡ em ${stats.variationText}.`;
+        return `Resumo estratégico: o Semar lidera em ${stats.winPerc} dos itens comparáveis. O maior risco competitivo hoje é ${stats.competitor}. ${firstGap ? `A principal oportunidade de ajuste está em ${firstGap.produto}.` : "Não há um gap crítico evidente no recorte atual."} A variação recente da cesta Semar está em ${stats.variationText}.`;
       }
 
-      return `Consigo comparar o Semar com ${competitorMarkets.join(", ") || "os concorrentes"} em ${selectedDateLabel.toLowerCase()}, apontar perdas de preÃ§o e priorizar ajustes por produto.`;
+      return `Consigo comparar o Semar com ${competitorMarkets.join(", ") || "os concorrentes"} em ${selectedDateLabel.toLowerCase()}, apontar perdas de preço e priorizar ajustes por produto.`;
     },
     [bananaRows, competitorMarkets, selectedDateLabel, selectedRows, stats],
   );
@@ -862,7 +862,7 @@ export default function PrecosPage() {
 
   const generateAIReport = () => {
     void sendLumiiMessage(
-      "FaÃ§a uma anÃ¡lise estratÃ©gica completa da nossa competitividade atual. Quem Ã© nosso maior risco? Em quais produtos devemos baixar o preÃ§o?",
+      "Faça uma análise estratégica completa da nossa competitividade atual. Quem é nosso maior risco? Em quais produtos devemos baixar o preço?",
     );
   };
 
@@ -872,16 +872,16 @@ export default function PrecosPage() {
       .sort((left, right) => right.semarGapPercent - left.semarGapPercent)[0];
 
     if (!biggestGapRow) {
-      return `No recorte atual de ${selectedDateLabel.toLowerCase()}, o Semar sustenta boa competitividade. Vale proteger margem e manter monitoramento contÃ­nuo da cesta.`;
+      return `No recorte atual de ${selectedDateLabel.toLowerCase()}, o Semar sustenta boa competitividade. Vale proteger margem e manter monitoramento contínuo da cesta.`;
     }
 
     const leader =
       biggestGapRow.leaderMarkets.find((market) => market !== "Semar") ?? stats.competitor;
-    return `Detectamos pressÃ£o competitiva em ${biggestGapRow.produto}. ${leader} lidera esse item e o Semar estÃ¡ ${biggestGapRow.semarGapPercent.toFixed(0)}% acima do menor preÃ§o disponÃ­vel.`;
+    return `Detectamos pressão competitiva em ${biggestGapRow.produto}. ${leader} lidera esse item e o Semar está ${biggestGapRow.semarGapPercent.toFixed(0)}% acima do menor preço disponível.`;
   }, [selectedDateLabel, selectedRows, stats.competitor]);
 
   const selectedDateOptions = useMemo(
-    () => [{ key: GENERAL_KEY, label: "MÃ©dia de todas" }, ...dateOptions],
+    () => [{ key: GENERAL_KEY, label: "Média de todas" }, ...dateOptions],
     [dateOptions],
   );
 
@@ -900,7 +900,7 @@ export default function PrecosPage() {
               <Sparkles size={18} className="text-yellow-400" />
             </h2>
             <p className="text-sm text-gray-400">
-              Pronta para analisar dados reais e sugerir estratÃ©gias.
+              Pronta para analisar dados reais e sugerir estratégias.
             </p>
           </div>
         </div>
@@ -913,7 +913,7 @@ export default function PrecosPage() {
             className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-6 py-2.5 text-sm font-bold text-emerald-300 transition-all hover:bg-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <BrainCircuit size={16} />
-            RelatÃ³rio EstratÃ©gico
+            Relatório Estratégico
           </button>
           <button
             type="button"
@@ -937,21 +937,21 @@ export default function PrecosPage() {
         <GlassCard
           title="Semar Ganhando"
           value={isLoading ? "Carregando..." : stats.winPerc}
-          subtitle="Produtos com menor preÃ§o."
+          subtitle="Produtos com menor preço."
           icon={<Zap className="text-yellow-400" size={24} />}
           trend="up"
         />
         <GlassCard
           title="Melhor Competidor"
           value={isLoading ? "Carregando..." : stats.competitor}
-          subtitle={`LÃ­der em ${stats.competitorPerc} dos itens.`}
+          subtitle={`Líder em ${stats.competitorPerc} dos itens.`}
           icon={<Target className="text-blue-400" size={24} />}
           trend="neutral"
         />
         <GlassCard
-          title="VariaÃ§Ã£o Recente"
+          title="Variação Recente"
           value={isLoading ? "Carregando..." : stats.variationText}
-          subtitle="InflaÃ§Ã£o mÃ©dia da cesta Semar."
+          subtitle="Inflação média da cesta Semar."
           icon={<Activity className="text-emerald-400" size={24} />}
           trend={stats.trend}
         />
@@ -963,7 +963,7 @@ export default function PrecosPage() {
             <div className="rounded-2xl border border-green-500/20 bg-green-500/10 p-3 text-green-400 shadow-inner">
               <Tags size={24} />
             </div>
-            <h3 className="text-xl font-bold tracking-tight text-white">Tabela de ComparaÃ§Ã£o</h3>
+            <h3 className="text-xl font-bold tracking-tight text-white">Tabela de Comparação</h3>
           </div>
 
           <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row">
@@ -1053,7 +1053,7 @@ export default function PrecosPage() {
             }`}
           >
             <Banana size={18} />
-            SÃ³ Bananas
+            Só Bananas
           </button>
         </div>
 
@@ -1097,7 +1097,7 @@ export default function PrecosPage() {
                       }
                       className="ml-auto flex items-center gap-1"
                     >
-                      PreÃ§o Semar
+                      Preço Semar
                       {getSortIcon(sortConfig, "Semar")}
                     </button>
                   </th>
@@ -1105,7 +1105,7 @@ export default function PrecosPage() {
                     Melhor Concorrente
                   </th>
                   <th className="border-r border-white/5 p-5 text-right text-[10px] font-bold uppercase tracking-widest">
-                    PreÃ§o Concorrente
+                    Preço Concorrente
                   </th>
                   <th className="border-r border-white/5 p-5 text-right text-[10px] font-bold uppercase tracking-widest">
                     <button
@@ -1121,7 +1121,7 @@ export default function PrecosPage() {
                       }
                       className="ml-auto flex items-center gap-1"
                     >
-                      MÃ©dia
+                      Média
                       {getSortIcon(sortConfig, "media")}
                     </button>
                   </th>
@@ -1149,7 +1149,7 @@ export default function PrecosPage() {
                 {isLoading ? (
                   <tr>
                     <td colSpan={6} className="p-5 text-gray-400">
-                      Carregando preÃ§os...
+                      Carregando preços...
                     </td>
                   </tr>
                 ) : visibleRows.length === 0 ? (
@@ -1264,7 +1264,7 @@ export default function PrecosPage() {
               </div>
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-gray-400" />
-                Sem cotaÃ§Ã£o
+                Sem cotação
               </div>
             </div>
           </div>
@@ -1276,12 +1276,12 @@ export default function PrecosPage() {
         >
           <h3 className="mb-12 flex items-center gap-2 text-xs font-bold uppercase tracking-tight text-white">
             <BarChart3 size={18} className="text-green-400" />
-            VariaÃ§Ã£o de PreÃ§o MÃ©dio - Bananas
+            Variação de Preço Médio - Bananas
           </h3>
 
           {bananaRows.length === 0 || chartMarkets.length === 0 ? (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-gray-400">
-              Nenhum item de banana disponÃ­vel para o grÃ¡fico nesse recorte.
+              Nenhum item de banana disponível para o gráfico nesse recorte.
             </div>
           ) : (
             <>
@@ -1333,7 +1333,7 @@ export default function PrecosPage() {
                   className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 transition-all hover:bg-white/10 hover:text-green-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Download size={14} />
-                  Exportar GrÃ¡fico
+                  Exportar Gráfico
                 </button>
 
                 <div className="flex flex-wrap justify-center gap-8">
@@ -1364,7 +1364,7 @@ export default function PrecosPage() {
               <Sparkles size={24} />
             </div>
             <div className="space-y-2">
-              <h4 className="text-sm font-bold text-emerald-300">Lumii InteligÃªncia</h4>
+              <h4 className="text-sm font-bold text-emerald-300">Lumii Inteligência</h4>
               <p className="max-w-3xl text-xs italic leading-relaxed text-emerald-100/70">
                 {insightText}
               </p>
@@ -1390,7 +1390,7 @@ export default function PrecosPage() {
                 <Bot size={24} />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-white">Lumii InteligÃªncia</h2>
+                <h2 className="text-sm font-bold text-white">Lumii Inteligência</h2>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-green-400">
                   IA conectada
                 </p>
@@ -1410,22 +1410,22 @@ export default function PrecosPage() {
               <div className="space-y-4 pt-10 text-center">
                 <Sparkles className="mx-auto text-yellow-400" size={32} />
                 <p className="px-4 text-xs text-gray-400">
-                  Posso analisar esses preÃ§os agora mesmo e sugerir ajustes estratÃ©gicos para o Semar.
+                  Posso analisar esses preços agora mesmo e sugerir ajustes estratégicos para o Semar.
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={() => void sendLumiiMessage("Qual mercado estÃ¡ com as bananas mais baratas?")}
+                    onClick={() => void sendLumiiMessage("Qual mercado está com as bananas mais baratas?")}
                     className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] transition-all hover:bg-white/10"
                   >
                     Analisar Bananas
                   </button>
                   <button
                     type="button"
-                    onClick={() => void sendLumiiMessage("FaÃ§a um resumo de competitividade.")}
+                    onClick={() => void sendLumiiMessage("Faça um resumo de competitividade.")}
                     className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] transition-all hover:bg-white/10"
                   >
-                    Resumo EstratÃ©gico
+                    Resumo Estratégico
                   </button>
                 </div>
               </div>
@@ -1439,7 +1439,7 @@ export default function PrecosPage() {
                 >
                   <div className={`max-w-[85%] rounded-[24px] px-4 py-3 leading-relaxed ${bubbleClass(message.role)}`}>
                     <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      {message.role === "assistant" ? "Lumii" : "VocÃª"}
+                      {message.role === "assistant" ? "Lumii" : "Você"}
                     </p>
                     {message.content}
                   </div>
@@ -1451,7 +1451,7 @@ export default function PrecosPage() {
               <div className="flex justify-start animate-pulse">
                 <div className="flex items-center gap-2 rounded-2xl border border-emerald-400/10 bg-emerald-500/5 px-4 py-3 text-xs font-medium italic text-emerald-200">
                   <Activity size={14} className="animate-spin" />
-                  Lumii estÃ¡ processando os dados...
+                  Lumii está processando os dados...
                 </div>
               </div>
             ) : null}
@@ -1469,7 +1469,7 @@ export default function PrecosPage() {
                   void sendLumiiMessage(currentInput);
                 }
               }}
-              placeholder="Pergunte Ã  IA sobre os preÃ§os..."
+              placeholder="Pergunte à IA sobre os preços..."
               className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-gray-600 focus:border-green-500"
             />
             <button

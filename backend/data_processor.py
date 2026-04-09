@@ -1,13 +1,13 @@
 """
 data_processor.py
-MÃ³dulo de processamento de dados para sistema de gerenciamento de empresa hortifrÃºti.
-Lida com CSVs de preÃ§os, JSON de metas/vendas e PDFs de notas fiscais (DANFEs e Pedidos Semar).
+Módulo de processamento de dados para sistema de gerenciamento de empresa hortifrúti.
+Lida com CSVs de preços, JSON de metas/vendas e PDFs de notas fiscais (DANFEs e Pedidos Semar).
 
-OtimizaÃ§Ãµes para E5-2620 v3 (6 cores / 12 threads):
-    - ExtraÃ§Ã£o via extract_text() + regex (5-10x mais rÃ¡pida que extract_tables())
-    - ProcessPoolExecutor com workers reais (usa todos os nÃºcleos fÃ­sicos)
-    - Cache incremental com salvamento a cada lote (resiliente a interrupÃ§Ãµes)
-    - Regex compilados em nÃ­vel de mÃ³dulo (sem recompilaÃ§Ã£o a cada chamada)
+Otimizações para E5-2620 v3 (6 cores / 12 threads):
+    - Extração via extract_text() + regex (5-10x mais rápida que extract_tables())
+    - ProcessPoolExecutor com workers reais (usa todos os núcleos físicos)
+    - Cache incremental com salvamento a cada lote (resiliente a interrupções)
+    - Regex compilados em nível de módulo (sem recompilação a cada chamada)
 """
 
 import os
@@ -58,7 +58,7 @@ IMPORT_JOB_LOG_LIMIT = 25
 IMPORT_JOB_HEARTBEAT_SECONDS = 5
 
 # ---------------------------------------------------------------------------
-# Regex compilados em nÃ­vel de mÃ³dulo (performance)
+# Regex compilados em nível de módulo (performance)
 # ---------------------------------------------------------------------------
 
 # Produto em linha DANFE: COD DESCRICAO NCM(8d) CST(3d) CFOP(4d) UNID QUANT V.UNIT V.TOTAL
@@ -79,24 +79,24 @@ _RE_BANANA = re.compile(r'BANANA[\s\-]', re.IGNORECASE)
 # Unidade + quantidade no campo NCM mesclado
 _RE_UN_QT_NCM = re.compile(r'\b(KG|UN|CX|FD|PCT|SC|BAG)\s+([\d.,]+)', re.IGNORECASE)
 
-# Linha de cÃ³digo de barras
-_RE_COD_BARRAS = re.compile(r'^c[oÃ³]d\.?\s*(?:de\s*)?barras?[\s:]*[\d\s]+$', re.IGNORECASE)
+# Linha de código de barras
+_RE_COD_BARRAS = re.compile(r'^c[oó]d\.?\s*(?:de\s*)?barras?[\s:]*[\d\s]+$', re.IGNORECASE)
 
-# SÃ³ dÃ­gitos/espaÃ§os (NCM, EAN solto)
+# Só dígitos/espaços (NCM, EAN solto)
 _RE_SO_DIGITOS = re.compile(r'^[\d\s]{8,}$')
 
-# NCM vÃ¡lido na cÃ©lula (sub-linha real de produto)
+# NCM válido na célula (sub-linha real de produto)
 _RE_TEM_NCM = re.compile(r'\b(KG|UN|CX|FD|PCT|SC|BAG)\s+[\d.,]+', re.IGNORECASE)
 
-# Lixo nas cÃ©lulas de descriÃ§Ã£o
+# Lixo nas células de descrição
 _RE_LIXO_DESC = re.compile(
-    r'^(c[oÃ³]d\.?\s*(?:de\s*)?barras?[\s:]*[\d\s]+|[\d]{6,}|\s*)$',
+    r'^(c[oó]d\.?\s*(?:de\s*)?barras?[\s:]*[\d\s]+|[\d]{6,}|\s*)$',
     re.IGNORECASE,
 )
 
 # Produto Semar
 _RE_PROD_SEMAR  = re.compile(r'^([A-Z\u00C1\u00C0\u00C3\u00C2\u00C9\u00CA\u00CD\u00D3\u00D4\u00D5\u00DA\u00C7][A-Z\u00C1\u00C0\u00C3\u00C2\u00C9\u00CA\u00CD\u00D3\u00D4\u00D5\u00DA\u00C7\s]+?)\s+kg\b', re.IGNORECASE)
-_RE_DATA_SEMAR  = re.compile(r'Data de emiss[aÃ£]o[:\s]+(\d{2}/\d{2}/\d{4})', re.IGNORECASE)
+_RE_DATA_SEMAR  = re.compile(r'Data de emiss[aã]o[:\s]+(\d{2}/\d{2}/\d{4})', re.IGNORECASE)
 _RE_CUSTO_SEMAR = re.compile(r'(\d+[.,]\d+)')
 _RE_LOJA_SEMAR  = re.compile(r'LOJA\s+(\d+)', re.IGNORECASE)
 _RE_QUANT_SEMAR = re.compile(r'^[\d.,]+$')
@@ -108,7 +108,7 @@ _RE_KG_CX = re.compile(r'\bKG\s+CX\s+([\d]+(?:[.,]\d+)?)\b', re.IGNORECASE)
 _MESES_PT = {
     "jan": 1,  "janeiro":   1,
     "fev": 2,  "fevereiro": 2,
-    "mar": 3,  "marco":     3,  "marÃ§o": 3,
+    "mar": 3,  "marco":     3,  "março": 3,
     "abr": 4,  "abril":     4,
     "mai": 5,  "maio":      5,
     "jun": 6,  "junho":     6,
@@ -124,8 +124,8 @@ _LOJAS_ESPECIAIS = {"libra": "Frutas/Legumes", "suzano": "Frutas/Legumes"}
 
 _RE_LOJA_PREFIXO = re.compile(r'(?:loja|lj)\s*(\d{1,2})', re.IGNORECASE)
 _RE_LOJA_NUMERO  = re.compile(r'^\s*(\d{1,2})\b')
-_RE_MES_COLADO   = re.compile(r'(\d)([a-zÃ¡Ã Ã£Ã¢Ã©ÃªÃ­Ã³Ã´ÃµÃºÃ§])', re.IGNORECASE)
-_RE_MES_COLADO2  = re.compile(r'([a-zÃ¡Ã Ã£Ã¢Ã©ÃªÃ­Ã³Ã´ÃµÃºÃ§])(\d)', re.IGNORECASE)
+_RE_MES_COLADO   = re.compile(r'(\d)([a-záàãâéêíóôõúç])', re.IGNORECASE)
+_RE_MES_COLADO2  = re.compile(r'([a-záàãâéêíóôõúç])(\d)', re.IGNORECASE)
 _PAT_MES_TEXTO   = re.compile(
     r'^(\d{1,2})\s+(' + '|'.join(_MESES_PT.keys()) + r')\b(.*)',
     re.IGNORECASE,
@@ -133,11 +133,11 @@ _PAT_MES_TEXTO   = re.compile(
 
 
 # ---------------------------------------------------------------------------
-# Helpers numÃ©ricos
+# Helpers numéricos
 # ---------------------------------------------------------------------------
 
 def _parse_br(val) -> float:
-    """Converte string BR (vÃ­rgula decimal, ponto milhar) para float."""
+    """Converte string BR (vírgula decimal, ponto milhar) para float."""
     s = str(val or "").strip().replace(" ", "")
     if not s or s.lower() in ("none", "nan", "-", ""):
         return 0.0
@@ -173,7 +173,7 @@ def _parse_numero(valor) -> Optional[float]:
 
 
 # ---------------------------------------------------------------------------
-# ConversÃ£o CX ï¿½?' KG para produtos com peso/caixa no nome
+# Conversão CX ï¿½?' KG para produtos com peso/caixa no nome
 # ---------------------------------------------------------------------------
 
 def _resolver_cx_para_kg(produto: str, quant: float, unidade: str):
@@ -182,7 +182,7 @@ def _resolver_cx_para_kg(produto: str, quant: float, unidade: str):
     Ex: "BETERRABA KG CX 20", unidade="CX", quant=5
         ï¿½?' ("BETERRABA", 100.0, "KG")
 
-    Produtos com outras unidades ou sem o padrÃ£o no nome nÃ£o sÃ£o alterados.
+    Produtos com outras unidades ou sem o padrão no nome não são alterados.
     """
     if unidade.upper() != "CX":
         return produto, quant, unidade
@@ -201,10 +201,10 @@ def _resolver_cx_para_kg(produto: str, quant: float, unidade: str):
 # ---------------------------------------------------------------------------
 
 def _extrair_data_saida_pdf(caminho_pdf: str) -> Optional[datetime]:
-    """LÃª a DATA DA SAÃDA diretamente do texto de um DANFE (NF-e).
+    """Lê a DATA DA SAÃDA diretamente do texto de um DANFE (NF-e).
 
-    Procura pelo rÃ³tulo 'DATA DA SAÃDA' e captura o primeiro DD/MM/AAAA apÃ³s ele.
-    Retorna None se nÃ£o encontrar ou falhar.
+    Procura pelo rótulo 'DATA DA SAÃDA' e captura o primeiro DD/MM/AAAA após ele.
+    Retorna None se não encontrar ou falhar.
     """
     _RE = re.compile(
         r'DATA\s+DA\s+SA[IÃ]DA.{0,150}?(\d{2}/\d{2}/\d{4})',
@@ -226,7 +226,7 @@ def _extrair_data_saida_pdf(caminho_pdf: str) -> Optional[datetime]:
 
 
 def parse_data_arquivo(nome_arq: str) -> Optional[datetime]:
-    """Extrai data do nome de arquivo (padrÃµes DD_MM ou DDMM)."""
+    """Extrai data do nome de arquivo (padrões DD_MM ou DDMM)."""
     basename = os.path.splitext(os.path.basename(nome_arq))[0]
     ano = datetime.now().year
 
@@ -315,7 +315,7 @@ def _montar_data(dia: int, mes: int, nome_arq: str = "") -> Optional[datetime]:
             dt = datetime(ano - 1, mes, dia)
         return dt
     except ValueError:
-        logger.error("Data invÃ¡lida em '%s': dia=%d mes=%d", nome_arq, dia, mes)
+        logger.error("Data inválida em '%s': dia=%d mes=%d", nome_arq, dia, mes)
         return None
 
 
@@ -348,13 +348,13 @@ def _parse_nome_arquivo_nfe(nome_arq: str) -> tuple:
         dia, mes = int(m.group(1)), int(m.group(2))
         return _montar_data(dia, mes, nome_arq), _identificar_loja(m.group(3))
 
-    # 2) DD MM (espaÃ§o, cobre DD,MM apÃ³s normalizaÃ§Ã£o)
+    # 2) DD MM (espaço, cobre DD,MM após normalização)
     m = re.match(r'^(\d{1,2})\s+(\d{2})\s*(.*)', b_norm)
     if m:
         dia, mes = int(m.group(1)), int(m.group(2))
         return _montar_data(dia, mes, nome_arq), _identificar_loja(m.group(3))
 
-    # 3) DDMMLL (6 dÃ­gitos colados)
+    # 3) DDMMLL (6 dígitos colados)
     m = re.match(r'^(\d{2})(\d{2})(\d{2})(?:\D|$)', basename)
     if m:
         dia, mes = int(m.group(1)), int(m.group(2))
@@ -366,7 +366,7 @@ def _parse_nome_arquivo_nfe(nome_arq: str) -> tuple:
         dia, mes = int(m.group(1)), int(m.group(2))
         return _montar_data(dia, mes, nome_arq), _identificar_loja(m.group(3))
 
-    logger.warning("Nome de arquivo NF-e fora de qualquer padrÃ£o reconhecido: '%s'", nome_arq)
+    logger.warning("Nome de arquivo NF-e fora de qualquer padrão reconhecido: '%s'", nome_arq)
     return None, "Loja ?"
 
 
@@ -383,11 +383,11 @@ def _indice_coluna(cabecalho: list, candidatos: list) -> Optional[int]:
 
 
 # ---------------------------------------------------------------------------
-# Extrator DANFE: texto+regex (primÃ¡rio) + tabelas (fallback)
+# Extrator DANFE: texto+regex (primário) + tabelas (fallback)
 # ---------------------------------------------------------------------------
 
 def _extrair_produtos_texto(texto: str) -> list:
-    """Extrai produtos de texto bruto via regex ï¿½?" mÃ©todo primÃ¡rio (rÃ¡pido)."""
+    """Extrai produtos de texto bruto via regex ï¿½?" método primário (rápido)."""
     registros = []
     for m in _RE_DANFE_LINHA.finditer(texto):
         desc    = m.group(1).strip().upper()
@@ -415,7 +415,7 @@ def _sub_linhas(celula) -> list:
 
 
 def _extrair_produtos_tabela(tabela: list) -> list:
-    """Extrai produtos de uma tabela pdfplumber ï¿½?" mÃ©todo fallback."""
+    """Extrai produtos de uma tabela pdfplumber ï¿½?" método fallback."""
     if not tabela or len(tabela) < 2:
         return []
 
@@ -501,8 +501,8 @@ def _extrair_produtos_tabela(tabela: list) -> list:
 def _extrair_todos_produtos_pdf(caminho_pdf: str) -> list:
     """Extrai todos os produtos de um DANFE.
 
-    EstratÃ©gia:
-        1. extract_text() + regex (rÃ¡pido, mÃ©todo primÃ¡rio)
+    Estratégia:
+        1. extract_text() + regex (rápido, método primário)
         2. extract_tables() como fallback
     """
     arquivo_nome = os.path.basename(caminho_pdf)
@@ -511,7 +511,7 @@ def _extrair_todos_produtos_pdf(caminho_pdf: str) -> list:
     try:
         with pdfplumber.open(caminho_pdf) as pdf:
             for num_pag, pagina in enumerate(pdf.pages, start=1):
-                # MÃ©todo 1: texto + regex
+                # Método 1: texto + regex
                 try:
                     texto = pagina.extract_text(x_tolerance=2, y_tolerance=2) or ""
                     prods = _extrair_produtos_texto(texto)
@@ -519,14 +519,14 @@ def _extrair_todos_produtos_pdf(caminho_pdf: str) -> list:
                         registros.extend(prods)
                         continue
                 except Exception as e:
-                    logger.debug("[PDF] Texto falhou pÃ¡g %d '%s': %s", num_pag, arquivo_nome, e)
+                    logger.debug("[PDF] Texto falhou pág %d '%s': %s", num_pag, arquivo_nome, e)
 
-                # MÃ©todo 2: tabelas fallback
+                # Método 2: tabelas fallback
                 try:
                     for tabela in (pagina.extract_tables() or []):
                         registros.extend(_extrair_produtos_tabela(tabela))
                 except Exception as e:
-                    logger.warning("[PDF] Tabela falhou pÃ¡g %d '%s': %s", num_pag, arquivo_nome, e)
+                    logger.warning("[PDF] Tabela falhou pág %d '%s': %s", num_pag, arquivo_nome, e)
 
     except Exception as e:
         logger.error("[PDF] Falha ao abrir '%s': %s", arquivo_nome, e)
@@ -552,7 +552,7 @@ def _extrair_pedido_semar(caminho_pdf: str) -> list:
     """Extrai produtos e quantidades por loja de um Pedido de Compra Semar.
 
     Delega para extrair_pedido_semar() e converte resultado para lista de dicts
-    com chaves minÃºsculas (interface esperada por _processar_pdf_worker).
+    com chaves minúsculas (interface esperada por _processar_pdf_worker).
     """
     df = extrair_pedido_semar(caminho_pdf)
     if df.empty:
@@ -571,7 +571,7 @@ def _extrair_pedido_semar(caminho_pdf: str) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Workers de nÃ­vel de mÃ³dulo (obrigatÃ³rio para ProcessPoolExecutor no Windows)
+# Workers de nível de módulo (obrigatório para ProcessPoolExecutor no Windows)
 # ---------------------------------------------------------------------------
 
 def _worker_pedido(caminho_pdf: str) -> tuple:
@@ -674,13 +674,13 @@ def _extrair_bananas_pdf(caminho_pdf: str) -> list:
 # ---------------------------------------------------------------------------
 
 def _load_precos_from_csv(pasta_precos: str = "") -> dict:
-    """Carrega CSVs de preÃ§os de uma pasta."""
+    """Carrega CSVs de preços de uma pasta."""
     resultado: dict = {}
     if not pasta_precos or not os.path.isdir(pasta_precos):
-        logger.error("Pasta de preÃ§os inexistente: '%s'", pasta_precos)
+        logger.error("Pasta de preços inexistente: '%s'", pasta_precos)
         return resultado
 
-    arquivos = glob.glob(os.path.join(pasta_precos, "preÃ§os_*.csv"))
+    arquivos = glob.glob(os.path.join(pasta_precos, "preços_*.csv"))
     if not arquivos:
         arquivos = glob.glob(os.path.join(pasta_precos, "precos_*.csv"))
     if not arquivos:
@@ -704,13 +704,13 @@ def _load_precos_from_csv(pasta_precos: str = "") -> dict:
             status_cols = [c for c in df.columns if c.lower().startswith("status")]
             if status_cols:
                 mask_nenhuma_loja = pd.concat(
-                    [df[c].astype(str).str.strip().str.lower().isin({"nÃ£o encontrado", "sem match"})
+                    [df[c].astype(str).str.strip().str.lower().isin({"não encontrado", "sem match"})
                      for c in status_cols],
                     axis=1,
                 ).all(axis=1)
                 df = df[~mask_nenhuma_loja]
 
-            for col in [c for c in df.columns if "preÃ§o" in c.lower() or "preco" in c.lower()]:
+            for col in [c for c in df.columns if "preço" in c.lower() or "preco" in c.lower()]:
                 df[col] = (
                     df[col].astype(str)
                     .str.replace(r"[^\d,\.]", "", regex=True)
@@ -723,9 +723,9 @@ def _load_precos_from_csv(pasta_precos: str = "") -> dict:
 
             df["Data"] = dt
             resultado[chave] = df
-            logger.info("PreÃ§os carregados: %s ï¿½?' %d linhas.", chave, len(df))
+            logger.info("Preços carregados: %s ï¿½?' %d linhas.", chave, len(df))
         except Exception as exc:
-            logger.error("Erro ao carregar preÃ§os '%s': %s", caminho, exc)
+            logger.error("Erro ao carregar preços '%s': %s", caminho, exc)
 
     return dict(sorted(
         resultado.items(),
@@ -762,7 +762,7 @@ def load_precos(pasta_precos: str = "") -> dict:
                     .astype(str)
                     .str.strip()
                     .str.lower()
-                    .isin({"nao encontrado", "nÃ£o encontrado", "sem match"})
+                    .isin({"nao encontrado", "não encontrado", "sem match"})
                     for coluna in status_cols
                 ],
                 axis=1,
@@ -1057,7 +1057,7 @@ def _excel_serial_to_datetime(serial) -> Optional[datetime]:
 def load_metas_vendas(arquivo_excel: str = "") -> tuple:
     """Carrega sheets Progresso/Pedidos/Metas do Excel legado."""
     if not arquivo_excel or not os.path.isfile(arquivo_excel):
-        raise FileNotFoundError(f"Arquivo Excel nÃ£o encontrado: '{arquivo_excel}'")
+        raise FileNotFoundError(f"Arquivo Excel não encontrado: '{arquivo_excel}'")
 
     xl = pd.ExcelFile(arquivo_excel, engine="openpyxl")
     faltando = {"Progresso", "Pedidos", "Metas"} - set(xl.sheet_names)
@@ -1182,7 +1182,7 @@ def calcular_estoque(
                 except BrokenProcessPool:
                     tarefa_falhou = futuros[futuro]
                     logger.warning(
-                        "Pool encerrado ao processar '%s'. Restantes serÃ£o processados sequencialmente.",
+                        "Pool encerrado ao processar '%s'. Restantes serão processados sequencialmente.",
                         tarefa_falhou[0],
                     )
                     tarefas_sequencial = [t for f, t in futuros.items() if not f.done()]
@@ -1216,7 +1216,7 @@ def calcular_estoque(
                     pendente = {}
                     logger.info("Estoque: %d/%d PDFs.", concluidos, len(tarefas_novas))
 
-        # Fallback sequencial para tarefas nÃ£o processadas apÃ³s crash do pool
+        # Fallback sequencial para tarefas não processadas após crash do pool
         for tarefa in tarefas_sequencial:
             try:
                 itens = _processar_pdf_worker(tarefa)
@@ -1259,14 +1259,14 @@ def calcular_estoque(
 def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataFrame:
     """Carrega NF-e PDFs com ProcessPoolExecutor e cache incremental."""
     if not pasta_pdfs:
-        logger.warning("Pasta de pedidos NF-e nÃ£o informada.")
+        logger.warning("Pasta de pedidos NF-e não informada.")
         return pd.DataFrame()
     if not os.path.isdir(pasta_pdfs):
         try:
             os.makedirs(pasta_pdfs, exist_ok=True)
         except Exception:
             pass
-        logger.warning("Pasta de pedidos NF-e nÃ£o encontrada: '%s'", pasta_pdfs)
+        logger.warning("Pasta de pedidos NF-e não encontrada: '%s'", pasta_pdfs)
         return pd.DataFrame()
 
     cache     = _carregar_cache(caminho_cache, "cache_pedidos")
@@ -1295,7 +1295,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
             pdfs_novos.append(caminho_pdf)
 
     if pdfs_novos:
-        # E5-2620 v3: 6 nÃºcleos / 12 threads ï¿½?" 10 workers Ã© o ponto Ã³timo
+        # E5-2620 v3: 6 núcleos / 12 threads ï¿½?" 10 workers é o ponto ótimo
         N_WORKERS   = min(len(pdfs_novos), 10)
         SALVAR_CADA = 25
         logger.info("Processando %d PDF(s) novo(s) com %d workers...", len(pdfs_novos), N_WORKERS)
@@ -1313,7 +1313,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                 except BrokenProcessPool:
                     caminho_falhou = futuros[futuro]
                     logger.warning(
-                        "Pool encerrado ao processar '%s'. Restantes serÃ£o processados sequencialmente.",
+                        "Pool encerrado ao processar '%s'. Restantes serão processados sequencialmente.",
                         caminho_falhou,
                     )
                     pdfs_sequencial = [p for f, p in futuros.items() if not f.done()]
@@ -1353,7 +1353,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
                     pendente = {}
                     logger.info("Progresso: %d/%d PDFs | cache salvo.", concluidos, len(pdfs_novos))
 
-        # Fallback sequencial para PDFs nÃ£o processados apÃ³s crash do pool
+        # Fallback sequencial para PDFs não processados após crash do pool
         for caminho_pdf in pdfs_sequencial:
             try:
                 nome_arq, dt, loja, produtos = _worker_pedido(caminho_pdf)
@@ -1390,7 +1390,7 @@ def load_pedidos_pdfs(pasta_pdfs: str = "", caminho_cache: str = "") -> pd.DataF
             cache.update(pendente)
             _salvar_cache(cache, caminho_cache, "cache_pedidos")
 
-        logger.info("ConcluÃ­do: %d/%d PDFs.", concluidos, len(pdfs_novos))
+        logger.info("Concluído: %d/%d PDFs.", concluidos, len(pdfs_novos))
 
     if not registros:
         return pd.DataFrame()
@@ -1638,7 +1638,7 @@ def salvar_metas_local(lista_metas: list, caminho_json: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 6. MovimentaÃ§Ãµes manuais (registro avulso de estoque)
+# 6. Movimentações manuais (registro avulso de estoque)
 # ---------------------------------------------------------------------------
 
 def salvar_movimentacao_manual(registros: list, caminho_json: str) -> None:
@@ -1651,17 +1651,17 @@ def salvar_movimentacao_manual(registros: list, caminho_json: str) -> None:
         reg.setdefault("loja", "")
     try:
         insert_movimentacoes(registros)
-        logger.info("MovimentaÃ§Ãµes manuais: %d registro(s) salvos.", len(registros))
+        logger.info("Movimentações manuais: %d registro(s) salvos.", len(registros))
     except Exception as exc:
-        logger.error("Falha ao salvar movimentaÃ§Ãµes manuais '%s': %s", caminho_json, exc)
+        logger.error("Falha ao salvar movimentações manuais '%s': %s", caminho_json, exc)
 
 
 def load_movimentacoes_manuais(caminho_json: str) -> list:
-    """Carrega lista de movimentaÃ§Ãµes manuais persistidas no banco."""
+    """Carrega lista de movimentações manuais persistidas no banco."""
     try:
         return fetch_movimentacoes()
     except Exception as exc:
-        logger.error("Falha ao carregar movimentaÃ§Ãµes manuais '%s': %s", caminho_json, exc)
+        logger.error("Falha ao carregar movimentações manuais '%s': %s", caminho_json, exc)
         return []
 
 
@@ -1670,7 +1670,7 @@ def deletar_movimentacao_manual(entry_id: int, caminho_json: str) -> None:
     try:
         delete_movimentacao(entry_id)
     except Exception as exc:
-        logger.error("Falha ao deletar movimentaÃ§Ã£o manual '%s': %s", caminho_json, exc)
+        logger.error("Falha ao deletar movimentação manual '%s': %s", caminho_json, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -1678,7 +1678,7 @@ def deletar_movimentacao_manual(entry_id: int, caminho_json: str) -> None:
 # ---------------------------------------------------------------------------
 
 def extrair_bananas_pdf_upload(caminho_pdf: str, nome_original: str = "") -> list:
-    """Extrai apenas linhas de BANANA de um DANFE (uso na pÃ¡gina de registro).
+    """Extrai apenas linhas de BANANA de um DANFE (uso na página de registro).
 
     Returns:
         Lista de dicts com {produto, quant, unidade, valor_unit, valor_total}
@@ -1703,7 +1703,7 @@ def salvar_registro_caixas(registro: dict, caminho_json: str = _DEFAULT_CAIXAS_J
 
 
 def load_registros_caixas(caminho_json: str = _DEFAULT_CAIXAS_JSON) -> pd.DataFrame:
-    """Carrega todos os registros de caixas. Retorna DataFrame vazio se nÃ£o existir."""
+    """Carrega todos os registros de caixas. Retorna DataFrame vazio se não existir."""
     _colunas = [
         "data",
         "loja",
@@ -1749,16 +1749,16 @@ def load_registros_caixas(caminho_json: str = _DEFAULT_CAIXAS_JSON) -> pd.DataFr
 
 def resumo_precos_para_prompt(dados_precos: dict, max_dias: int = 3) -> str:
     if not dados_precos:
-        return "Nenhum dado de preÃ§os disponÃ­vel."
+        return "Nenhum dado de preços disponível."
     linhas = []
     for data_str, df in list(dados_precos.items())[:max_dias]:
-        linhas.append(f"\n=== PreÃ§os em {data_str} ===")
+        linhas.append(f"\n=== Preços em {data_str} ===")
         linhas.append(df.to_string(index=False, max_rows=50))
     return "\n".join(linhas)
 
 
 def resumo_estoque_para_prompt(saldo: float, historico: list, ultimos_n: int = 20) -> str:
-    linhas = [f"Saldo atual de bananas: {saldo:.2f} kg\n", "ï¿½sltimas movimentaÃ§Ãµes:"]
+    linhas = [f"Saldo atual de bananas: {saldo:.2f} kg\n", "ï¿½sltimas movimentações:"]
     for item in historico[-ultimos_n:]:
         data_fmt = item["data"].strftime("%d/%m/%Y") if item["data"] else "?"
         linhas.append(
@@ -1769,22 +1769,22 @@ def resumo_estoque_para_prompt(saldo: float, historico: list, ultimos_n: int = 2
 
 
 # ---------------------------------------------------------------------------
-# 10. Pedidos Semar ï¿½?" formato compatÃ­vel com load_pedidos_pdfs
+# 10. Pedidos Semar ï¿½?" formato compatível com load_pedidos_pdfs
 # ---------------------------------------------------------------------------
 
 def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
     """Extrai Pedido de Compra Semar e retorna no mesmo formato de load_pedidos_pdfs().
 
-    Colunas retornadas (idÃªnticas ao DataFrame de NF-e para concatenaÃ§Ã£o direta):
+    Colunas retornadas (idênticas ao DataFrame de NF-e para concatenação direta):
       Data (datetime) | Loja (str) | Produto (str) | UNID (str) |
       QUANT (float) | VALOR TOTAL (float) | VALOR UNIT (float)
 
-    Estrutura real do PDF (pÃ¡gina 1):
-      Uma Ãºnica tabela grande com todas os produtos. Por produto:
-        - Linha de cabeÃ§alho  : col 0 = "BANANA X kg - Embalagem..."
+    Estrutura real do PDF (página 1):
+      Uma única tabela grande com todas os produtos. Por produto:
+        - Linha de cabeçalho  : col 0 = "BANANA X kg - Embalagem..."
         - Linha de custo      : col 0 = "Custo Emb. Custo Unit. ...\\nV1 V2 ..." (col2=Custo Unit.)
         - Linha(s) de lojas   : cols 1-N = "LOJA 10 - TAUBATE" etc.
-        - Linha(s) de qtds    : cols 1-N = quantidades numÃ©ricas
+        - Linha(s) de qtds    : cols 1-N = quantidades numéricas
         - Linha "Total:"      : ignorada
       Lojas com mais de 12 aparecem em grupos adicionais (overflow).
     """
@@ -1794,7 +1794,7 @@ def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
 
     try:
         with pdfplumber.open(caminho_pdf) as pdf:
-            # Data de emissÃ£o (pÃ¡gina 1)
+            # Data de emissão (página 1)
             texto_p1 = pdf.pages[0].extract_text() or ""
             data_pedido = None
             m_data = _RE_DATA_SEMAR.search(texto_p1)
@@ -1804,12 +1804,12 @@ def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
                 except ValueError:
                     pass
 
-            # Processar apenas pÃ¡gina 1 ï¿½?" produtos/lojas/quantidades estÃ£o aqui.
-            # PÃ¡gina 2 contÃ©m totais e endereÃ§os de entrega (nÃ£o usados aqui).
+            # Processar apenas página 1 ï¿½?" produtos/lojas/quantidades estão aqui.
+            # Página 2 contém totais e endereços de entrega (não usados aqui).
             for tabela in (pdf.pages[0].extract_tables() or []):
                 if not tabela:
                     continue
-                # SÃ³ processar tabelas com pelo menos 3 colunas
+                # Só processar tabelas com pelo menos 3 colunas
                 n_cols = max((len(r) for r in tabela if r), default=0)
                 if n_cols < 3:
                     continue
@@ -1823,7 +1823,7 @@ def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
                         continue
                     col0 = str(row[0] or "").strip()
 
-                    # ï¿½"?ï¿½"? CabeÃ§alho de produto ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?
+                    # ï¿½"?ï¿½"? Cabeçalho de produto ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?
                     # Ex: "BANANA NANICA kg - Embalagem com 1.0 KG * ..."
                     m_prod = _RE_PROD_SEMAR.match(col0)
                     if m_prod:
@@ -1834,7 +1834,7 @@ def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
 
                     # ï¿½"?ï¿½"? Linha de custo ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?
                     # Ex: "Custo Emb. Custo Unit. ...\n2,7000 2,7000 0,0000 ..."
-                    # O 2Âº nÃºmero Ã© o Custo Unit.
+                    # O 2Âº número é o Custo Unit.
                     if "custo unit" in col0.lower():
                         nums = re.findall(r'(\d+[.,]\d+)', col0)
                         if len(nums) >= 2:
@@ -1843,8 +1843,8 @@ def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
                             custo_atual = _parse_br(nums[0])
                         continue
 
-                    # ï¿½"?ï¿½"? CabeÃ§alho de lojas ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?
-                    # Qualquer cÃ©lula (exceto col 0) contÃ©m "LOJA \d+"
+                    # ï¿½"?ï¿½"? Cabeçalho de lojas ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?ï¿½"?
+                    # Qualquer célula (exceto col 0) contém "LOJA \d+"
                     celulas = [str(c or "").strip() for c in row]
                     if any(_RE_LOJA_SEMAR.search(c) for c in celulas[1:]):
                         lojas_atuais = {}
@@ -1894,24 +1894,24 @@ def extrair_pedido_semar(caminho_pdf: str) -> pd.DataFrame:
 def load_pedidos_semar(pasta: str, caminho_cache: str = "") -> pd.DataFrame:
     """Varre pasta de PDFs Semar, extrai todos com cache incremental.
 
-    Usa o mesmo padrÃ£o de cache de load_pedidos_pdfs():
+    Usa o mesmo padrão de cache de load_pedidos_pdfs():
       cache_key = f"semar::{nome_arquivo}"
 
     Retorna DataFrame com as mesmas colunas de load_pedidos_pdfs()
     (Data | Loja | Produto | UNID | QUANT | VALOR TOTAL | VALOR UNIT).
-    Retorna DataFrame vazio se pasta invÃ¡lida ou sem PDFs.
+    Retorna DataFrame vazio se pasta inválida ou sem PDFs.
     """
     _colunas = ["Data", "Loja", "Produto", "UNID", "QUANT", "VALOR TOTAL", "VALOR UNIT"]
 
     if not pasta:
-        logger.warning("[SEMAR] Pasta nÃ£o informada.")
+        logger.warning("[SEMAR] Pasta não informada.")
         return pd.DataFrame(columns=_colunas)
     if not os.path.isdir(pasta):
         try:
             os.makedirs(pasta, exist_ok=True)
         except Exception:
             pass
-        logger.warning("[SEMAR] Pasta invÃ¡lida ou inexistente: '%s'", pasta)
+        logger.warning("[SEMAR] Pasta inválida ou inexistente: '%s'", pasta)
         return pd.DataFrame(columns=_colunas)
 
     pdfs = glob.glob(os.path.join(pasta, "*.pdf"))
