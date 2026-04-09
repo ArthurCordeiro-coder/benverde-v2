@@ -60,7 +60,7 @@ const navItems: Array<{ href: DashboardPath; label: string; icon: ReactNode }> =
   { href: "/dashboard/estoque", label: "Estoque de Bananas", icon: <Banana size={18} /> },
   { href: "/dashboard/caixas", label: "Caixas das Lojas", icon: <PackageSearch size={18} /> },
   { href: "/dashboard/precos", label: "Preços Concorrentes", icon: <Tags size={18} /> },
-  { href: "/dashboard/mita-ai", label: "Mita AI", icon: <MessageCircleMore size={18} /> },
+  { href: "/dashboard/lumii-ia", label: "LUMII-IA", icon: <MessageCircleMore size={18} /> },
 ];
 
 function getNavClass(active: boolean, isHighlight = false) {
@@ -230,7 +230,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <Leaf size={24} className="text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-white">Benverde</h1>
+              <h1 className="text-xl font-bold tracking-tight text-white">LUMII</h1>
               <p className="text-xs font-medium text-green-400">Gestão Inteligente</p>
             </div>
           </div>

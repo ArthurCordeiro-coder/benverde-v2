@@ -23,6 +23,7 @@ import {
 } from "@/lib/server/users";
 import {
   createSessionToken,
+  LEGACY_SESSION_COOKIE_NAMES,
   SESSION_COOKIE_NAME,
   verifySessionToken,
 } from "@/lib/server/session-token";
@@ -71,7 +72,9 @@ export async function getUserFromToken(token: string | null | undefined): Promis
 
 export async function getCurrentUser(): Promise<PublicUser | null> {
   const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const token =
+    cookieStore.get(SESSION_COOKIE_NAME)?.value ??
+    LEGACY_SESSION_COOKIE_NAMES.map((name) => cookieStore.get(name)?.value).find(Boolean);
   return getUserFromToken(token);
 }
 
@@ -132,6 +135,12 @@ export function clearSessionCookie(response: NextResponse): void {
     ...buildCookieOptions(0),
     expires: new Date(0),
   });
+  for (const legacyName of LEGACY_SESSION_COOKIE_NAMES) {
+    response.cookies.set(legacyName, "", {
+      ...buildCookieOptions(0),
+      expires: new Date(0),
+    });
+  }
 }
 
 function formatBlockedUntil(value: Date): string {

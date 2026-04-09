@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import api from "@/lib/api";
 import React, { useState, useEffect, useCallback, FormEvent } from "react";
@@ -13,29 +13,29 @@ import {
 
 const LOJAS_CAIXAS = [
   { id: 1,  nome: "SUZANO" },
-  { id: 4,  nome: "SÃO PAULO" },
+  { id: 4,  nome: "SÃƒO PAULO" },
   { id: 5,  nome: "GUAIANAZES" },
   { id: 6,  nome: "MAUA" },
   { id: 7,  nome: "MOGI DAS CRUZES" },
   { id: 8,  nome: "MOGI DAS CRUZES" },
   { id: 10, nome: "TAUBATE" },
   { id: 11, nome: "PINDAMONHANGABA" },
-  { id: 12, nome: "SÃO SEBASTIÃO" },
+  { id: 12, nome: "SÃƒO SEBASTIÃƒO" },
   { id: 13, nome: "CARAGUATATUBA" },
   { id: 14, nome: "UBATUBA" },
   { id: 16, nome: "PINDAMONHANGABA" },
-  { id: 17, nome: "POÁ" },
+  { id: 17, nome: "POÃ" },
   { id: 18, nome: "TAUBATE" },
   { id: 19, nome: "NOVA LORENA" },
   { id: 20, nome: "GUARATINGUETA" },
   { id: 21, nome: "BERTIOGA" },
   { id: 22, nome: "MOGI DAS CRUZES" },
   { id: 23, nome: "FERRAZ DE VASCONCELOS" },
-  { id: 25, nome: "SÃO SEBASTIÃO" },
+  { id: 25, nome: "SÃƒO SEBASTIÃƒO" },
   { id: 26, nome: "UBATUBA" },
   { id: 27, nome: "SUZANO" },
   { id: 29, nome: "ARUJA" },
-  { id: 30, nome: "SÃO JOSÉ DOS CAMPOS" },
+  { id: 30, nome: "SÃƒO JOSÃ‰ DOS CAMPOS" },
   { id: 31, nome: "SUZANO" },
   { id: 32, nome: "ITAQUAQUECETUBA" },
   { id: 33, nome: "ITAQUAQUECETUBA" },
@@ -56,7 +56,7 @@ type ApiError = { response?: { status?: number; data?: { detail?: string } } };
 const getErrorMessage = (error: unknown, fallback: string) => {
   const detail = (error as ApiError | undefined)?.response?.data?.detail;
   const status = (error as ApiError | undefined)?.response?.status;
-  if (status === 401) return "Sua sessão expirou. Faça login novamente para continuar.";
+  if (status === 401) return "Sua sessÃ£o expirou. FaÃ§a login novamente para continuar.";
   return typeof detail === "string" && detail.trim() ? detail : fallback;
 };
 
@@ -69,7 +69,7 @@ const formatDate = (value?: string | null) => {
 
 export default function RegistroCaixas() {
   const [lojaSelecionada, setLojaSelecionada] = useState(LOJAS_CAIXAS[0].id);
-  const [caixasBenverde, setCaixasBenverde] = useState<number | "">("");
+  const [caixasLUMII, setCaixasLUMII] = useState<number | "">("");
   const [caixasBananas, setCaixasBananas] = useState<number | "">("");
   const [caixasCCJ, setCaixasCCJ] = useState<number | "">("");
   const [ccjBanca, setCcjBanca] = useState<number | "">("");
@@ -81,7 +81,7 @@ export default function RegistroCaixas() {
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
-  // Limpa o aviso de erro ao alterar os inputs CCJ após tentativa falha
+  // Limpa o aviso de erro ao alterar os inputs CCJ apÃ³s tentativa falha
   useEffect(() => {
     if (feedback?.tone === "error") {
       setFeedback(null);
@@ -100,7 +100,7 @@ export default function RegistroCaixas() {
         .slice(0, 15);
       setHistorico(deLoja);
     } catch (error) {
-      setFeedback({ tone: "error", text: getErrorMessage(error, "Não foi possível carregar o histórico.") });
+      setFeedback({ tone: "error", text: getErrorMessage(error, "NÃ£o foi possÃ­vel carregar o histÃ³rico.") });
     } finally {
       setIsLoading(false);
     }
@@ -120,7 +120,7 @@ export default function RegistroCaixas() {
     if (somaCcj > totalCcj) {
       setFeedback({
         tone: "error",
-        text: `A soma das categorias CCJ (${somaCcj}) não pode ser maior que o total de Caixas CCJ (${totalCcj}).`,
+        text: `A soma das categorias CCJ (${somaCcj}) nÃ£o pode ser maior que o total de Caixas CCJ (${totalCcj}).`,
       });
       return;
     }
@@ -128,7 +128,7 @@ export default function RegistroCaixas() {
     const loja = LOJAS_CAIXAS.find(l => l.id === lojaSelecionada);
     if (!loja) return;
 
-    const benverde = num(caixasBenverde);
+    const lumii = num(caixasLUMII);
     const bananas = num(caixasBananas);
 
     setIsSaving(true);
@@ -138,22 +138,22 @@ export default function RegistroCaixas() {
         data: new Date().toISOString().slice(0, 10),
         loja: loja.nome,
         n_loja: loja.id,
-        caixas_benverde: benverde,
+      caixas_benverde: lumii,
         caixas_bananas: bananas,
         caixas_ccj: totalCcj,
         ccj_banca: num(ccjBanca),
         ccj_mercadoria: num(ccjMercadoria),
         ccj_retirada: num(ccjRetirada),
-        total: benverde + bananas + totalCcj,
+      total: lumii + bananas + totalCcj,
         entregue: "nao",
       });
 
       setFeedback({ tone: "success", text: "Registro de caixas salvo com sucesso!" });
-      setCaixasBenverde(""); setCaixasBananas(""); setCaixasCCJ("");
+      setCaixasLUMII(""); setCaixasBananas(""); setCaixasCCJ("");
       setCcjBanca(""); setCcjMercadoria(""); setCcjRetirada("");
       await carregarHistorico();
     } catch (error) {
-      setFeedback({ tone: "error", text: getErrorMessage(error, "Não foi possível salvar o registro.") });
+      setFeedback({ tone: "error", text: getErrorMessage(error, "NÃ£o foi possÃ­vel salvar o registro.") });
     } finally {
       setIsSaving(false);
     }
@@ -185,7 +185,7 @@ export default function RegistroCaixas() {
             >
               {LOJAS_CAIXAS.map(l => (
                 <option key={l.id} value={l.id} className="bg-black text-white">
-                  Loja {l.id} — {l.nome}
+                  Loja {l.id} â€” {l.nome}
                 </option>
               ))}
             </select>
@@ -208,12 +208,12 @@ export default function RegistroCaixas() {
           <form onSubmit={e => void handleSubmit(e)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="mb-1 block text-xs font-semibold text-gray-400">Caixas Benverde</label>
+                <label className="mb-1 block text-xs font-semibold text-gray-400">Caixas LUMII</label>
                 <input
                   type="number"
                   min="0"
-                  value={caixasBenverde}
-                  onChange={e => setCaixasBenverde(e.target.value ? Number(e.target.value) : "")}
+                  value={caixasLUMII}
+                  onChange={e => setCaixasLUMII(e.target.value ? Number(e.target.value) : "")}
                   className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-lg font-mono text-white outline-none focus:border-blue-500"
                   placeholder="0"
                 />
@@ -244,7 +244,7 @@ export default function RegistroCaixas() {
 
             <div className="border-t border-white/5 pt-6">
               <label className="mb-3 block text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                Distribuição CCJ
+                DistribuiÃ§Ã£o CCJ
               </label>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -296,7 +296,7 @@ export default function RegistroCaixas() {
 
         <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-xl backdrop-blur-md">
           <h3 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-white mb-6">
-            <History size={18} className="text-blue-400" /> Últimos registros — {currentLojaNome}
+            <History size={18} className="text-blue-400" /> Ãšltimos registros â€” {currentLojaNome}
           </h3>
 
           {isLoading ? (
@@ -313,7 +313,7 @@ export default function RegistroCaixas() {
                 <thead className="text-[10px] uppercase tracking-widest text-gray-500 border-b border-white/10">
                   <tr>
                     <th className="pb-3">Data</th>
-                    <th className="pb-3 text-center">Benverde</th>
+                    <th className="pb-3 text-center">LUMII</th>
                     <th className="pb-3 text-center">Bananas</th>
                     <th className="pb-3 text-center">CCJ</th>
                     <th className="pb-3 text-center">Total</th>
@@ -339,3 +339,4 @@ export default function RegistroCaixas() {
     </div>
   );
 }
+

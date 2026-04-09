@@ -1,5 +1,5 @@
 """auth.py
-Sistema de autenticacao para o app Benverde.
+Sistema de autenticacao para o app LUMII.
 Usa hashlib, secrets, threading, datetime, re e helpers do app.
 """
 

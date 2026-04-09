@@ -1,10 +1,17 @@
-export type DashboardScope = "overview" | "estoque" | "caixas" | "precos" | "mita-ai";
+export type DashboardScope =
+  | "overview"
+  | "estoque"
+  | "caixas"
+  | "precos"
+  | "lumii-ia"
+  | "mita-ai";
 
 export type DashboardPath =
   | "/dashboard"
   | "/dashboard/estoque"
   | "/dashboard/caixas"
   | "/dashboard/precos"
+  | "/dashboard/lumii-ia"
   | "/dashboard/mita-ai";
 
 export type DashboardNavItem = {
@@ -17,15 +24,20 @@ const ALL_DASHBOARD_PATHS: DashboardPath[] = [
   "/dashboard/estoque",
   "/dashboard/caixas",
   "/dashboard/precos",
+  "/dashboard/lumii-ia",
   "/dashboard/mita-ai",
 ];
 
-const DASHBOARD_SCOPE_PATHS: Record<DashboardScope, DashboardPath> = {
+function normalizeDashboardScope(scope: DashboardScope): Exclude<DashboardScope, "mita-ai"> {
+  return scope === "mita-ai" ? "lumii-ia" : scope;
+}
+
+const DASHBOARD_SCOPE_PATHS: Record<Exclude<DashboardScope, "mita-ai">, DashboardPath> = {
   overview: "/dashboard",
   estoque: "/dashboard/estoque",
   caixas: "/dashboard/caixas",
   precos: "/dashboard/precos",
-  "mita-ai": "/dashboard/mita-ai",
+  "lumii-ia": "/dashboard/lumii-ia",
 };
 
 const RESTRICTED_SCOPE_BY_FUNCIONALIDADE: Record<string, DashboardScope[]> = {
@@ -47,7 +59,7 @@ export function getAllowedDashboardScopes(funcionalidade?: string | null): Dashb
     "estoque",
     "caixas",
     "precos",
-    "mita-ai",
+    "lumii-ia",
   ];
 }
 
@@ -55,11 +67,13 @@ export function canAccessDashboardScope(
   funcionalidade: string | null | undefined,
   scope: DashboardScope,
 ): boolean {
-  return getAllowedDashboardScopes(funcionalidade).includes(scope);
+  return getAllowedDashboardScopes(funcionalidade).includes(normalizeDashboardScope(scope));
 }
 
 export function getAllowedDashboardPaths(funcionalidade?: string | null): DashboardPath[] {
-  return getAllowedDashboardScopes(funcionalidade).map((scope) => DASHBOARD_SCOPE_PATHS[scope]);
+  return getAllowedDashboardScopes(funcionalidade).map(
+    (scope) => DASHBOARD_SCOPE_PATHS[normalizeDashboardScope(scope)],
+  );
 }
 
 export function getDefaultDashboardPath(funcionalidade?: string | null): DashboardPath {
@@ -79,6 +93,9 @@ export function getDashboardScopeFromPath(pathname: string): DashboardScope | nu
   }
   if (path === "/dashboard/precos") {
     return "precos";
+  }
+  if (path === "/dashboard/lumii-ia") {
+    return "lumii-ia";
   }
   if (path === "/dashboard/mita-ai") {
     return "mita-ai";

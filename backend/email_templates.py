@@ -7,13 +7,13 @@ def build_password_reset_email(
     safe_username = escape(username)
     safe_code = escape(code)
     minutos = max(expires_in_minutes, 1)
-    subject = "Benverde | Codigo para redefinir sua senha"
+    subject = "LUMII | Codigo para redefinir sua senha"
     text = (
         f"Ola, {username}.\n\n"
         f"Seu codigo de recuperacao de senha e: {code}\n"
         f"Esse codigo expira em {minutos} minutos.\n\n"
         "Se voce nao solicitou essa recuperacao, ignore este e-mail.\n"
-        "Equipe Benverde"
+        "Equipe LUMII"
     )
     html = f"""
     <!DOCTYPE html>
@@ -21,7 +21,7 @@ def build_password_reset_email(
       <body style="margin:0;padding:0;background:#f4f7f2;font-family:Arial,sans-serif;color:#173322;">
         <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
           <div style="background:#ffffff;border:1px solid #dbe7db;border-radius:18px;padding:32px;">
-            <p style="margin:0 0 12px;font-size:14px;color:#4a6352;">Benverde</p>
+            <p style="margin:0 0 12px;font-size:14px;color:#4a6352;">LUMII</p>
             <h1 style="margin:0 0 16px;font-size:24px;line-height:1.3;color:#173322;">
               Recuperacao de senha
             </h1>

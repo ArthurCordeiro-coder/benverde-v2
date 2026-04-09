@@ -5,7 +5,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        benverde: {
+        lumii: {
           base: "#0b1f15",
           dark: "#07140e",
           accent: "#34d399",

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireDashboardScope } from "@/lib/server/auth";
 import { badRequest, toErrorResponse } from "@/lib/server/errors";
-import { extractBananasFromPdfWithMita } from "@/lib/server/mita-pdf";
+import { extractBananasFromPdfWithLumii } from "@/lib/server/lumii-pdf";
 
 function isPdfFile(file: File): boolean {
   return file.name.toLowerCase().endsWith(".pdf");
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       badRequest("Envie um arquivo PDF valido.");
     }
 
-    return NextResponse.json(await extractBananasFromPdfWithMita(file));
+    return NextResponse.json(await extractBananasFromPdfWithLumii(file));
   } catch (error) {
     return toErrorResponse(error);
   }

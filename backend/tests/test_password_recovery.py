@@ -1,4 +1,4 @@
-import hashlib
+﻿import hashlib
 import importlib.util
 import os
 import sys
@@ -206,7 +206,7 @@ def loaded_modules():
         "users": {
             "operador": {
                 "nome": "Operador Teste",
-                "email": "operador@benverde.com",
+                "email": "operador@lumii.com",
                 "salt": "salt-antigo",
                 "senha_hash": hashlib.sha256(("salt-antigo" + "senha123").encode()).hexdigest(),
                 "funcionalidade": "administracao geral",
@@ -263,7 +263,7 @@ def test_request_endpoint_returns_generic_message_for_unknown_user(loaded_module
 
     payload = api_auth.PasswordRecoveryRequest(
         username="desconhecido",
-        email="desconhecido@benverde.com",
+        email="desconhecido@lumii.com",
     )
 
     response = api_auth.password_recovery_request(payload)
@@ -279,7 +279,7 @@ def test_request_creates_code_and_sends_email(loaded_modules):
     sent_emails = loaded_modules["sent_emails"]
 
     ok, status = auth.solicitar_codigo_recuperacao(
-        "operador", "operador@benverde.com"
+        "operador", "operador@lumii.com"
     )
 
     assert ok is True
@@ -296,12 +296,12 @@ def test_confirm_updates_password_and_allows_login(loaded_modules):
     auth = loaded_modules["auth"]
     sent_emails = loaded_modules["sent_emails"]
 
-    auth.solicitar_codigo_recuperacao("operador", "operador@benverde.com")
+    auth.solicitar_codigo_recuperacao("operador", "operador@lumii.com")
     code = sent_emails[0]["code"]
 
     ok, message = auth.confirmar_codigo_recuperacao(
         "operador",
-        "operador@benverde.com",
+        "operador@lumii.com",
         code,
         "novaSenha456",
     )
@@ -318,14 +318,14 @@ def test_confirm_rejects_expired_code(loaded_modules):
     sent_emails = loaded_modules["sent_emails"]
     state = loaded_modules["state"]
 
-    auth.solicitar_codigo_recuperacao("operador", "operador@benverde.com")
+    auth.solicitar_codigo_recuperacao("operador", "operador@lumii.com")
     state["password_reset_codes"]["operador"]["expires_at"] = datetime.now(
         timezone.utc
     ) - timedelta(minutes=1)
 
     ok, message = auth.confirmar_codigo_recuperacao(
         "operador",
-        "operador@benverde.com",
+        "operador@lumii.com",
         sent_emails[0]["code"],
         "novaSenha456",
     )
@@ -338,13 +338,13 @@ def test_confirm_invalid_code_consumes_after_five_attempts(loaded_modules):
     auth = loaded_modules["auth"]
     state = loaded_modules["state"]
 
-    auth.solicitar_codigo_recuperacao("operador", "operador@benverde.com")
+    auth.solicitar_codigo_recuperacao("operador", "operador@lumii.com")
 
     final_message = ""
     for _ in range(5):
         ok, final_message = auth.confirmar_codigo_recuperacao(
             "operador",
-            "operador@benverde.com",
+            "operador@lumii.com",
             "000000",
             "novaSenha456",
         )
@@ -358,10 +358,10 @@ def test_confirm_endpoint_returns_http_400_for_invalid_code(loaded_modules):
     api_auth = loaded_modules["api_auth"]
     auth = loaded_modules["auth"]
 
-    auth.solicitar_codigo_recuperacao("operador", "operador@benverde.com")
+    auth.solicitar_codigo_recuperacao("operador", "operador@lumii.com")
     payload = api_auth.PasswordRecoveryConfirmRequest(
         username="operador",
-        email="operador@benverde.com",
+        email="operador@lumii.com",
         code="111111",
         new_password="novaSenha456",
     )
@@ -370,3 +370,4 @@ def test_confirm_endpoint_returns_http_400_for_invalid_code(loaded_modules):
         api_auth.password_recovery_confirm(payload)
 
     assert exc_info.value.status_code == 400
+

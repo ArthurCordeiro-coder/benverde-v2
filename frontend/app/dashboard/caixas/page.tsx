@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import api from "@/lib/api";
@@ -123,7 +123,7 @@ export default function CaixasPage() {
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
 
-  // Campos do formulário
+  // Campos do formulÃ¡rio
   const [loja, setLoja] = useState("");
   const [data, setData] = useState("");
   const [quantidade, setQuantidade] = useState("");
@@ -133,7 +133,7 @@ export default function CaixasPage() {
   const [filterLoja, setFilterLoja] = useState("Todas");
   const [filterStatus, setFilterStatus] = useState("Todos");
 
-  // Menu de exportação
+  // Menu de exportaÃ§Ã£o
   const [isExportOpen, setIsExportOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const tableSectionRef = useRef<HTMLElement>(null);
@@ -166,7 +166,7 @@ export default function CaixasPage() {
       console.error("Erro ao carregar caixas:", error);
       setFeedback({
         tone: "error",
-        text: getApiErrorMessage(error, "Não foi possível carregar os registros de caixas."),
+        text: getApiErrorMessage(error, "NÃ£o foi possÃ­vel carregar os registros de caixas."),
       });
     } finally {
       setIsLoading(false);
@@ -197,13 +197,13 @@ export default function CaixasPage() {
         text:
           nextStatus === "sim"
             ? "Status atualizado para entregue."
-            : "Status atualizado para não entregue.",
+            : "Status atualizado para nÃ£o entregue.",
       });
     } catch (error) {
       console.error("Erro ao atualizar status da caixa:", error);
       setFeedback({
         tone: "error",
-        text: getApiErrorMessage(error, "Não foi possível atualizar o status da caixa."),
+        text: getApiErrorMessage(error, "NÃ£o foi possÃ­vel atualizar o status da caixa."),
       });
     } finally {
       setUpdatingStatusId(null);
@@ -212,7 +212,7 @@ export default function CaixasPage() {
 
   const metrics = useMemo(() => {
     const naoEntregues = registros.filter((d) => d.entregue !== "sim");
-    const totalBenverde = naoEntregues.reduce(
+    const totalLUMII = naoEntregues.reduce(
       (acc, curr) => acc + (curr.caixas_benverde ?? 0),
       0,
     );
@@ -232,7 +232,7 @@ export default function CaixasPage() {
     const topStore =
       Object.entries(storeTotals).sort((a, b) => b[1] - a[1])[0] ?? ["Nenhuma", 0];
 
-    return { totalBenverde, totalCCJ, totalBananas, topStore };
+    return { totalLUMII, totalCCJ, totalBananas, topStore };
   }, [registros]);
 
   const uniqueDates = [
@@ -256,15 +256,15 @@ export default function CaixasPage() {
     const dataParaExcel = filteredRows.map((row) => ({
       Data: formatarData(row.data),
       Loja: row.loja ?? "-",
-      "Nº Loja": row.n_loja ?? "",
-      Benverde: row.caixas_benverde ?? 0,
+      "NÂº Loja": row.n_loja ?? "",
+      LUMII: row.caixas_benverde ?? 0,
       CCJ: row.caixas_ccj ?? 0,
       "CCJ Banca": row.ccj_banca ?? 0,
       "CCJ Mercadoria": row.ccj_mercadoria ?? 0,
       "CCJ Retirada": row.ccj_retirada ?? 0,
       Bananas: row.caixas_bananas ?? 0,
       Total: row.total ?? 0,
-      Status: row.entregue === "sim" ? "Entregue" : "Não entregue",
+      Status: row.entregue === "sim" ? "Entregue" : "NÃ£o entregue",
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataParaExcel);
@@ -333,7 +333,7 @@ export default function CaixasPage() {
       console.error("Erro ao salvar registro de caixa:", error);
       setFeedback({
         tone: "error",
-        text: getApiErrorMessage(error, "Não foi possível salvar o registro de caixa."),
+        text: getApiErrorMessage(error, "NÃ£o foi possÃ­vel salvar o registro de caixa."),
       });
     } finally {
       setSalvando(false);
@@ -342,7 +342,7 @@ export default function CaixasPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header Mita */}
+      {/* Header Lumii */}
       <header className="flex flex-col items-start justify-between gap-4 rounded-3xl border border-white/5 bg-white/[0.02] p-6 shadow-sm backdrop-blur-md md:flex-row md:items-center">
         <div className="flex items-center gap-4">
           <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-tr from-green-500 to-emerald-300 p-[2px]">
@@ -352,7 +352,7 @@ export default function CaixasPage() {
           </div>
           <div>
             <h2 className="text-lg font-semibold text-white">
-              Oie! Eu sou a Mita, sua gerente de dados.
+              Oie! Eu sou a Lumii, sua gerente de dados.
             </h2>
             <p className="text-sm text-gray-400">
               Como posso te ajudar hoje com as caixas das lojas?
@@ -392,12 +392,12 @@ export default function CaixasPage() {
         </div>
       ) : null}
 
-      {/* Cards de Métricas */}
+      {/* Cards de MÃ©tricas */}
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
         <GlassCard
-          title="Benverde Pendentes"
-          value={`${metrics.totalBenverde} un`}
-          subtitle="Caixas plásticas Benverde."
+          title="LUMII Pendentes"
+          value={`${metrics.totalLUMII} un`}
+          subtitle="Caixas plÃ¡sticas LUMII."
           icon={<PackageSearch size={24} />}
           trend="up"
           iconColor="text-blue-400"
@@ -413,14 +413,14 @@ export default function CaixasPage() {
         <GlassCard
           title="Caixas Bananas"
           value={`${metrics.totalBananas} un`}
-          subtitle="Modelos específicos."
+          subtitle="Modelos especÃ­ficos."
           icon={<Banana size={24} />}
           trend="neutral"
           iconColor="text-yellow-400"
         />
         <GlassCard
-          title="Maior Concentração"
-          value={String(metrics.topStore[0]).split(" ").pop() ?? "—"}
+          title="Maior ConcentraÃ§Ã£o"
+          value={String(metrics.topStore[0]).split(" ").pop() ?? "â€”"}
           subtitle={`${metrics.topStore[1]} caixas nesta loja.`}
           icon={<TrendingUp size={24} />}
           trend="up"
@@ -428,7 +428,7 @@ export default function CaixasPage() {
         />
       </div>
 
-      {/* Seção da Tabela */}
+      {/* SeÃ§Ã£o da Tabela */}
       <section ref={tableSectionRef} className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] shadow-2xl backdrop-blur-2xl">
         {/* Barra de Filtros */}
         <div className="flex flex-col gap-4 border-b border-white/5 p-6 md:flex-row md:items-center md:justify-between">
@@ -487,7 +487,7 @@ export default function CaixasPage() {
               >
                 <option value="Todos">Todos os Status</option>
                 <option value="sim">Entregue</option>
-                <option value="nao">Não Entregue</option>
+                <option value="nao">NÃ£o Entregue</option>
               </select>
               <ChevronDown
                 size={14}
@@ -495,7 +495,7 @@ export default function CaixasPage() {
               />
             </div>
 
-            {/* Botão Exportar com Dropdown */}
+            {/* BotÃ£o Exportar com Dropdown */}
             <div className="relative" ref={exportMenuRef}>
               <button
                 type="button"
@@ -548,7 +548,7 @@ export default function CaixasPage() {
                   Loja
                 </th>
                 <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                  Benverde
+                  LUMII
                 </th>
                 <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">
                   CCJ
@@ -595,7 +595,7 @@ export default function CaixasPage() {
                         </div>
                         {row.n_loja != null && (
                           <div className="text-[10px] font-medium text-gray-500">
-                            Loja Nº {row.n_loja}
+                            Loja NÂº {row.n_loja}
                           </div>
                         )}
                       </td>
@@ -630,7 +630,7 @@ export default function CaixasPage() {
                             </>
                           ) : (
                             <>
-                              <X size={12} /> Não
+                              <X size={12} /> NÃ£o
                             </>
                           )}
                         </button>
@@ -649,7 +649,7 @@ export default function CaixasPage() {
             <span className="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
             Total de Registros: {filteredRows.length}
           </div>
-          <div>Mita Gerenciamento Inteligente</div>
+          <div>Lumii Gerenciamento Inteligente</div>
         </div>
       </section>
 
@@ -734,3 +734,4 @@ export default function CaixasPage() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-from dotenv import load_dotenv
+﻿from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -46,7 +46,7 @@ from db import (
     update_import_job,
 )
 
-app = FastAPI(title="Benverde API")
+app = FastAPI(title="LUMII API")
 logger = logging.getLogger(__name__)
 IMPORT_JOBS_ROOT = Path(__file__).resolve().parent / "temp_import_jobs"
 DASHBOARD_CATEGORY_ORDER = ("Frutas", "Legumes", "Verduras")
@@ -449,7 +449,7 @@ def _build_price_snapshot_items(df) -> tuple[list[dict], list[str]]:
 
     # Fix: when a generic "preco" column exists without a market in parentheses,
     # and "Semar" is not already mapped to a price column, assign it to Semar.
-    # This handles DB columns like "preco" instead of "Preço (Semar)".
+    # This handles DB columns like "preco" instead of "PreÃ§o (Semar)".
     if "Semar" not in price_columns:
         # Check for orphan price columns whose key doesn't match any known market pattern
         orphan_keys = [
@@ -963,11 +963,11 @@ def get_upload_pedidos_status(job_id: str, current_user: dict = Depends(get_curr
     return _serialize_import_job(job)
 
 
-_MITA_MODEL = "grok-4-1-fast-reasoning"
-_MITA_SYSTEM_PROMPT = """Voce e a Mita, gerente de dados inteligente da Benverde, uma distribuidora de bananas e hortifruti.
+_LUMII_MODEL = "grok-4-1-fast-reasoning"
+_LUMII_SYSTEM_PROMPT = """Voce e a Lumii, gerente de dados inteligente da LUMII, uma distribuidora de bananas e hortifruti.
 Voce tem acesso ao contexto operacional atual (estoque, precos, caixas das lojas e metas) e deve responder de forma clara,
 objetiva e em portugues brasileiro. Seja direta, use numeros quando relevante e aponte riscos ou oportunidades quando identificar."""
-_MITA_PDF_SYSTEM_PROMPT = """Voce e a Mita lendo notas fiscais em PDF da Benverde.
+_LUMII_PDF_SYSTEM_PROMPT = """Voce e a Lumii lendo notas fiscais em PDF da LUMII.
 Sua tarefa eh extrair apenas itens de banana e responder somente com JSON valido.
 Formato exato de saida:
 {"resultado":[{"produto":"BANANA NANICA","quant":12.5,"unidade":"KG","valor_unit":0,"valor_total":0}]}
@@ -983,7 +983,7 @@ Regras:
 """
 
 
-def _coerce_mita_number(value: object) -> float | None:
+def _coerce_lumii_number(value: object) -> float | None:
     raw = str(value or "").strip()
     if not raw or raw.lower() in {"none", "null", "nan", "-"}:
         return None
@@ -1006,7 +1006,7 @@ def _coerce_mita_number(value: object) -> float | None:
         return None
 
 
-def _extract_pdf_text_for_mita(caminho_pdf: str, max_pages: int = 6, max_chars: int = 24000) -> str:
+def _extract_pdf_text_for_lumii(caminho_pdf: str, max_pages: int = 6, max_chars: int = 24000) -> str:
     partes: list[str] = []
     collected = 0
 
@@ -1051,7 +1051,7 @@ def _extract_json_like_payload(raw_content: str) -> dict | list | None:
     return None
 
 
-def _normalize_mita_pdf_items(payload: object) -> list[dict]:
+def _normalize_lumii_pdf_items(payload: object) -> list[dict]:
     raw_items = payload.get("resultado") if isinstance(payload, dict) else payload
     if not isinstance(raw_items, list):
         return []
@@ -1071,7 +1071,7 @@ def _normalize_mita_pdf_items(payload: object) -> list[dict]:
         if not produto or "BANANA" not in produto:
             continue
 
-        quant = _coerce_mita_number(
+        quant = _coerce_lumii_number(
             raw_item.get("quant")
             or raw_item.get("quantidade")
             or raw_item.get("peso")
@@ -1083,13 +1083,13 @@ def _normalize_mita_pdf_items(payload: object) -> list[dict]:
         if unidade not in {"KG", "UN", "CX"}:
             unidade = "KG"
 
-        valor_unit = _coerce_mita_number(
+        valor_unit = _coerce_lumii_number(
             raw_item.get("valor_unit")
             or raw_item.get("valorUnit")
             or raw_item.get("valor_unitario")
             or raw_item.get("preco_unitario")
         ) or 0.0
-        valor_total = _coerce_mita_number(
+        valor_total = _coerce_lumii_number(
             raw_item.get("valor_total")
             or raw_item.get("valorTotal")
             or raw_item.get("total")
@@ -1125,15 +1125,15 @@ def _normalize_mita_pdf_items(payload: object) -> list[dict]:
     return items
 
 
-def _extract_bananas_pdf_with_mita(caminho_pdf: str, nome_arquivo: str) -> list[dict]:
+def _extract_bananas_pdf_with_lumii(caminho_pdf: str, nome_arquivo: str) -> list[dict]:
     xai_api_key = os.getenv("XAI_API_KEY", "").strip()
     if not xai_api_key:
         return []
 
     try:
-        texto_pdf = _extract_pdf_text_for_mita(caminho_pdf)
+        texto_pdf = _extract_pdf_text_for_lumii(caminho_pdf)
     except Exception as exc:
-        logger.warning("Upload PDF '%s': falha ao extrair texto para MITA: %s", nome_arquivo, exc)
+        logger.warning("Upload PDF '%s': falha ao extrair texto para LUMII: %s", nome_arquivo, exc)
         return []
 
     if not texto_pdf:
@@ -1148,40 +1148,40 @@ def _extract_bananas_pdf_with_mita(caminho_pdf: str, nome_arquivo: str) -> list[
     try:
         client = OpenAI(api_key=xai_api_key, base_url="https://api.x.ai/v1")
         completion = client.chat.completions.create(
-            model=_MITA_MODEL,
+            model=_LUMII_MODEL,
             messages=[
-                {"role": "system", "content": _MITA_PDF_SYSTEM_PROMPT},
+                {"role": "system", "content": _LUMII_PDF_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt},
             ],
         )
         answer = (completion.choices[0].message.content or "").strip()
     except Exception as exc:
-        logger.warning("Upload PDF '%s': falha ao consultar a MITA: %s", nome_arquivo, exc)
+        logger.warning("Upload PDF '%s': falha ao consultar a LUMII: %s", nome_arquivo, exc)
         return []
 
     payload = _extract_json_like_payload(answer)
     if payload is None:
-        logger.warning("Upload PDF '%s': MITA retornou resposta sem JSON valido.", nome_arquivo)
+        logger.warning("Upload PDF '%s': LUMII retornou resposta sem JSON valido.", nome_arquivo)
         return []
 
-    return _normalize_mita_pdf_items(payload)
+    return _normalize_lumii_pdf_items(payload)
 
 
-def _build_mita_context() -> str:
-    """Monta o contexto operacional atual para o prompt da Mita."""
+def _build_lumii_context() -> str:
+    """Monta o contexto operacional atual para o prompt da Lumii."""
     partes = []
 
     try:
         saldo, historico = calcular_estoque()
         partes.append("## ESTOQUE ATUAL\n" + resumo_estoque_para_prompt(saldo, historico))
     except Exception as exc:
-        logger.warning("Mita: falha ao carregar estoque: %s", exc)
+        logger.warning("Lumii: falha ao carregar estoque: %s", exc)
 
     try:
         dados_precos = load_precos()
         partes.append("## PRECOS CONCORRENTES\n" + resumo_precos_para_prompt(dados_precos))
     except Exception as exc:
-        logger.warning("Mita: falha ao carregar precos: %s", exc)
+        logger.warning("Lumii: falha ao carregar precos: %s", exc)
 
     try:
         caixas_df = load_registros_caixas()
@@ -1193,7 +1193,7 @@ def _build_mita_context() -> str:
             + (pendentes.to_string(index=False, max_rows=20) if not pendentes.empty else "Nenhuma pendencia.")
         )
     except Exception as exc:
-        logger.warning("Mita: falha ao carregar caixas: %s", exc)
+        logger.warning("Lumii: falha ao carregar caixas: %s", exc)
 
     try:
         metas = load_metas()
@@ -1201,13 +1201,14 @@ def _build_mita_context() -> str:
             linhas_metas = "\n".join(f"  {m['produto']}: {m['meta']} unidades" for m in metas[:30])
             partes.append(f"## METAS POR PRODUTO\n{linhas_metas}")
     except Exception as exc:
-        logger.warning("Mita: falha ao carregar metas: %s", exc)
+        logger.warning("Lumii: falha ao carregar metas: %s", exc)
 
     return "\n\n".join(partes) if partes else "Nenhum dado operacional disponivel no momento."
 
 
 @app.post("/api/mita-ai/chat")
-def mita_ai_chat(payload: dict = Body(...), current_user: dict = Depends(get_current_user)):
+@app.post("/api/lumii-ia/chat")
+def lumii_ai_chat(payload: dict = Body(...), current_user: dict = Depends(get_current_user)):
     xai_api_key = os.getenv("XAI_API_KEY", "").strip()
     if not xai_api_key:
         raise HTTPException(
@@ -1228,8 +1229,8 @@ def mita_ai_chat(payload: dict = Body(...), current_user: dict = Depends(get_cur
         and isinstance(m.get("content"), str)
     ]
 
-    contexto = _build_mita_context()
-    system_content = f"{_MITA_SYSTEM_PROMPT}\n\n{contexto}"
+    contexto = _build_lumii_context()
+    system_content = f"{_LUMII_SYSTEM_PROMPT}\n\n{contexto}"
 
     messages = [{"role": "system", "content": system_content}]
     messages.extend(history)
@@ -1238,12 +1239,12 @@ def mita_ai_chat(payload: dict = Body(...), current_user: dict = Depends(get_cur
     try:
         client = OpenAI(api_key=xai_api_key, base_url="https://api.x.ai/v1")
         completion = client.chat.completions.create(
-            model=_MITA_MODEL,
+            model=_LUMII_MODEL,
             messages=messages,
         )
         answer = (completion.choices[0].message.content or "").strip()
     except Exception as exc:
-        logger.exception("Mita AI: erro na chamada ao modelo %s", _MITA_MODEL)
+        logger.exception("LUMII-IA: erro na chamada ao modelo %s", _LUMII_MODEL)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Erro ao se comunicar com o modelo de IA: {exc}",
@@ -1286,10 +1287,10 @@ async def upload_pdf(
             resultado = []
 
         if not resultado:
-            logger.info("Upload PDF '%s': acionando leitura inteligente da MITA.", file.filename)
-            resultado = _extract_bananas_pdf_with_mita(str(temp_path), file.filename or "")
+            logger.info("Upload PDF '%s': acionando leitura inteligente da LUMII.", file.filename)
+            resultado = _extract_bananas_pdf_with_lumii(str(temp_path), file.filename or "")
             if resultado:
-                processamento = "mita-ai"
+                processamento = "lumii-ia"
 
         return {
             "arquivo": file.filename,
@@ -1300,3 +1301,4 @@ async def upload_pdf(
         await file.close()
         if temp_path.exists():
             os.remove(temp_path)
+

@@ -805,53 +805,21 @@ def load_precos(pasta_precos: str = "") -> dict:
         if valor is None or (isinstance(valor, float) and pd.isna(valor)):
             return None
         if isinstance(valor, datetime):
-            return valor
+            return valor.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        texto = str(valor).strip()
+        match = re.match(r"^(\d{4})-(\d{2})-(\d{2})(?:$|[ T])", texto)
+        if not match:
+            return None
+
         try:
-            parsed = pd.to_datetime(valor, errors="coerce", dayfirst=True)
-            if pd.notna(parsed):
-                return parsed.to_pydatetime()
-        except Exception:
-            pass
-        return parse_data_arquivo(str(valor))
+            return datetime(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+        except ValueError:
+            return None
 
     def encontrar_coluna_data(colunas: list[str]) -> Optional[str]:
-        data_prioridades = {
-            "data",
-            "date",
-            "data pesquisa",
-            "data da pesquisa",
-            "data coleta",
-            "data consulta",
-            "dt",
-            "dt pesquisa",
-            "data_pesquisa",
-            "data_coleta",
-            "created at",
-            "created_at",
-            "updated at",
-            "updated_at",
-            "imported at",
-            "imported_at",
-            "timestamp",
-        }
-        arquivo_prioridades = {
-            "arquivo",
-            "nome arquivo",
-            "arquivo origem",
-            "source file",
-            "file name",
-            "filename",
-        }
-        normalizadas = {coluna: normalizar_coluna(coluna) for coluna in colunas}
-
-        for coluna, normalizada in normalizadas.items():
-            if normalizada in data_prioridades:
-                return coluna
-        for coluna, normalizada in normalizadas.items():
-            if normalizada.startswith("data "):
-                return coluna
-        for coluna, normalizada in normalizadas.items():
-            if normalizada in arquivo_prioridades:
+        for coluna in colunas:
+            if normalizar_coluna(coluna) == "data_pesquisa":
                 return coluna
         return None
 

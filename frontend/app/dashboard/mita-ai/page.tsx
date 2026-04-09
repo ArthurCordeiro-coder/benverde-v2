@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useMemo, useState } from "react";
 import { Bot, LoaderCircle, SendHorizonal, Sparkles } from "lucide-react";
@@ -11,7 +11,7 @@ type ChatMessage = {
   content: string;
 };
 
-type MitaResponse = {
+type LumiiResponse = {
   answer?: string;
   history?: ChatMessage[];
 };
@@ -22,8 +22,8 @@ function bubbleClass(role: ChatMessage["role"]) {
     : "ml-auto border border-white/10 bg-white/10 text-white";
 }
 
-export default function MitaAiPage() {
-  const mitaEndpoint = "/api/mita-ai/chat";
+export default function LumiiAiPage() {
+  const lumiiEndpoint = "/api/lumii-ia/chat";
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -43,10 +43,10 @@ export default function MitaAiPage() {
     setIsLoading(true);
 
     try {
-      const response = await api.post<MitaResponse>(mitaEndpoint, {
+      const response = await api.post<LumiiResponse>(lumiiEndpoint, {
         message: trimmed,
         history: messages,
-        scope: "mita-ai",
+        scope: "lumii-ia",
       });
 
       if (Array.isArray(response.data?.history) && response.data.history.length > 0) {
@@ -63,7 +63,7 @@ export default function MitaAiPage() {
       const answer =
         typeof response.data?.answer === "string" && response.data.answer.trim()
           ? response.data.answer.trim()
-          : "Não consegui montar uma resposta agora.";
+          : "NÃ£o consegui montar uma resposta agora.";
       setMessages([...optimisticMessages, { role: "assistant", content: answer }]);
     } catch (error: unknown) {
       setMessages([
@@ -72,7 +72,7 @@ export default function MitaAiPage() {
           role: "assistant",
           content: getApiErrorMessage(
             error,
-            "Não consegui falar com a Mita agora. Verifique a configuração da IA no servidor Next.js.",
+            "NÃ£o consegui falar com a Lumii agora. Verifique a configuraÃ§Ã£o da IA no servidor Next.js.",
           ),
         },
       ]);
@@ -88,13 +88,13 @@ export default function MitaAiPage() {
           <div className="max-w-2xl">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-200">
               <Sparkles className="h-3.5 w-3.5" />
-              Mita aí
+              Lumii aÃ­
             </div>
             <h1 className="text-3xl font-semibold tracking-tight text-white">
               Converse com a gerente de dados do painel
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-300">
-              A Mita analisa estoque, caixas, preços e metas para responder em linguagem
+              A Lumii analisa estoque, caixas, preÃ§os e metas para responder em linguagem
               natural dentro do painel gerencial.
             </p>
           </div>
@@ -104,8 +104,8 @@ export default function MitaAiPage() {
               <Bot className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">Mita pronta</p>
-              <p className="text-xs text-slate-400">Use perguntas naturais sobre a operação.</p>
+              <p className="text-sm font-semibold text-white">Lumii pronta</p>
+              <p className="text-xs text-slate-400">Use perguntas naturais sobre a operaÃ§Ã£o.</p>
             </div>
           </div>
         </div>
@@ -114,10 +114,10 @@ export default function MitaAiPage() {
       <div className="grid gap-6 lg:grid-cols-[1.7fr_0.8fr]">
         <div className="flex min-h-[620px] flex-col rounded-[28px] border border-white/10 bg-[#07130d]/90 shadow-[0_18px_60px_rgba(0,0,0,0.35)]">
           <div className="border-b border-white/10 px-6 py-5">
-            <h2 className="text-lg font-semibold text-white">Chat da Mita</h2>
+            <h2 className="text-lg font-semibold text-white">Chat da Lumii</h2>
             <p className="mt-1 text-sm text-slate-400">
-              Pergunte, por exemplo: &quot;como está o estoque?&quot;,
-              &quot;qual produto está abaixo da meta?&quot; ou &quot;qual é o preço da banana
+              Pergunte, por exemplo: &quot;como estÃ¡ o estoque?&quot;,
+              &quot;qual produto estÃ¡ abaixo da meta?&quot; ou &quot;qual Ã© o preÃ§o da banana
               prata?&quot;
             </p>
           </div>
@@ -130,10 +130,10 @@ export default function MitaAiPage() {
                     <Bot className="h-7 w-7" />
                   </div>
                   <h3 className="text-lg font-semibold text-white">
-                    Oie! Eu sou a Mita, sua gerente de dados da Benverde!
+                    Oie! Eu sou a Lumii, sua gerente de dados da LUMII!
                   </h3>
                   <p className="mt-3 text-sm leading-6 text-slate-400">
-                    Posso resumir a operação, apontar riscos e responder perguntas sobre os dados
+                    Posso resumir a operaÃ§Ã£o, apontar riscos e responder perguntas sobre os dados
                     do banco.
                   </p>
                 </div>
@@ -147,7 +147,7 @@ export default function MitaAiPage() {
                   )}`}
                 >
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    {message.role === "assistant" ? "Mita" : "Você"}
+                    {message.role === "assistant" ? "Lumii" : "VocÃª"}
                   </p>
                   <p className="whitespace-pre-wrap">{message.content}</p>
                 </div>
@@ -157,7 +157,7 @@ export default function MitaAiPage() {
             {isLoading ? (
               <div className="mr-auto inline-flex items-center gap-3 rounded-3xl border border-emerald-300/20 bg-emerald-500/10 px-5 py-4 text-sm text-emerald-50">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
-                Mita está analisando os dados...
+                Lumii estÃ¡ analisando os dados...
               </div>
             ) : null}
           </div>
@@ -168,7 +168,7 @@ export default function MitaAiPage() {
                 value={question}
                 onChange={(event) => setQuestion(event.target.value)}
                 rows={3}
-                placeholder="Ex: Me mostre os maiores riscos da operação hoje."
+                placeholder="Ex: Me mostre os maiores riscos da operaÃ§Ã£o hoje."
                 className="min-h-[92px] flex-1 resize-none rounded-2xl border border-white/10 bg-[#0b1712] px-4 py-3 text-sm text-white outline-none transition focus:border-emerald-400/40"
               />
               <button
@@ -187,20 +187,20 @@ export default function MitaAiPage() {
           <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.2)]">
             <h2 className="text-base font-semibold text-white">O que ela entende</h2>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
-              <li>Estoque atual e movimentações recentes de bananas.</li>
-              <li>Preços da base atual e respostas rápidas para consulta de preço.</li>
+              <li>Estoque atual e movimentaÃ§Ãµes recentes de bananas.</li>
+              <li>PreÃ§os da base atual e respostas rÃ¡pidas para consulta de preÃ§o.</li>
               <li>Caixas registradas por loja.</li>
-              <li>Metas salvas no banco e progresso operacional disponível no painel.</li>
+              <li>Metas salvas no banco e progresso operacional disponÃ­vel no painel.</li>
             </ul>
           </div>
 
           <div className="rounded-[28px] border border-amber-300/20 bg-amber-500/10 p-6">
             <h2 className="text-base font-semibold text-amber-100">Boas perguntas</h2>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-amber-50/90">
-              <li>Quais produtos estão mais atrasados em relação à meta?</li>
+              <li>Quais produtos estÃ£o mais atrasados em relaÃ§Ã£o Ã  meta?</li>
               <li>Existe risco de ruptura no estoque?</li>
-              <li>Qual é o preço da banana nanica?</li>
-              <li>Resuma a situação geral da operação.</li>
+              <li>Qual Ã© o preÃ§o da banana nanica?</li>
+              <li>Resuma a situaÃ§Ã£o geral da operaÃ§Ã£o.</li>
             </ul>
           </div>
         </aside>
@@ -208,3 +208,4 @@ export default function MitaAiPage() {
     </section>
   );
 }
+

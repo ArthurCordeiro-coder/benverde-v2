@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import api from "@/lib/api";
 import {
@@ -58,7 +58,7 @@ type ChatMessage = {
   content: string;
 };
 
-type MitaResponse = {
+type LumiiResponse = {
   answer?: string;
   history?: ChatMessage[];
 };
@@ -82,10 +82,10 @@ type ProdutoRanking = {
   saldo: number;
 };
 
-const MITA_QUESTIONS = [
+const LUMII_QUESTIONS = [
   "Qual variedade corre mais risco de ruptura?",
-  "Como está a tendência de saída semanal?",
-  "Houve bonificações nesta última carga?",
+  "Como estÃ¡ a tendÃªncia de saÃ­da semanal?",
+  "Houve bonificaÃ§Ãµes nesta Ãºltima carga?",
 ];
 
 function GlassCard({
@@ -181,7 +181,7 @@ function bubbleClass(role: ChatMessage["role"]) {
 }
 
 export default function EstoquePage() {
-  const mitaEndpoint = "/api/mita-ai/chat";
+  const lumiiEndpoint = "/api/lumii-ia/chat";
 
   const [saldo, setSaldo] = useState(0);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
@@ -190,12 +190,12 @@ export default function EstoquePage() {
   const [pageError, setPageError] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
 
-  const [showMitaMenu, setShowMitaMenu] = useState(false);
+  const [showLumiiMenu, setShowLumiiMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [isMitaTyping, setIsMitaTyping] = useState(false);
+  const [isLumiiTyping, setIsLumiiTyping] = useState(false);
   const [currentInput, setCurrentInput] = useState("");
 
   const [modalAberto, setModalAberto] = useState(false);
@@ -206,7 +206,7 @@ export default function EstoquePage() {
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
-  const mitaMenuRef = useRef<HTMLDivElement | null>(null);
+  const lumiiMenuRef = useRef<HTMLDivElement | null>(null);
   const historySectionRef = useRef<HTMLDivElement | null>(null);
 
   const buscarEstoque = useCallback(async (mode: "initial" | "refresh" = "refresh") => {
@@ -235,7 +235,7 @@ export default function EstoquePage() {
       setPageError("");
     } catch (error) {
       console.error("Erro ao carregar estoque:", error);
-      setPageError(getApiErrorMessage(error, "Não foi possível carregar os dados de estoque."));
+      setPageError(getApiErrorMessage(error, "NÃ£o foi possÃ­vel carregar os dados de estoque."));
     } finally {
       setCarregando(false);
       setIsRefreshing(false);
@@ -248,15 +248,15 @@ export default function EstoquePage() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, isMitaTyping]);
+  }, [chatMessages, isLumiiTyping]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
         setShowExportMenu(false);
       }
-      if (mitaMenuRef.current && !mitaMenuRef.current.contains(event.target as Node)) {
-        setShowMitaMenu(false);
+      if (lumiiMenuRef.current && !lumiiMenuRef.current.contains(event.target as Node)) {
+        setShowLumiiMenu(false);
       }
     }
 
@@ -328,7 +328,7 @@ export default function EstoquePage() {
     if (!produto.trim() || !quant || quant <= 0) {
       setFeedback({
         tone: "error",
-        text: "Preencha produto e quantidade válidos.",
+        text: "Preencha produto e quantidade vÃ¡lidos.",
       });
       return;
     }
@@ -349,14 +349,14 @@ export default function EstoquePage() {
       setTipo("entrada");
       setFeedback({
         tone: "success",
-        text: "Movimentação registrada com sucesso.",
+        text: "MovimentaÃ§Ã£o registrada com sucesso.",
       });
       await buscarEstoque("refresh");
     } catch (error: unknown) {
       console.error("Erro ao salvar movimentacao:", error);
       setFeedback({
         tone: "error",
-        text: getApiErrorMessage(error, "Não foi possível salvar a movimentação."),
+        text: getApiErrorMessage(error, "NÃ£o foi possÃ­vel salvar a movimentaÃ§Ã£o."),
       });
     } finally {
       setSalvandoMovimentacao(false);
@@ -392,52 +392,52 @@ export default function EstoquePage() {
     link.click();
   };
 
-  const buildFallbackMitaResponse = useCallback(
+  const buildFallbackLumiiResponse = useCallback(
     (question: string) => {
       const normalizedQuestion = normalizeText(question);
 
       if (normalizedQuestion.includes("ESTOQUE") || normalizedQuestion.includes("SALDO")) {
-        return `Temos ${formatQuantity(stats.saldoAtual)} em estoque. A variedade ${stats.topVariedade.nome} representa o maior volume disponível agora.`;
+        return `Temos ${formatQuantity(stats.saldoAtual)} em estoque. A variedade ${stats.topVariedade.nome} representa o maior volume disponÃ­vel agora.`;
       }
 
       if (normalizedQuestion.includes("RUPTURA") || normalizedQuestion.includes("RISCO") || normalizedQuestion.includes("TERRA")) {
         if (stats.riscoVariedade.saldo <= 0) {
-          return `A variedade ${stats.riscoVariedade.nome} está sem saldo positivo. Recomendo revisar as últimas saídas e programar reposição imediata.`;
+          return `A variedade ${stats.riscoVariedade.nome} estÃ¡ sem saldo positivo. Recomendo revisar as Ãºltimas saÃ­das e programar reposiÃ§Ã£o imediata.`;
         }
-        return `A variedade ${stats.riscoVariedade.nome} é a que mais merece atenção agora, com ${formatQuantity(stats.riscoVariedade.saldo)} disponíveis.`;
+        return `A variedade ${stats.riscoVariedade.nome} Ã© a que mais merece atenÃ§Ã£o agora, com ${formatQuantity(stats.riscoVariedade.saldo)} disponÃ­veis.`;
       }
 
       if (normalizedQuestion.includes("SAIDA") || normalizedQuestion.includes("TENDENCIA")) {
-        return `Registramos ${formatQuantity(stats.totalSaidas)} em saídas acumuladas no histórico atual. Nos movimentos mais recentes, saíram ${formatQuantity(stats.saidaRecente)}.`;
+        return `Registramos ${formatQuantity(stats.totalSaidas)} em saÃ­das acumuladas no histÃ³rico atual. Nos movimentos mais recentes, saÃ­ram ${formatQuantity(stats.saidaRecente)}.`;
       }
 
       if (normalizedQuestion.includes("BONIFICAC")) {
-        return "Não encontrei um indicador explícito de bonificação nesse histórico. Hoje eu enxergo entradas, saídas, produto, loja e arquivo de origem.";
+        return "NÃ£o encontrei um indicador explÃ­cito de bonificaÃ§Ã£o nesse histÃ³rico. Hoje eu enxergo entradas, saÃ­das, produto, loja e arquivo de origem.";
       }
 
-      return `Consigo analisar entradas, saídas, risco de ruptura e distribuição por variedade. Hoje o saldo total está em ${formatQuantity(stats.saldoAtual)}.`;
+      return `Consigo analisar entradas, saÃ­das, risco de ruptura e distribuiÃ§Ã£o por variedade. Hoje o saldo total estÃ¡ em ${formatQuantity(stats.saldoAtual)}.`;
     },
     [stats],
   );
 
-  const sendMitaMessage = useCallback(
+  const sendLumiiMessage = useCallback(
     async (rawQuestion: string) => {
       const question = rawQuestion.trim();
-      if (!question || isMitaTyping) {
+      if (!question || isLumiiTyping) {
         return;
       }
 
       setIsChatOpen(true);
-      setShowMitaMenu(false);
+      setShowLumiiMenu(false);
       setCurrentInput("");
 
       const previousMessages = [...chatMessages];
       const optimisticMessages = [...previousMessages, { role: "user" as const, content: question }];
       setChatMessages(optimisticMessages);
-      setIsMitaTyping(true);
+      setIsLumiiTyping(true);
 
       try {
-        const response = await api.post<MitaResponse>(mitaEndpoint, {
+        const response = await api.post<LumiiResponse>(lumiiEndpoint, {
           message: question,
           history: previousMessages,
           scope: "estoque",
@@ -455,26 +455,26 @@ export default function EstoquePage() {
           const answer =
             typeof response.data?.answer === "string" && response.data.answer.trim()
               ? response.data.answer.trim()
-              : buildFallbackMitaResponse(question);
+              : buildFallbackLumiiResponse(question);
           setChatMessages([...optimisticMessages, { role: "assistant", content: answer }]);
         }
       } catch (error) {
-        console.error("Erro ao consultar Mita AI, usando resposta local:", error);
+        console.error("Erro ao consultar LUMII-IA, usando resposta local:", error);
         setChatMessages([
           ...optimisticMessages,
-          { role: "assistant", content: buildFallbackMitaResponse(question) },
+          { role: "assistant", content: buildFallbackLumiiResponse(question) },
         ]);
       } finally {
-        setIsMitaTyping(false);
+        setIsLumiiTyping(false);
       }
     },
-    [buildFallbackMitaResponse, chatMessages, isMitaTyping, mitaEndpoint],
+    [buildFallbackLumiiResponse, chatMessages, isLumiiTyping, lumiiEndpoint],
   );
 
   const insightText =
     stats.riscoVariedade.saldo <= 0
-      ? `Detectamos saldo zerado para ${stats.riscoVariedade.nome}. Vale priorizar reposição imediata para evitar ruptura nas lojas.`
-      : `Detectamos menor cobertura para ${stats.riscoVariedade.nome}. Com ${formatQuantity(stats.riscoVariedade.saldo)} disponíveis, vale programar reposição nas próximas 48h.`;
+      ? `Detectamos saldo zerado para ${stats.riscoVariedade.nome}. Vale priorizar reposiÃ§Ã£o imediata para evitar ruptura nas lojas.`
+      : `Detectamos menor cobertura para ${stats.riscoVariedade.nome}. Com ${formatQuantity(stats.riscoVariedade.saldo)} disponÃ­veis, vale programar reposiÃ§Ã£o nas prÃ³ximas 48h.`;
 
   return (
     <section className="mx-auto max-w-7xl space-y-8 pb-20 text-gray-100">
@@ -486,8 +486,8 @@ export default function EstoquePage() {
             </div>
           </div>
           <div>
-            <h2 className="text-lg font-semibold tracking-tight text-white">Mita Monitora: Gestão de Estoque</h2>
-            <p className="text-sm text-gray-400">Saldo e movimentações de bananas em tempo real.</p>
+            <h2 className="text-lg font-semibold tracking-tight text-white">Lumii Monitora: GestÃ£o de Estoque</h2>
+            <p className="text-sm text-gray-400">Saldo e movimentaÃ§Ãµes de bananas em tempo real.</p>
           </div>
         </div>
 
@@ -506,7 +506,7 @@ export default function EstoquePage() {
             onClick={() => setModalAberto(true)}
             className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-5 py-2.5 text-sm font-semibold text-emerald-200 transition-all hover:bg-emerald-500/20"
           >
-            Nova Movimentação
+            Nova MovimentaÃ§Ã£o
           </button>
         </div>
       </header>
@@ -539,17 +539,17 @@ export default function EstoquePage() {
           trend={stats.saldoAtual >= 0 ? "up" : "down"}
         />
         <GlassCard
-          title="Saídas Recentes"
+          title="SaÃ­das Recentes"
           value={carregando ? "Carregando..." : formatQuantity(stats.totalSaidas)}
-          subtitle="Fluxo acumulado das saídas registradas."
+          subtitle="Fluxo acumulado das saÃ­das registradas."
           icon={<ShoppingCart size={24} />}
           colorClass="text-orange-400"
           trend="neutral"
         />
         <GlassCard
-          title="Variedade Líder"
+          title="Variedade LÃ­der"
           value={stats.topVariedade.nome.split(" ").pop() ?? stats.topVariedade.nome}
-          subtitle={`${formatQuantity(stats.topVariedade.saldo)} disponíveis.`}
+          subtitle={`${formatQuantity(stats.topVariedade.saldo)} disponÃ­veis.`}
           icon={<Banana size={24} />}
           colorClass="text-emerald-400"
           trend="up"
@@ -563,12 +563,12 @@ export default function EstoquePage() {
         >
           <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-white">
             <History size={18} className="text-green-400" />
-            Fluxo de Movimentação
+            Fluxo de MovimentaÃ§Ã£o
           </h3>
           <div className="space-y-4">
             {carregando ? (
               <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-gray-400">
-                Carregando movimentações...
+                Carregando movimentaÃ§Ãµes...
               </div>
             ) : historico.length === 0 ? (
               <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-gray-400">
@@ -597,7 +597,7 @@ export default function EstoquePage() {
                           {item.produto || "Sem produto"}
                         </p>
                         <p className="text-[10px] uppercase text-gray-500">
-                          {(item.loja || item.arquivo || "Operação manual").toString()} · {formatDate(item.data)}
+                          {(item.loja || item.arquivo || "OperaÃ§Ã£o manual").toString()} Â· {formatDate(item.data)}
                         </p>
                       </div>
                     </div>
@@ -622,12 +622,12 @@ export default function EstoquePage() {
           <div className="rounded-[32px] border border-white/10 bg-white/[0.03] p-6 shadow-xl backdrop-blur-md">
             <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-white">
               <PieChart size={18} className="text-yellow-400" />
-              Distribuição de Saldo
+              DistribuiÃ§Ã£o de Saldo
             </h3>
             <div className="space-y-6">
               {stats.ranking.length === 0 ? (
                 <div className="rounded-2xl border border-white/5 bg-white/5 p-4 text-sm text-gray-400">
-                  Sem variedades disponíveis para comparar.
+                  Sem variedades disponÃ­veis para comparar.
                 </div>
               ) : (
                 stats.ranking.map((item) => {
@@ -661,10 +661,10 @@ export default function EstoquePage() {
                 <Sparkles size={24} />
               </div>
               <div className="space-y-2">
-                <h4 className="text-sm font-bold text-emerald-300">Mita Inteligência</h4>
+                <h4 className="text-sm font-bold text-emerald-300">Lumii InteligÃªncia</h4>
                 <p className="text-xs italic leading-relaxed text-emerald-100/70">{insightText}</p>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200/60">
-                  Última atualização: {formatDateTime(historico[0]?.data)}
+                  Ãšltima atualizaÃ§Ã£o: {formatDateTime(historico[0]?.data)}
                 </p>
               </div>
             </div>
@@ -676,7 +676,7 @@ export default function EstoquePage() {
                     type="button"
                     onClick={() => {
                       setShowExportMenu((prev) => !prev);
-                      setShowMitaMenu(false);
+                      setShowLumiiMenu(false);
                     }}
                     className={`flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-[10px] font-bold uppercase transition-all ${
                       showExportMenu
@@ -685,7 +685,7 @@ export default function EstoquePage() {
                     }`}
                   >
                     <Download size={14} />
-                    Exportar Movimentações
+                    Exportar MovimentaÃ§Ãµes
                   </button>
 
                   {showExportMenu ? (
@@ -710,33 +710,33 @@ export default function EstoquePage() {
                   ) : null}
                 </div>
 
-                <div className="relative" ref={mitaMenuRef}>
+                <div className="relative" ref={lumiiMenuRef}>
                   <button
                     type="button"
                     onClick={() => {
-                      setShowMitaMenu((prev) => !prev);
+                      setShowLumiiMenu((prev) => !prev);
                       setShowExportMenu(false);
                     }}
                     className={`flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-[10px] font-bold uppercase transition-all ${
-                      showMitaMenu
+                      showLumiiMenu
                         ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
                         : "border-white/10 bg-white/5 text-gray-400 hover:bg-emerald-500/10 hover:text-emerald-300"
                     }`}
                   >
                     <Bot size={14} />
-                    Perguntar a Mita
+                    Perguntar a Lumii
                   </button>
 
-                  {showMitaMenu ? (
+                  {showLumiiMenu ? (
                     <div className="mt-2 grid grid-cols-1 gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                      {MITA_QUESTIONS.map((question) => (
+                      {LUMII_QUESTIONS.map((question) => (
                         <button
                           key={question}
                           type="button"
                           onClick={() => {
                             setIsChatOpen(true);
-                            setShowMitaMenu(false);
-                            void sendMitaMessage(question);
+                            setShowLumiiMenu(false);
+                            void sendLumiiMessage(question);
                           }}
                           className="group/q flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-left transition-all hover:bg-emerald-500/20"
                         >
@@ -757,7 +757,7 @@ export default function EstoquePage() {
               <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
                 <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/80">
                   <BarChart3 size={14} />
-                  Leitura rápida da operação
+                  Leitura rÃ¡pida da operaÃ§Ã£o
                 </div>
                 <div className="grid grid-cols-1 gap-3 text-sm text-gray-300 sm:grid-cols-3">
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
@@ -765,7 +765,7 @@ export default function EstoquePage() {
                     <p className="mt-2 text-lg font-bold text-white">{formatQuantity(stats.totalEntradas)}</p>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Saídas</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">SaÃ­das</p>
                     <p className="mt-2 text-lg font-bold text-white">{formatQuantity(stats.totalSaidas)}</p>
                   </div>
                   <div className="rounded-2xl border border-white/5 bg-white/5 p-3">
@@ -800,9 +800,9 @@ export default function EstoquePage() {
                 <Bot size={24} />
               </div>
               <div>
-                <h2 className="text-sm font-bold text-white">Chat da Mita</h2>
+                <h2 className="text-sm font-bold text-white">Chat da Lumii</h2>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-green-400">
-                  Gestão de Estoque
+                  GestÃ£o de Estoque
                 </p>
               </div>
             </div>
@@ -822,7 +822,7 @@ export default function EstoquePage() {
                   <Bot size={40} />
                 </div>
                 <p className="italic text-gray-500">
-                  &quot;Mita, como está o saldo de bananas hoje?&quot;
+                  &quot;Lumii, como estÃ¡ o saldo de bananas hoje?&quot;
                 </p>
               </div>
             ) : (
@@ -840,10 +840,10 @@ export default function EstoquePage() {
               ))
             )}
 
-            {isMitaTyping ? (
+            {isLumiiTyping ? (
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 animate-pulse">
                 <Bot size={14} />
-                Mita está analisando...
+                Lumii estÃ¡ analisando...
               </div>
             ) : null}
 
@@ -857,15 +857,15 @@ export default function EstoquePage() {
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
-                  void sendMitaMessage(currentInput);
+                  void sendLumiiMessage(currentInput);
                 }
               }}
-              placeholder="Dúvidas sobre o estoque..."
+              placeholder="DÃºvidas sobre o estoque..."
               className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white outline-none transition-all placeholder:text-gray-600 focus:border-green-500"
             />
             <button
               type="button"
-              onClick={() => void sendMitaMessage(currentInput)}
+              onClick={() => void sendLumiiMessage(currentInput)}
               className="rounded-xl bg-emerald-500 p-2 text-black transition-colors hover:bg-emerald-400 active:scale-95"
             >
               <SendHorizonal size={18} />
@@ -889,7 +889,7 @@ export default function EstoquePage() {
                   <BarChart3 size={20} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">Registrar Movimentação</h3>
+                  <h3 className="text-lg font-bold text-white">Registrar MovimentaÃ§Ã£o</h3>
                   <p className="text-xs text-gray-400">Atualize o estoque sem sair do dashboard.</p>
                 </div>
               </div>
@@ -939,7 +939,7 @@ export default function EstoquePage() {
                     className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none focus:border-green-500"
                   >
                     <option value="entrada">Entrada</option>
-                    <option value="saida">Saída</option>
+                    <option value="saida">SaÃ­da</option>
                   </select>
                 </div>
               </div>
@@ -957,7 +957,7 @@ export default function EstoquePage() {
                   disabled={salvandoMovimentacao}
                   className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition-all hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {salvandoMovimentacao ? "Salvando..." : "Salvar movimentação"}
+                  {salvandoMovimentacao ? "Salvando..." : "Salvar movimentaÃ§Ã£o"}
                 </button>
               </div>
             </form>
@@ -995,3 +995,4 @@ export default function EstoquePage() {
     </section>
   );
 }
+

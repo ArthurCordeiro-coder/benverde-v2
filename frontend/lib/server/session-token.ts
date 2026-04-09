@@ -1,6 +1,7 @@
 const encoder = new TextEncoder();
 
-export const SESSION_COOKIE_NAME = "benverde_token";
+export const SESSION_COOKIE_NAME = "lumii_token";
+export const LEGACY_SESSION_COOKIE_NAMES = ["benverde_token"] as const;
 
 export type SessionPayload = {
   sub: string;

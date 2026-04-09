@@ -110,7 +110,7 @@ export default function CreateAccountPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen w-full overflow-hidden bg-gradient-to-br from-benverde-base via-benverde-dark to-black">
+    <div className="relative flex min-h-screen w-full overflow-hidden bg-gradient-to-br from-lumii-base via-lumii-dark to-black">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-20 -top-28 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
         <div className="absolute -bottom-24 right-8 h-96 w-96 rounded-full bg-green-900/35 blur-3xl" />

@@ -7,13 +7,16 @@ import {
   isDashboardPathAllowed,
 } from "@/lib/dashboard/access";
 import {
+  LEGACY_SESSION_COOKIE_NAMES,
   SESSION_COOKIE_NAME,
   verifySessionToken,
 } from "@/lib/server/session-token";
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const token =
+    request.cookies.get(SESSION_COOKIE_NAME)?.value ??
+    LEGACY_SESSION_COOKIE_NAMES.map((name) => request.cookies.get(name)?.value).find(Boolean);
   const isDashboardRoute = pathname.startsWith("/dashboard");
   const isPriceRoute = pathname === "/precos" || pathname.startsWith("/precos/") || pathname === "/Precos" || pathname.startsWith("/Precos/");
   const isProtectedRoute = isDashboardRoute || isPriceRoute;
@@ -28,6 +31,13 @@ export async function proxy(request: NextRequest) {
   if (isLegacyOperationalRoute) {
     const dashboardUrl = new URL("/dashboard", request.url);
     return NextResponse.redirect(dashboardUrl);
+  }
+
+  if (pathname === "/dashboard/mita-ai" || pathname.startsWith("/dashboard/mita-ai/")) {
+    const canonicalPath = pathname.replace("/dashboard/mita-ai", "/dashboard/lumii-ia");
+    const canonicalUrl = new URL(canonicalPath, request.url);
+    canonicalUrl.search = request.nextUrl.search;
+    return NextResponse.redirect(canonicalUrl);
   }
 
   if (pathname === "/precos" || pathname.startsWith("/precos/")) {
@@ -51,6 +61,9 @@ export async function proxy(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete(SESSION_COOKIE_NAME);
+    for (const legacyName of LEGACY_SESSION_COOKIE_NAMES) {
+      response.cookies.delete(legacyName);
+    }
     return response;
   }
 

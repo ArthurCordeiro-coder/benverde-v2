@@ -22,7 +22,7 @@ def _get_smtp_config() -> dict[str, str | int]:
     user = os.environ.get("SMTP_USER", "").strip()
     password = os.environ.get("SMTP_PASS", "").strip()
     from_email = os.environ.get("SMTP_FROM_EMAIL", "").strip()
-    from_name = os.environ.get("SMTP_FROM_NAME", "Benverde").strip() or "Benverde"
+    from_name = os.environ.get("SMTP_FROM_NAME", "LUMII").strip() or "LUMII"
 
     if not user or not password or not from_email:
         raise RuntimeError(

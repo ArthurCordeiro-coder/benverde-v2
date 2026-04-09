@@ -77,7 +77,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen w-full overflow-hidden bg-gradient-to-br from-benverde-base via-benverde-dark to-black">
+    <div className="relative flex min-h-screen w-full overflow-hidden bg-gradient-to-br from-lumii-base via-lumii-dark to-black">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
         <div className="absolute -bottom-32 right-10 h-96 w-96 rounded-full bg-green-900/35 blur-3xl" />
@@ -115,7 +115,7 @@ export default function LoginPage() {
                   <polyline points="9 22 9 12 15 12 15 22" />
                 </svg>
               </div>
-              <h1 className="text-2xl font-semibold text-white">Benverde</h1>
+              <h1 className="text-2xl font-semibold text-white">LUMII</h1>
               <p className="mt-1 text-sm text-slate-300">Acesse sua conta para continuar</p>
             </div>
 
