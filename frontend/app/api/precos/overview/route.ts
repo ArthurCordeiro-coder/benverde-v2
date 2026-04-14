@@ -7,7 +7,9 @@ import { getPriceOverview } from "@/lib/server/precos";
 export async function GET() {
   try {
     await requireDashboardScope("precos");
-    return NextResponse.json(await getPriceOverview());
+    const overview = await getPriceOverview();
+    console.warn("[OVERVIEW] dates returned:", overview.dates.map((d) => d.key));
+    return NextResponse.json(overview);
   } catch (error) {
     return toErrorResponse(error);
   }
