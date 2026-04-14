@@ -126,6 +126,19 @@ function parseDateFromFilename(fileName: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function parsePriceDatasetDate(value: unknown): Date | null {
+  const parsedValue = parseDateValue(value);
+  if (parsedValue) {
+    return parsedValue;
+  }
+
+  if (typeof value === "string") {
+    return parseDateFromFilename(value);
+  }
+
+  return null;
+}
+
 async function loadCsvDatasets(): Promise<Record<string, PriceRow[]>> {
   const directory = getPricesDirectory();
   try {
@@ -172,7 +185,7 @@ async function loadCsvDatasets(): Promise<Record<string, PriceRow[]>> {
 }
 
 function findDateColumn(columns: string[]): string | null {
-  const exactMatches = new Set([
+  const dateMatches = new Set([
     "data",
     "date",
     "data pesquisa",
@@ -190,6 +203,8 @@ function findDateColumn(columns: string[]): string | null {
     "imported at",
     "imported_at",
     "timestamp",
+  ]);
+  const fileMatches = new Set([
     "arquivo",
     "nome arquivo",
     "arquivo origem",
@@ -199,14 +214,24 @@ function findDateColumn(columns: string[]): string | null {
   ]);
 
   for (const column of columns) {
-    if (exactMatches.has(normalizeColumnName(column))) {
+    if (dateMatches.has(normalizeColumnName(column))) {
       return column;
     }
   }
 
-  return (
-    columns.find((column) => normalizeColumnName(column).startsWith("data ")) ?? null
-  );
+  const prefixedDateColumn =
+    columns.find((column) => normalizeColumnName(column).startsWith("data ")) ?? null;
+  if (prefixedDateColumn) {
+    return prefixedDateColumn;
+  }
+
+  for (const column of columns) {
+    if (fileMatches.has(normalizeColumnName(column))) {
+      return column;
+    }
+  }
+
+  return null;
 }
 
 function getPricesTableName(): string {
@@ -269,7 +294,10 @@ async function loadDbDatasets(): Promise<Record<string, PriceRow[]>> {
 
     for (const row of rows) {
       const rawDate = dateColumn ? row[dateColumn] : null;
-      const parsedDate = parseDateValue(rawDate) ?? new Date();
+      const parsedDate = parsePriceDatasetDate(rawDate);
+      if (!parsedDate) {
+        continue;
+      }
       const key = formatDateKey(parsedDate);
       const current = grouped.get(key);
       if (current) {
