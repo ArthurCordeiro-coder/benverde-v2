@@ -198,6 +198,16 @@ async function loadDbDatasets(): Promise<Record<string, PriceRow[]>> {
 
     const columns = Object.keys(rows[0] ?? {});
     const dateColumn = findDateColumn(columns);
+
+    console.warn("[DEBUG] Resolving DB columns...");
+    console.warn(`[DEBUG] Found Column: ${dateColumn}`);
+    if (rows.length > 0) {
+       console.warn("[DEBUG] Row 0 ALL keys:", columns);
+       console.warn("[DEBUG] First 5 raw date values:", rows.slice(0,5).map(r => r[dateColumn as string]));
+       const testParse = parsePriceDatasetDate(rows[0][dateColumn as string]);
+       console.warn("[DEBUG] Test Parse row 0 format:", testParse ? formatDateKey(testParse) : "NULL");
+    }
+
     const grouped = new Map<string, { date: Date; rows: PriceRow[] }>();
 
     for (const row of rows) {
