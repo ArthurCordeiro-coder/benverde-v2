@@ -1,9 +1,9 @@
 import "server-only";
 
-import fs from "node:fs/promises";
-import path from "node:path";
 
-import * as XLSX from "xlsx";
+
+
+
 
 import {
   formatQualifiedIdentifier,
@@ -40,9 +40,6 @@ export type PriceOverview = {
   snapshots: Record<string, PriceSnapshotItem[]>;
 };
 
-function getPricesDirectory(): string {
-  return path.resolve(process.cwd(), "..", "backend", "dados", "precos");
-}
 
 function canonicalMarketName(value: unknown): string | null {
   const text = String(value ?? "").trim();
@@ -111,87 +108,11 @@ function cleanPriceRows(rows: PriceRow[]): PriceRow[] {
     });
 }
 
-function parseDateFromFilename(fileName: string): Date | null {
-  const normalized = fileName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
-  const match = normalized.match(/precos?_(\d{2})_(\d{2})(?:_(\d{2,4}))?/i);
-  if (!match) {
-    return null;
-  }
-
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  const rawYear = match[3];
-  const year = rawYear ? Number(rawYear.length === 2 ? `20${rawYear}` : rawYear) : new Date().getFullYear();
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
 
 function parsePriceDatasetDate(value: unknown): Date | null {
-  const parsedValue = parseDateValue(value);
-  if (parsedValue) {
-    return parsedValue;
-  }
-
-  if (typeof value === "string") {
-    return parseDateFromFilename(value);
-  }
-
-  return null;
+  return parseDateValue(value);
 }
 
-async function loadCsvDatasets(): Promise<Record<string, PriceRow[]>> {
-  const directory = getPricesDirectory();
-  try {
-    const entries = await fs.readdir(directory, { withFileTypes: true });
-    const files = entries
-      .filter((entry) => entry.isFile() && /pre(?:c|ç)os?_\d{2}_\d{2}(?:_\d{2,4})?\.csv$/i.test(entry.name))
-      .map((entry) => entry.name);
-
-    const datasets = await Promise.all(
-      files.map(async (fileName) => {
-        const filePath = path.join(directory, fileName);
-        const parsedDate = parseDateFromFilename(fileName);
-        if (!parsedDate) {
-          return null;
-        }
-
-        const workbook = XLSX.readFile(filePath, { raw: false });
-        const firstSheetName = workbook.SheetNames[0];
-        const sheet = firstSheetName ? workbook.Sheets[firstSheetName] : undefined;
-        if (!sheet) {
-          return null;
-        }
-
-        const rawRows = XLSX.utils.sheet_to_json<PriceRow>(sheet, { defval: "" });
-        return {
-          date: parsedDate,
-          key: formatDateKey(parsedDate),
-          rows: cleanPriceRows(rawRows),
-        };
-      }),
-    );
-
-    return datasets
-      .filter(Boolean)
-      .sort((left, right) => (right!.date.getTime() - left!.date.getTime()))
-      .reduce<Record<string, PriceRow[]>>((accumulator, item) => {
-        accumulator[item!.key] = item!.rows;
-        return accumulator;
-      }, {});
-  } catch (error) {
-    console.error(`Falha ao carregar os CSVs de preços em "${directory}".`, error);
-    return {};
-  }
-}
-
-function findDateColumn(columns: string[]): string | null {
-  const dateMatches = new Set([
-    "data",
-    "date",
-    "data pesquisa",
-    "data da pesquisa",
-    "data coleta",
-    "data consulta",
     "dt",
     "dt pesquisa",
     "data_pesquisa",
@@ -319,12 +240,16 @@ async function loadDbDatasets(): Promise<Record<string, PriceRow[]>> {
   }
 }
 
+function getSortedDatasetsEntries(datasets: Record<string, PriceRow[]>): [string, PriceRow[]][] {
+  return Object.entries(datasets).sort((left, right) => {
+    const dateLeft = parseDateValue(left[0].split("-").reverse().join("-"))?.getTime() ?? 0;
+    const dateRight = parseDateValue(right[0].split("-").reverse().join("-"))?.getTime() ?? 0;
+    return dateRight - dateLeft;
+  });
+}
+
 export async function loadPriceDatasets(): Promise<Record<string, PriceRow[]>> {
-  const dbDatasets = await loadDbDatasets();
-  if (Object.keys(dbDatasets).length > 0) {
-    return dbDatasets;
-  }
-  return loadCsvDatasets();
+  return loadDbDatasets();
 }
 
 function mergePriceItems(rawItems: PriceSnapshotItem[], markets: string[]): PriceSnapshotItem[] {
@@ -531,7 +456,8 @@ export function buildPriceSnapshotItems(rows: PriceRow[]): {
 
 export async function getPriceOverview(): Promise<PriceOverview> {
   const datasets = await loadPriceDatasets();
-  const entries = Object.entries(datasets);
+  const entries = getSortedDatasetsEntries(datasets);
+
   if (entries.length === 0) {
     return { latestDate: null, dates: [], markets: ["Semar"], snapshots: {} };
   }
@@ -562,7 +488,8 @@ export async function getPriceOverview(): Promise<PriceOverview> {
 
 export async function listPrecosConsolidados(): Promise<Array<Record<string, unknown>>> {
   const datasets = await loadPriceDatasets();
-  const latestRows = Object.values(datasets)[0] ?? [];
+  const sortedEntries = getSortedDatasetsEntries(datasets);
+  const latestRows = sortedEntries[0]?.[1] ?? [];
   if (latestRows.length === 0) {
     return [];
   }
