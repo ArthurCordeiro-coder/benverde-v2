@@ -108,23 +108,31 @@ function parsePriceDatasetDate(value: unknown): Date | null {
   return parseDateValue(value);
 }
 function findDateColumn(columns: string[]): string | null {
-  const dateMatches = new Set([
-    "data",
-    "dt",
-    "dt pesquisa",
+  const normColumns = columns.map(normalizeColumnName);
+
+  // Exact matches in order of priority to prevent 'created_at' taking precedence over 'data'.
+  const priorities = [
     "data_pesquisa",
+    "data coleta",
     "data_coleta",
-    "created at",
-    "created_at",
-    "updated at",
-    "updated_at",
-    "imported at",
+    "dt pesquisa",
+    "dt_pesquisa",
+    "data",
+    "date",
+    "dt",
     "imported_at",
+    "imported at",
+    "created_at",
+    "created at",
     "timestamp",
-  ]);
-  for (const column of columns) {
-    if (dateMatches.has(normalizeColumnName(column))) {
-      return column;
+    "updated_at",
+    "updated at",
+  ];
+
+  for (const target of priorities) {
+    const idx = normColumns.indexOf(target);
+    if (idx !== -1) {
+      return columns[idx] ?? null;
     }
   }
 

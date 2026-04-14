@@ -524,69 +524,73 @@ export default function PrecosPage() {
     return result;
   }, [dateOptions, markets, snapshots]);
 
-  const generalRows = useMemo(() => {
-    const grouped = new Map<
-      string,
-      {
-        prices: Record<string, number[]>;
-        statuses: Record<string, string>;
-        matches: Record<string, string>;
-      }
-    >();
-
-    for (const option of dateOptions) {
-      const rows = normalizedSnapshots[option.key] ?? [];
-      for (const row of rows) {
-        const current = grouped.get(row.produto) ?? {
-          prices: Object.fromEntries(markets.map((market) => [market, []])),
-          statuses: {},
-          matches: {},
-        };
-
-        for (const market of markets) {
-          const price = row.prices[market];
-          if (typeof price === "number") {
-            current.prices[market].push(price);
-          }
-          if (!current.statuses[market] && row.statuses[market]) {
-            current.statuses[market] = row.statuses[market];
-          }
-          if (!current.matches[market] && row.matches[market]) {
-            current.matches[market] = row.matches[market];
-          }
-        }
-
-        grouped.set(row.produto, current);
-      }
-    }
-
-    return Array.from(grouped.entries())
-      .map(([produto, current]) =>
-        enrichRow({
-          produto,
-          prices: Object.fromEntries(
-            markets.map((market) => [market, getAverage(current.prices[market] ?? [])]),
-          ),
-          statuses: Object.fromEntries(
-            markets.map((market) => [market, current.statuses[market] ?? ""]),
-          ),
-          matches: Object.fromEntries(
-            markets.map((market) => [market, current.matches[market] ?? ""]),
-          ),
-          sampleCounts: Object.fromEntries(
-            markets.map((market) => [market, (current.prices[market] ?? []).length]),
-          ),
-        }),
-      )
-      .sort((left, right) => left.produto.localeCompare(right.produto));
-  }, [dateOptions, markets, normalizedSnapshots]);
-
   const selectedRows = useMemo(() => {
-    if (selectedDate === GENERAL_KEY) {
-      return generalRows;
+    if (selectedDate === GENERAL_KEY || selectedDate.startsWith("GERAL_")) {
+      const grouped = new Map<
+        string,
+        {
+          prices: Record<string, number[]>;
+          statuses: Record<string, string>;
+          matches: Record<string, string>;
+        }
+      >();
+
+      const targetOptions =
+        selectedDate === GENERAL_KEY
+          ? dateOptions
+          : dateOptions.filter((d) => {
+              const parts = d.key.split("-");
+              return `GERAL_${parts[1]}/${parts[2]}` === selectedDate;
+            });
+
+      for (const option of targetOptions) {
+        const rows = normalizedSnapshots[option.key] ?? [];
+        for (const row of rows) {
+          const current = grouped.get(row.produto) ?? {
+            prices: Object.fromEntries(markets.map((market) => [market, []])),
+            statuses: {},
+            matches: {},
+          };
+
+          for (const market of markets) {
+            const price = row.prices[market];
+            if (typeof price === "number") {
+              current.prices[market].push(price);
+            }
+            if (!current.statuses[market] && row.statuses[market]) {
+              current.statuses[market] = row.statuses[market];
+            }
+            if (!current.matches[market] && row.matches[market]) {
+              current.matches[market] = row.matches[market];
+            }
+          }
+
+          grouped.set(row.produto, current);
+        }
+      }
+
+      return Array.from(grouped.entries())
+        .map(([produto, current]) =>
+          enrichRow({
+            produto,
+            prices: Object.fromEntries(
+              markets.map((market) => [market, getAverage(current.prices[market] ?? [])]),
+            ),
+            statuses: Object.fromEntries(
+              markets.map((market) => [market, current.statuses[market] ?? ""]),
+            ),
+            matches: Object.fromEntries(
+              markets.map((market) => [market, current.matches[market] ?? ""]),
+            ),
+            sampleCounts: Object.fromEntries(
+              markets.map((market) => [market, (current.prices[market] ?? []).length]),
+            ),
+          }),
+        )
+        .sort((left, right) => left.produto.localeCompare(right.produto));
     }
     return normalizedSnapshots[selectedDate] ?? [];
-  }, [generalRows, normalizedSnapshots, selectedDate]);
+  }, [dateOptions, markets, normalizedSnapshots, selectedDate]);
 
   const visibleRows = useMemo(() => {
     const normalizedSearch = normalizeText(searchTerm);
@@ -880,10 +884,52 @@ export default function PrecosPage() {
     return `Detectamos pressão competitiva em ${biggestGapRow.produto}. ${leader} lidera esse item e o Semar está ${biggestGapRow.semarGapPercent.toFixed(0)}% acima do menor preço disponível.`;
   }, [selectedDateLabel, selectedRows, stats.competitor]);
 
-  const selectedDateOptions = useMemo(
-    () => [{ key: GENERAL_KEY, label: "Média de todas" }, ...dateOptions],
-    [dateOptions],
-  );
+  const selectedDateOptions = useMemo(() => {
+    const months = [
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro",
+    ];
+    const monthSet = new Set<string>();
+
+    for (const d of dateOptions) {
+      const parts = d.key.split("-");
+      if (parts.length >= 3) {
+        monthSet.add(`${parts[1]}/${parts[2]}`);
+      }
+    }
+
+    const sortedMonths = Array.from(monthSet).sort((a, b) => {
+      const [mA, yA] = a.split("/").map(Number);
+      const [mB, yB] = b.split("/").map(Number);
+      if (yA !== yB) return (yB ?? 0) - (yA ?? 0);
+      return (mB ?? 0) - (mA ?? 0);
+    });
+
+    const monthOptions = sortedMonths.map((my) => {
+      const [mStr, yStr] = my.split("/");
+      const m = parseInt(mStr ?? "0", 10);
+      return {
+        key: `GERAL_${my}`,
+        label: `Média de ${months[m - 1]} ${yStr}`,
+      };
+    });
+
+    return [
+      { key: GENERAL_KEY, label: "Média de todas as datas" },
+      ...monthOptions,
+      ...dateOptions,
+    ];
+  }, [dateOptions]);
 
   return (
     <section className="mx-auto max-w-7xl space-y-8 pb-24 text-gray-100">
