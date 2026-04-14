@@ -100,10 +100,15 @@ export function parseDateValue(value: unknown): Date | null {
 }
 
 export function formatDateKey(value: Date): string {
-  const [day, month, year] = DATE_KEY_FORMATTER.format(value).split("/");
+  const day = String(value.getUTCDate()).padStart(2, "0");
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  const year = String(value.getUTCFullYear());
   return `${day}-${month}-${year}`;
 }
 
 export function formatDateLabel(value: Date): string {
-  return DATE_KEY_FORMATTER.format(value);
+  const day = String(value.getUTCDate()).padStart(2, "0");
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  const year = String(value.getUTCFullYear());
+  return `${day}/${month}/${year}`;
 }
