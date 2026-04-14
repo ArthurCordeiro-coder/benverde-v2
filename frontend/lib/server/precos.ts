@@ -1,10 +1,5 @@
 import "server-only";
 
-
-
-
-
-
 import {
   formatQualifiedIdentifier,
   queryRows,
@@ -112,7 +107,9 @@ function cleanPriceRows(rows: PriceRow[]): PriceRow[] {
 function parsePriceDatasetDate(value: unknown): Date | null {
   return parseDateValue(value);
 }
-
+function findDateColumn(columns: string[]): string | null {
+  const dateMatches = new Set([
+    "data",
     "dt",
     "dt pesquisa",
     "data_pesquisa",
@@ -125,15 +122,6 @@ function parsePriceDatasetDate(value: unknown): Date | null {
     "imported_at",
     "timestamp",
   ]);
-  const fileMatches = new Set([
-    "arquivo",
-    "nome arquivo",
-    "arquivo origem",
-    "source file",
-    "file name",
-    "filename",
-  ]);
-
   for (const column of columns) {
     if (dateMatches.has(normalizeColumnName(column))) {
       return column;
@@ -142,17 +130,8 @@ function parsePriceDatasetDate(value: unknown): Date | null {
 
   const prefixedDateColumn =
     columns.find((column) => normalizeColumnName(column).startsWith("data ")) ?? null;
-  if (prefixedDateColumn) {
-    return prefixedDateColumn;
-  }
 
-  for (const column of columns) {
-    if (fileMatches.has(normalizeColumnName(column))) {
-      return column;
-    }
-  }
-
-  return null;
+  return prefixedDateColumn;
 }
 
 function getPricesTableName(): string {
