@@ -1,9 +1,3 @@
-const DATE_KEY_FORMATTER = new Intl.DateTimeFormat("pt-BR", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  timeZone: "America/Sao_Paulo",
-});
 
 export function stripAccents(value: string): string {
   return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
@@ -91,7 +85,7 @@ export function parseDateValue(value: unknown): Date | null {
     const hour = Number(dayFirstMatch[4] ?? 0);
     const minute = Number(dayFirstMatch[5] ?? 0);
     const second = Number(dayFirstMatch[6] ?? 0);
-    const parsedDayFirst = new Date(year, month - 1, day, hour, minute, second);
+    const parsedDayFirst = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
     return Number.isNaN(parsedDayFirst.getTime()) ? null : parsedDayFirst;
   }
 
@@ -100,15 +94,23 @@ export function parseDateValue(value: unknown): Date | null {
 }
 
 export function formatDateKey(value: Date): string {
-  const day = String(value.getUTCDate()).padStart(2, "0");
-  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
-  const year = String(value.getUTCFullYear());
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).formatToParts(value);
+  const day = parts.find((p) => p.type === "day")!.value;
+  const month = parts.find((p) => p.type === "month")!.value;
+  const year = parts.find((p) => p.type === "year")!.value;
   return `${day}-${month}-${year}`;
 }
 
 export function formatDateLabel(value: Date): string {
-  const day = String(value.getUTCDate()).padStart(2, "0");
-  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
-  const year = String(value.getUTCFullYear());
-  return `${day}/${month}/${year}`;
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(value);
 }
