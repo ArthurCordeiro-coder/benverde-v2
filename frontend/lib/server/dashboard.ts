@@ -559,3 +559,132 @@ function categoriasProgresso(metas: DashboardMetaItem[], faturamento: any[]) {
       .reduce((acc, f) => acc + f.valor, 0)
   })).filter(c => c.valor > 0);
 }
+
+export async function getLojasData() {
+  const rows = await queryRows<{
+    loja: string | null;
+    produto: string | null;
+    unidade: string | null;
+    quant: number | null;
+    valor_total: number | null;
+  }>(`
+     SELECT loja, produto, unidade, quant, valor_total
+     FROM cache_pedidos
+     WHERE loja IS NOT NULL AND produto IS NOT NULL AND quant > 0
+  `);
+
+  const GRUPOS_GEOGRAFICOS: Record<string, number[]> = {
+    "Alto Tietê": [1, 27, 31, 7, 8, 22, 17, 23, 29, 32, 33],
+    "Vale do Paraíba": [10, 18, 11, 16, 19, 20, 30],
+    "Litoral Norte": [12, 25, 13, 14, 26, 21],
+    "Capital e ABC": [4, 5, 6],
+  };
+
+  function extrair_peso_kg(produto: string): number | null {
+    const match = produto.match(/(\d+(?:,\d+)?)\s*(KG|G|GR)\b/i);
+    if (!match) return null;
+    const valor = parseFloat(match[1].replace(",", "."));
+    const unidade = match[2].toUpperCase();
+    if (unidade === "KG") return valor;
+    return valor / 1000;
+  }
+
+  const lojasMap = new Map<number, {
+    id: number;
+    nomeOriginal: string;
+    grupo: string | null;
+    produtos: Map<string, {
+      produto: string;
+      massa: number;
+      unidades: number;
+      valor: number;
+    }>;
+  }>();
+
+  for (const row of rows) {
+    const lojaStr = (row.loja || "").trim();
+    const produtoStr = (row.produto || "").trim();
+    const unidade = (row.unidade || "").trim().toUpperCase();
+    const quant = Number(row.quant) || 0;
+    const valorTotal = Number(row.valor_total) || 0;
+
+    let lojaId = 999;
+    const matchLoja = lojaStr.match(/LOJA\s*(\d+)/i);
+    if (matchLoja) {
+      lojaId = parseInt(matchLoja[1], 10);
+    } else {
+      const matchNum = lojaStr.match(/\b(\d+)\b/);
+      if (matchNum) {
+        lojaId = parseInt(matchNum[1], 10);
+      }
+    }
+
+    if (lojaId === 999) continue;
+
+    let massaKg: number | null = null;
+    if (unidade === "KG") {
+      massaKg = quant;
+    } else if (unidade === "UN") {
+      const pesoCalc = extrair_peso_kg(produtoStr);
+      if (pesoCalc !== null) {
+        massaKg = pesoCalc * quant;
+      }
+    }
+
+    if (!lojasMap.has(lojaId)) {
+      lojasMap.set(lojaId, {
+        id: lojaId,
+        nomeOriginal: lojaStr,
+        grupo: null,
+        produtos: new Map()
+      });
+    }
+
+    const lojaInfo = lojasMap.get(lojaId)!;
+
+    if (!lojaInfo.grupo) {
+      for (const [grupo, ids] of Object.entries(GRUPOS_GEOGRAFICOS)) {
+        if (ids.includes(lojaId)) {
+          lojaInfo.grupo = grupo;
+          break;
+        }
+      }
+    }
+
+    const prodId = normalizeText(produtoStr);
+    if (!lojaInfo.produtos.has(prodId)) {
+      lojaInfo.produtos.set(prodId, {
+        produto: produtoStr,
+        massa: 0,
+        unidades: 0,
+        valor: 0
+      });
+    }
+
+    const prodInfo = lojaInfo.produtos.get(prodId)!;
+    prodInfo.unidades += quant;
+    if (massaKg !== null) prodInfo.massa += massaKg;
+    prodInfo.valor += valorTotal;
+  }
+
+  const resultado = [];
+  for (const [lojaId, loja] of lojasMap.entries()) {
+    const produtosList = Array.from(loja.produtos.values()).map(p => ({
+      produto: p.produto,
+      massa: p.massa > 0 ? Number(p.massa.toFixed(2)) : 0,
+      unidades: Number(p.unidades.toFixed(2)),
+      valor: Number(p.valor.toFixed(2))
+    })).sort((a, b) => a.produto.localeCompare(b.produto, "pt-BR"));
+
+    resultado.push({
+      id: String(lojaId).padStart(2, "0"),
+      nome: loja.nomeOriginal,
+      grupo: loja.grupo,
+      produtos: produtosList
+    });
+  }
+
+  resultado.sort((a, b) => a.id.localeCompare(b.id));
+  return { lojas: resultado };
+}
+
