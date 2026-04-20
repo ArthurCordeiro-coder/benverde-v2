@@ -801,6 +801,116 @@ def put_dashboard_metas(
     return {"success": True, "items": jsonable_encoder(_build_dashboard_meta_items())}
 
 
+@app.get("/api/dashboard/lojas")
+def get_dashboard_lojas(current_user: dict = Depends(get_current_user)):
+    pedidos = fetch_pedidos_importados()
+    
+    GRUPOS_GEOGRAFICOS = {
+        "Alto Tietê": [1, 27, 31, 7, 8, 22, 17, 23, 29, 32, 33],
+        "Vale do Paraíba": [10, 18, 11, 16, 19, 20, 30],
+        "Litoral Norte": [12, 25, 13, 14, 26, 21],
+        "Capital e ABC": [4, 5, 6],
+    }
+
+    def extrair_peso_kg(produto: str) -> float | None:
+        match = re.search(r"(\d+(?:,\d+)?)\s*(KG|G|GR)\b", produto, re.IGNORECASE)
+        if not match:
+            return None
+        valor = float(match.group(1).replace(",", "."))
+        unidade = match.group(2).upper()
+        if unidade == "KG":
+            return valor
+        else:
+            return valor / 1000
+
+    lojas = {}
+    
+    for row in pedidos:
+        loja_str = str(row.get("Loja") or row.get("loja") or "").strip()
+        produto = str(row.get("Produto") or row.get("produto") or "").strip()
+        unidade = str(row.get("UN") or row.get("unidade") or row.get("Unidade") or "").strip().upper()
+        
+        try:
+            quant = float(row.get("QUANT") or row.get("quant") or 0)
+        except (TypeError, ValueError):
+            quant = 0.0
+            
+        try:
+            valor_total = float(row.get("VALOR TOTAL") or row.get("valor_total") or row.get("valorTotal") or 0)
+        except (TypeError, ValueError):
+            valor_total = 0.0
+
+        if not loja_str or not produto or quant <= 0:
+            continue
+
+        match_loja = re.search(r"LOJA\s*(\d+)", loja_str, re.IGNORECASE)
+        if match_loja:
+            loja_id = int(match_loja.group(1))
+        else:
+            match_num = re.search(r"\b(\d+)\b", loja_str)
+            if match_num:
+                loja_id = int(match_num.group(1))
+            else:
+                loja_id = 999
+                
+        massa_kg = None
+        if unidade == "KG":
+            massa_kg = quant
+        elif unidade == "UN":
+            peso_calc = extrair_peso_kg(produto)
+            if peso_calc is not None:
+                massa_kg = peso_calc * quant
+        
+        if loja_id not in lojas:
+            lojas[loja_id] = {
+                "id": loja_id,
+                "nomeOriginal": loja_str,
+                "grupo": None,
+                "produtos": {}
+            }
+            
+        if lojas[loja_id]["grupo"] is None:
+            for grupo, lojas_ids in GRUPOS_GEOGRAFICOS.items():
+                if loja_id in lojas_ids:
+                    lojas[loja_id]["grupo"] = grupo
+                    break
+
+        prod_id = _normalize_text(produto)
+        if prod_id not in lojas[loja_id]["produtos"]:
+            lojas[loja_id]["produtos"][prod_id] = {
+                "produto": produto,
+                "massa": 0.0,
+                "unidades": 0,
+                "valor": 0.0
+            }
+            
+        lojas[loja_id]["produtos"][prod_id]["unidades"] += quant
+        if massa_kg is not None:
+            lojas[loja_id]["produtos"][prod_id]["massa"] += massa_kg
+        lojas[loja_id]["produtos"][prod_id]["valor"] += valor_total
+        
+    resultado_lojas = []
+    for loja_id, l_data in lojas.items():
+        if loja_id == 999: 
+            continue
+        produtos_list = []
+        for p_data in l_data["produtos"].values():
+            produtos_list.append({
+                "produto": p_data["produto"],
+                "massa": round(p_data["massa"], 2) if p_data["massa"] > 0 else 0,
+                "unidades": round(p_data["unidades"], 2),
+                "valor": round(p_data["valor"], 2)
+            })
+        resultado_lojas.append({
+            "id": str(loja_id).zfill(2),
+            "nome": l_data["nomeOriginal"],
+            "grupo": l_data["grupo"],
+            "produtos": sorted(produtos_list, key=lambda x: x["produto"])
+        })
+
+    return {"lojas": sorted(resultado_lojas, key=lambda x: x["id"])}
+
+
 @app.delete("/api/dashboard/pedidos/importados")
 def delete_dashboard_imported_orders(current_user: dict = Depends(get_current_user)):
     is_admin = bool(
