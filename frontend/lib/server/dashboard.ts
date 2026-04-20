@@ -4,7 +4,7 @@ import { badRequest } from "@/lib/server/errors";
 import { execute, queryRows } from "@/lib/server/db";
 import { getCaixas } from "@/lib/server/caixas";
 import { getSaldoEstoque } from "@/lib/server/estoque";
-import { listPrecosConsolidados } from "@/lib/server/precos";
+import { getPriceOverview, listPrecosConsolidados } from "@/lib/server/precos";
 import { normalizeText } from "@/lib/server/normalization";
 
 export type DashboardCategory = "Frutas" | "Legumes" | "Verduras";
@@ -406,13 +406,43 @@ export async function getDashboardData(): Promise<{
     pedidosImportados: number;
   };
   metas: DashboardMetaItem[];
+  faturamento: Array<{ produto: string; quant: number; valor: number }>;
+  comprasPorLoja: Array<{ loja: string; valor: number }>;
+  caixasLojas: Array<{ loja: string; total: number; status: string }>;
+  tiposCaixa: Array<{ nome: string; valor: number }>;
+  valorUnitario: Array<{ produto: string; valor: number }>;
+  movimentacao: Array<{ categoria: string; valor: number }>;
+  comparativoPrecos: Array<{ data: string; interno: number; mercado: number }>;
+  produtoComparativo: string;
 }> {
-  const [{ saldo }, caixas, precos, metas, pedidosImportados] = await Promise.all([
+  const [{ saldo }, caixas, precos, metas, pedidosImportados, faturamentoRows, comprasRows, unitRows, overview] = await Promise.all([
     getSaldoEstoque(),
     getCaixas(),
     listPrecosConsolidados(),
     buildDashboardMetaItems(),
     fetchPedidosImportados(),
+    queryRows<{ produto: string; quant: number; valor: number }>(
+      `SELECT produto, SUM(quant) as quant, SUM(valor_total) as valor
+       FROM cache_pedidos
+       GROUP BY produto
+       ORDER BY valor DESC
+       LIMIT 5`
+    ),
+    queryRows<{ loja: string; valor: number }>(
+      `SELECT loja, SUM(valor_total) as valor
+       FROM cache_pedidos
+       GROUP BY loja
+       ORDER BY valor DESC
+       LIMIT 5`
+    ),
+    queryRows<{ produto: string; valor: number }>(
+      `SELECT produto, AVG(valor_unit) as valor
+       FROM cache_pedidos
+       GROUP BY produto
+       ORDER BY valor DESC
+       LIMIT 5`
+    ),
+    getPriceOverview(),
   ]);
 
   const caixasDisponiveis = caixas.reduce((total, item) => total + Number(item.total ?? 0), 0);
@@ -428,6 +458,65 @@ export async function getDashboardData(): Promise<{
       ? Math.round((metas.reduce((sum, item) => sum + Number(item.progresso ?? 0), 0) / metas.length) * 100) / 100
       : 0;
 
+  // Transform caixas for display
+  const caixasLojas = caixas.slice(0, 5).map(c => ({
+    loja: c.loja || `Loja ${c.n_loja}`,
+    total: c.total || 0,
+    status: c.entregue || "Pendente"
+  }));
+
+  // Aggregated box types
+  const tiposCaixa = [
+    { nome: "Benverde", valor: caixas.reduce((acc, c) => acc + (c.caixas_benverde || 0), 0) },
+    { nome: "CCJ", valor: caixas.reduce((acc, c) => acc + (c.caixas_ccj || 0), 0) },
+    { nome: "Bananas", valor: caixas.reduce((acc, c) => acc + (c.caixas_bananas || 0), 0) },
+  ].filter(t => t.valor > 0);
+
+  // Grouping by inferred category
+  const movimentacao = categoriasProgresso(metas, faturamentoRows);
+
+  let comparativoPrecos: Array<{ data: string; interno: number; mercado: number }> = [];
+  let produtoComparativo = "-produto-";
+
+  if (overview.dates && overview.dates.length > 0) {
+    const latestDateKey = overview.dates[0].key;
+    const latestSnapshot = overview.snapshots[latestDateKey] || [];
+    
+    const validProducts = latestSnapshot.filter(item => 
+      item.prices["Semar"] !== null &&
+      Object.keys(item.prices).some(k => k !== "Semar" && item.prices[k] !== null)
+    );
+
+    if (validProducts.length > 0) {
+      const randomIndex = Math.floor(Math.random() * validProducts.length);
+      const chosenProduct = validProducts[randomIndex].produto;
+      produtoComparativo = chosenProduct;
+
+      const historyDates = [...overview.dates].reverse();
+      
+      for (const d of historyDates) {
+        const snap = overview.snapshots[d.key] || [];
+        const prodData = snap.find(p => p.produto === chosenProduct);
+        if (prodData && prodData.prices["Semar"] !== null) {
+          const semarPrice = prodData.prices["Semar"] as number;
+          const confPrices = Object.keys(prodData.prices)
+            .filter(k => k !== "Semar" && prodData.prices[k] !== null)
+            .map(k => prodData.prices[k] as number);
+
+          const marketAvg = confPrices.length > 0 
+            ? confPrices.reduce((a,b)=>a+b,0)/confPrices.length 
+            : semarPrice;
+
+          comparativoPrecos.push({
+            data: d.label.substring(0, 5), // 'DD/MM/YYYY' -> 'DD/MM' or just use label
+            interno: Number(semarPrice.toFixed(2)),
+            mercado: Number(marketAvg.toFixed(2))
+          });
+        }
+      }
+    }
+  }
+
   return {
     summary: {
       saldoEstoque: saldo,
@@ -440,5 +529,33 @@ export async function getDashboardData(): Promise<{
       pedidosImportados: pedidosImportados.length,
     },
     metas,
+    faturamento: faturamentoRows.map(r => ({
+      produto: r.produto,
+      quant: Number(r.quant),
+      valor: Number(r.valor)
+    })),
+    comprasPorLoja: comprasRows.map(r => ({
+      loja: r.loja,
+      valor: Number(r.valor)
+    })),
+    caixasLojas,
+    tiposCaixa,
+    valorUnitario: unitRows.map(r => ({
+      produto: r.produto,
+      valor: Number(r.valor)
+    })),
+    movimentacao,
+    comparativoPrecos,
+    produtoComparativo,
   };
+}
+
+function categoriasProgresso(metas: DashboardMetaItem[], faturamento: any[]) {
+  const cats = ["Frutas", "Legumes", "Verduras"];
+  return cats.map(cat => ({
+    categoria: cat,
+    valor: faturamento
+      .filter(f => inferDashboardCategory(f.produto) === cat)
+      .reduce((acc, f) => acc + f.valor, 0)
+  })).filter(c => c.valor > 0);
 }

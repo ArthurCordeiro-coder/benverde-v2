@@ -29,3 +29,5 @@ desktop.ini
 _deliver/
 _rewrite/
 backend/temp_uploads/
+.vercel
+.env*.local
