@@ -1,11 +1,12 @@
-export type DashboardScope = "overview" | "estoque" | "caixas" | "precos" | "mita-ai";
+export type DashboardScope = "overview" | "estoque" | "caixas" | "precos" | "mita-ai" | "lojas";
 
 export type DashboardPath =
   | "/dashboard"
   | "/dashboard/estoque"
   | "/dashboard/caixas"
   | "/dashboard/precos"
-  | "/dashboard/mita-ai";
+  | "/dashboard/mita-ai"
+  | "/dashboard/lojas";
 
 export type DashboardNavItem = {
   href: DashboardPath;
@@ -18,6 +19,7 @@ const ALL_DASHBOARD_PATHS: DashboardPath[] = [
   "/dashboard/caixas",
   "/dashboard/precos",
   "/dashboard/mita-ai",
+  "/dashboard/lojas",
 ];
 
 const DASHBOARD_SCOPE_PATHS: Record<DashboardScope, DashboardPath> = {
@@ -26,6 +28,7 @@ const DASHBOARD_SCOPE_PATHS: Record<DashboardScope, DashboardPath> = {
   caixas: "/dashboard/caixas",
   precos: "/dashboard/precos",
   "mita-ai": "/dashboard/mita-ai",
+  lojas: "/dashboard/lojas",
 };
 
 const RESTRICTED_SCOPE_BY_FUNCIONALIDADE: Record<string, DashboardScope[]> = {
@@ -48,6 +51,7 @@ export function getAllowedDashboardScopes(funcionalidade?: string | null): Dashb
     "caixas",
     "precos",
     "mita-ai",
+    "lojas",
   ];
 }
 
@@ -82,6 +86,9 @@ export function getDashboardScopeFromPath(pathname: string): DashboardScope | nu
   }
   if (path === "/dashboard/mita-ai") {
     return "mita-ai";
+  }
+  if (path === "/dashboard/lojas" || path.startsWith("/dashboard/lojas/")) {
+    return "lojas";
   }
   return null;
 }

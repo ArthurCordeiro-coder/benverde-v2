@@ -398,6 +398,133 @@ function bubbleClass(role: ChatMessage["role"]) {
     : "bg-white/10 border border-white/10 text-white";
 }
 
+// --- TIPAGENS DOS DADOS ---
+
+interface Faturamento {
+  produto: string;
+  quant: number;
+  valor: number;
+}
+
+interface LojaCompra {
+  loja: string;
+  valor: number;
+}
+
+interface ValorUnitario {
+  produto: string;
+  valor: number;
+}
+
+interface CaixaLoja {
+  loja: string;
+  total: number;
+  status: 'Entregue' | 'Pendente';
+}
+
+interface TipoCaixa {
+  nome: string;
+  valor: number;
+}
+
+interface Meta {
+  produto: string;
+  meta: number;
+  real: number;
+  percentual: number;
+}
+
+interface Movimentacao {
+  categoria: string;
+  entrada: number;
+  saida: number;
+}
+
+interface Estabelecimento {
+  est: string;
+  cat: string;
+  precoMedio: number;
+}
+
+interface ComparativoPreco {
+  data: string;
+  interno: number;
+  mercado: number;
+}
+
+const CORES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+// --- TIPAGENS DE COMPONENTES ---
+
+interface CardProps {
+  title: string;
+  icon: any;
+  children: ReactNode;
+  className?: string;
+}
+
+interface ColumnDef<T> {
+  header: string;
+  accessor: (row: T) => ReactNode;
+  align?: 'left' | 'center' | 'right';
+}
+
+interface SimpleTableProps<T> {
+  columns: ColumnDef<T>[];
+  data: T[];
+}
+
+// --- COMPONENTES DE UI ---
+
+const Card: React.FC<CardProps> = ({ title, icon: Icon, children, className = "" }) => (
+  <div className={`bg-white rounded-2xl border border-slate-200 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] overflow-hidden flex flex-col ${className}`}>
+    <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3 bg-white">
+      <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+        <Icon size={20} strokeWidth={2.5} />
+      </div>
+      <h3 className="font-semibold text-slate-800 text-lg">{title}</h3>
+    </div>
+    <div className="p-6 flex-1 flex flex-col justify-center">
+      {children}
+    </div>
+  </div>
+);
+
+function SimpleTable<T>({ columns, data }: SimpleTableProps<T>) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm text-left">
+        <thead className="text-xs text-slate-500 bg-slate-50/80 uppercase rounded-t-lg border-b border-slate-200">
+          <tr>
+            {columns.map((col, i) => (
+              <th key={i} className={`px-4 py-3 font-semibold ${col.align === 'right' ? 'text-right' : ''}`}>
+                {col.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {data.map((row, i) => (
+            <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
+              {columns.map((col, j) => (
+                <td key={j} className={`px-4 py-3 text-slate-700 ${col.align === 'right' ? 'text-right' : ''}`}>
+                  {col.accessor(row)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const formatarMoeda = (valor: number): string => `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatarNumero = (valor: number): string => valor.toLocaleString('pt-BR');
+
+// --- DASHBOARD PRINCIPAL ---
+
+
 export default function DashboardHome() {
   const mitaEndpoint = "/api/mita-ai/chat";
   const [summary, setSummary] = useState<DashboardSummary>(EMPTY_SUMMARY);
@@ -554,7 +681,7 @@ export default function DashboardHome() {
       const progressoMedio =
         categoryItems.length > 0
           ? categoryItems.reduce((total, item) => total + item.progresso, 0) /
-            categoryItems.length
+          categoryItems.length
           : 0;
 
       return {
@@ -644,27 +771,27 @@ export default function DashboardHome() {
 
     const nextMetas: DashboardMeta[] = formId
       ? localMetas.map((item) =>
-          item.id === formId
-            ? {
-                ...item,
-                produto,
-                categoria: formCategoria,
-                meta: formMeta,
-              }
-            : item,
-        )
-      : [
-          ...localMetas,
-          {
-            id: allocateDraftMetaId(produto),
+        item.id === formId
+          ? {
+            ...item,
             produto,
             categoria: formCategoria,
             meta: formMeta,
-            pedido: 0,
-            progresso: 0,
-            status: "Pendente",
-          },
-        ];
+          }
+          : item,
+      )
+      : [
+        ...localMetas,
+        {
+          id: allocateDraftMetaId(produto),
+          produto,
+          categoria: formCategoria,
+          meta: formMeta,
+          pedido: 0,
+          progresso: 0,
+          status: "Pendente",
+        },
+      ];
 
     setLocalMetas(nextMetas);
     setMetasFeedback(null);
@@ -897,15 +1024,7 @@ export default function DashboardHome() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void loadDashboardData("refresh")}
-          disabled={isRefreshingDashboard}
-          className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-2.5 text-sm font-medium text-green-300 shadow-[0_0_15px_rgba(74,222,128,0.1)] transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isRefreshingDashboard ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          Atualizar Dados
-        </button>
+
       </header>
 
       <div className="flex flex-col items-start gap-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-5 text-amber-200 shadow-[0_8px_32px_rgba(245,158,11,0.05)] backdrop-blur-xl md:flex-row md:items-center md:justify-between">
@@ -1074,116 +1193,6 @@ export default function DashboardHome() {
         </div>
       </div>
 
-      <div
-        ref={tableSectionRef}
-        className="rounded-3xl border border-white/10 bg-white/[0.02] backdrop-blur-md"
-      >
-        <div className="overflow-x-auto rounded-3xl">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-[#0f5922] text-white">
-              <tr>
-                {(["produto", "meta", "pedido", "progresso", "status"] as SortableKey[]).map((key) => (
-                  <th key={key} className="relative border-r border-white/10 p-4 last:border-0">
-                    <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-wider">
-                      <button type="button" onClick={() => requestSort(key)} className="flex items-center gap-1">
-                        <span>{key === "status" ? "Status" : key}</span>
-                        {sortConfig.key === key ? (
-                          sortConfig.direction === "ascending" ? (
-                            <ChevronUp size={14} />
-                          ) : (
-                            <ChevronDown size={14} />
-                          )
-                        ) : (
-                          <ChevronsUpDown size={14} className="opacity-30" />
-                        )}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setActiveFilter((current) => (current === key ? null : key))}
-                        className={`transition-colors ${filters[key] ? "text-green-300" : "text-white/30 hover:text-white"}`}
-                      >
-                        <Filter size={14} />
-                      </button>
-                    </div>
-
-                    {activeFilter === key ? (
-                      <div className="absolute left-0 top-full z-50 mt-2 w-52 rounded-xl border border-white/10 bg-[#0b1f15] p-3 shadow-2xl backdrop-blur-xl">
-                        {getUniqueValues(key).map((option) => (
-                          <label
-                            key={`${key}-${String(option)}`}
-                            className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-white/5"
-                          >
-                            <input
-                              type="checkbox"
-                              className="rounded border-white/20 bg-transparent text-green-500"
-                              checked={(filters[key] ?? []).includes(option)}
-                              onChange={() => toggleFilterOption(key, option)}
-                            />
-                            <span className="text-xs normal-case text-gray-200">
-                              {typeof option === "number" && key === "progresso"
-                                ? `${option.toFixed(1)}%`
-                                : String(option)}
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    ) : null}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {isLoadingDashboard ? (
-                <tr>
-                  <td className="p-6 text-sm text-gray-400" colSpan={5}>
-                    Carregando resumo do dashboard...
-                  </td>
-                </tr>
-              ) : filteredAndSortedData.length === 0 ? (
-                <tr>
-                  <td className="p-6 text-sm text-gray-400" colSpan={5}>
-                    Nenhuma meta encontrada.
-                  </td>
-                </tr>
-              ) : (
-                filteredAndSortedData.map((row) => (
-                  <tr key={row.id} className="transition-colors hover:bg-white/[0.03]">
-                    <td className="p-4 font-medium text-white">{row.produto}</td>
-                    <td className="p-4 text-gray-400">{formatQuantity(row.meta)}</td>
-                    <td className="p-4 text-gray-400">{formatQuantity(row.pedido)}</td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/10">
-                          <div
-                            className="h-full bg-green-400 transition-all duration-500"
-                            style={{ width: `${Math.min(row.progresso, 100)}%` }}
-                          />
-                        </div>
-                        <span className="text-xs font-bold text-gray-200">{row.progresso.toFixed(1)}%</span>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <span
-                        className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
-                          row.status === "Atingida"
-                            ? "border border-green-500/20 bg-green-500/20 text-green-400"
-                            : row.status === "Próxima"
-                              ? "border border-yellow-500/20 bg-yellow-500/20 text-yellow-400"
-                              : "border border-red-500/20 bg-red-500/20 text-red-400"
-                        }`}
-                      >
-                        {row.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
         <div className="flex h-80 flex-col rounded-3xl border border-white/10 bg-white/[0.02] p-8 backdrop-blur-md">
           <h3 className="mb-8 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white">
@@ -1229,16 +1238,14 @@ export default function DashboardHome() {
                 className="group relative flex h-full w-24 flex-col items-center justify-end gap-2"
               >
                 <div
-                  className={`mb-1 rounded border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-black opacity-0 transition-opacity group-hover:opacity-100 ${
-                    index === 0 ? "text-blue-400" : index === 1 ? "text-orange-400" : "text-emerald-400"
-                  }`}
+                  className={`mb-1 rounded border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-black opacity-0 transition-opacity group-hover:opacity-100 ${index === 0 ? "text-blue-400" : index === 1 ? "text-orange-400" : "text-emerald-400"
+                    }`}
                 >
                   {item.progresso.toFixed(1)}%
                 </div>
                 <div
-                  className={`relative w-16 rounded-t-2xl shadow-2xl transition-all duration-1000 ${
-                    index === 0 ? "bg-blue-500/80" : index === 1 ? "bg-orange-500/80" : "bg-emerald-500/80"
-                  }`}
+                  className={`relative w-16 rounded-t-2xl shadow-2xl transition-all duration-1000 ${index === 0 ? "bg-blue-500/80" : index === 1 ? "bg-orange-500/80" : "bg-emerald-500/80"
+                    }`}
                   style={{ height: `${Math.max(6, Math.min(item.progresso, 100))}%` }}
                 >
                   <div className="absolute inset-0 rounded-t-2xl bg-white/10 opacity-50" />
@@ -1424,11 +1431,10 @@ export default function DashboardHome() {
 
               {metasFeedback ? (
                 <div
-                  className={`rounded-xl border px-4 py-3 text-sm ${
-                    metasFeedback.tone === "success"
+                  className={`rounded-xl border px-4 py-3 text-sm ${metasFeedback.tone === "success"
                       ? "border-green-500/20 bg-green-500/10 text-green-300"
                       : "border-red-500/20 bg-red-500/10 text-red-200"
-                  }`}
+                    }`}
                 >
                   {metasFeedback.text}
                 </div>
@@ -1466,11 +1472,10 @@ export default function DashboardHome() {
                       type="button"
                       onClick={handleSaveMeta}
                       disabled={isExtractingMetas}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-2 text-sm font-bold transition-all ${
-                        formId
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl border py-2 text-sm font-bold transition-all ${formId
                           ? "border-yellow-500/20 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500 hover:text-black"
                           : "border-green-500/20 bg-green-500/10 text-green-400 hover:bg-green-500 hover:text-black"
-                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                        } disabled:cursor-not-allowed disabled:opacity-60`}
                     >
                       <Save size={16} />
                       {formId ? "Salvar" : "Adicionar"}

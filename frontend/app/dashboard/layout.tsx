@@ -17,6 +17,7 @@ import {
   PackageSearch,
   Tags,
   Users,
+  Store,
   X,
 } from "lucide-react";
 
@@ -56,23 +57,21 @@ type NavItemProps = {
 };
 
 const navItems: Array<{ href: DashboardPath; label: string; icon: ReactNode }> = [
-  { href: "/dashboard", label: "Resumo & Metas", icon: <BarChart3 size={18} /> },
+  { href: "/dashboard", label: "Painel Principal", icon: <BarChart3 size={18} /> },
   { href: "/dashboard/estoque", label: "Estoque de Bananas", icon: <Banana size={18} /> },
   { href: "/dashboard/caixas", label: "Caixas das Lojas", icon: <PackageSearch size={18} /> },
   { href: "/dashboard/precos", label: "Preços Concorrentes", icon: <Tags size={18} /> },
-  { href: "/dashboard/mita-ai", label: "Mita AI", icon: <MessageCircleMore size={18} /> },
+  { href: "/dashboard/lojas", label: "Lojas", icon: <Store size={18} /> },
 ];
 
 function getNavClass(active: boolean, isHighlight = false) {
-  return `w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 font-medium text-sm ${
-    active
-      ? "bg-gradient-to-r from-green-500/20 to-emerald-500/10 text-green-300 border border-green-500/20 shadow-[0_0_20px_rgba(16,185,129,0.1)]"
-      : "text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent"
-  } ${
-    isHighlight && !active
+  return `w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 font-medium text-sm ${active
+    ? "bg-gradient-to-r from-green-500/20 to-emerald-500/10 text-green-300 border border-green-500/20 shadow-[0_0_20px_rgba(16,185,129,0.1)]"
+    : "text-gray-400 hover:text-gray-100 hover:bg-white/5 border border-transparent"
+    } ${isHighlight && !active
       ? "bg-emerald-900/20 border-emerald-500/10 text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-900/40"
       : ""
-  }`;
+    }`;
 }
 
 function NavItem({ icon, label, active, href, isHighlight = false, onClick }: NavItemProps) {
