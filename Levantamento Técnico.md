@@ -1,52 +1,86 @@
-# Levantamento Técnico: Integração Mobile — Lojas
+# Levantamento Técnico — Sistema Benverde
 
-Este documento detalha o plano para a integração completa e "complexa" das telas de Lojas no Benverde Mobile, alinhando a implementação atual com as diretrizes do documento de design `2026-04-20-painel-principal-lojas-design.md`.
+Você é um agente de análise de código. Sua tarefa é fazer um levantamento completo do estado atual deste projeto e gerar um relatório em Markdown que será lido por outro assistente (Claude) para continuar um trabalho de redesign de UI/arquitetura.
 
-## 1. Estado Atual vs. Requisitos
+NÃO modifique nenhum arquivo. Apenas leia, analise e reporte.
 
-### O que já temos:
-- ✅ Endpoints `/api/dashboard/lojas` e `/api/caixas` funcionais.
-- ✅ Listagem básica de lojas com faturamento e caixas pendentes.
-- ✅ Tela de detalhe com composição de produtos e resumo de caixas.
-- ✅ Cálculo de massa (kg) baseado no parsing do nome do produto.
-- ✅ Filtro de mês funcional.
+## Saída esperada
 
-### O que falta (Gap Analysis):
-- ❌ **Grupos Geográficos:** Mapeamento fixo (Alto Tietê, Vale, etc.) não é usado para agregação.
-- ❌ **Alternância de Visão:** Falta o toggle "Lojas / Grupos Geográficos" na UI.
-- ❌ **Widgets de Métricas:** Ausência dos cards "Maiores Valores Unitários", "Top 5 Produtos" e "Volume de Compras".
-- ❌ **Agregação por Grupo:** Visualização detalhada que soma todas as lojas de um grupo geográfico.
-- ❌ **Estética Premium:** Refinar o glassmorphism e micro-animações conforme o padrão do sistema.
-
-## 2. Planejamento da Implementação
-
-### Parte A: Backend (`frontend/lib/server/dashboard.ts`)
-1. **Mapeamento de Grupos:** Inserir a constante `GRUPOS_GEOGRAFICOS` conforme definido no design doc.
-2. **Lógica de Agregação:**
-   - Criar uma função para calcular o resumo dos grupos (soma de faturamento, massa e caixas das lojas pertencentes).
-   - Incluir o `grupo_nome` no retorno de cada loja para facilitar o agrupamento no frontend.
-3. **Métricas Globais:** Adicionar ao retorno do `getLojasData` as listas para os widgets:
-   - `topValorUnitario`: Top 5 produtos por `valor_unit`.
-   - `topProdutos`: Top 5 produtos por faturamento total.
-   - `volumeCompras`: Total por categoria (Frutas/Legumes/Verduras) para aquela seleção.
-
-### Parte B: Interface (`frontend/components/mobile/screens/Lojas.tsx`)
-1. **Componente de Toggle:** Implementar um seletor deslizante (Lojas vs. Grupos) usando o `C.surface`.
-2. **Grid de Grupos:** Criar a visualização de cards para os grupos geográficos.
-3. **Widgets de Topo:** Adicionar uma seção horizontal scrollable ou grid com os novos widgets de métricas.
-4. **Navegação:** Ajustar o `onSelectLoja` para suportar `onSelectGrupo`, enviando o conjunto de dados agregados.
-
-### Parte C: Detalhe (`frontend/components/mobile/screens/LojaDetalhe.tsx`)
-1. **Título Dinâmico:** Ajustar para exibir "Grupo: [Nome]" ou "Loja [ID]".
-2. **Cálculos Agregados:** Garantir que todos os cálculos de massa e caixas funcionem perfeitamente para múltiplos IDs de loja (no caso de grupos).
-
-## 3. Próximos Passos Imediatos
-
-1. [ ] Atualizar `lib/server/dashboard.ts` com o mapeamento geográfico e agregação.
-2. [ ] Modificar `ScreenLojas.tsx` para incluir o Toggle e os Widgets.
-3. [ ] Testar a navegação entre Grupos e Lojas.
-4. [ ] Refinar o estilo visual para o padrão Premium.
+Crie um arquivo `LEVANTAMENTO_BENVERDE.md` na raiz do projeto contendo as seções abaixo. Seja factual e específico — cite caminhos de arquivos, nomes de componentes, e trechos de código relevantes. Evite generalidades.
 
 ---
-**Responsável:** Antigravity (AI)
-**Data:** 2026-05-04
+
+### 1. Stack e estrutura do projeto
+- Framework e versão (Next.js? versão? App Router ou Pages Router?)
+- Linguagem (TypeScript? JavaScript?)
+- Gerenciador de pacotes (npm/pnpm/yarn/bun)
+- Bibliotecas principais de UI (Tailwind? shadcn/ui? Radix? Material? CSS Modules? styled-components?)
+- Bibliotecas de estado (Zustand, Redux, Context puro, React Query/TanStack, SWR?)
+- Backend/API: como o frontend conversa com o backend? (Server Actions, API routes, fetch direto a backend externo, tRPC?)
+- Banco de dados / ORM, se visível
+- Autenticação: existe? qual lib? (NextAuth, Clerk, Supabase Auth, custom?)
+- Estrutura de pastas resumida (árvore de até 3 níveis dentro de `src/` ou equivalente)
+
+### 2. Rotas e telas existentes
+Liste TODAS as rotas/páginas atuais com:
+- Caminho da URL
+- Caminho do arquivo
+- Propósito (1 linha)
+- Se é pública ou protegida
+- Se tem variação mobile/desktop ou é uma só
+
+### 3. Sistema de autenticação e perfis
+- Existe distinção de perfis/roles hoje? (admin vs operador, etc)
+- Se sim: como é implementada? (campo no banco, JWT claim, middleware, etc)
+- Se não: o que existiria precisaria ser construído do zero?
+- Como funciona o redirect pós-login hoje?
+
+### 4. Linguagem visual atual
+- Paleta de cores: liste as cores principais usadas (extraia de `tailwind.config`, variáveis CSS, ou tokens). Inclua hex/HSL.
+- Tipografia: famílias de fonte usadas, escalas de tamanho
+- Existe um sistema de design tokens? (cores semânticas tipo `--color-primary`, espaçamentos, raios, etc)
+- Componentes reutilizáveis existentes: liste os principais em `components/` com nome e propósito
+- Existe modo escuro? É o único modo? Tem toggle?
+
+### 5. Responsividade atual
+- Como o projeto trata mobile vs desktop hoje? (breakpoints Tailwind, media queries, componentes diferentes?)
+- Existem componentes que claramente quebram em alguma largura? Liste os que você identificar.
+- A tela de Registro de Estoque especificamente: aponte o(s) arquivo(s), descreva como ela está estruturada hoje (grid? flex? tabela? cards?), e identifique por que ela quebra no mobile.
+
+### 6. Módulos existentes
+Para cada um dos módulos abaixo, indique se EXISTE no código, em qual rota mora, e quais componentes principais o compõem:
+- Início / Home (dashboard com saldo kg, metas, Mita preview)
+- Estoque (visualização)
+- Registro de Estoque (formulário de movimentação)
+- Preços (concorrência/precificação)
+- Lojas (multi-loja)
+- Metas / Dashboards
+- Mita (chat IA)
+
+### 7. Fluxos de dados críticos
+- Como dados de estoque são lidos e atualizados?
+- Como a Mita é integrada? (API própria, OpenAI direto, Anthropic, n8n, outro?)
+- Existe state global compartilhado entre telas? Como?
+
+### 8. Débitos técnicos e dores conhecidas
+Liste o que você identificar como problemático olhando o código:
+- Componentes muito grandes (>300 linhas)
+- Lógica de negócio misturada com UI
+- Estilos inline excessivos ou duplicados
+- Falta de tipagem em pontos críticos
+- Qualquer TODO/FIXME/HACK explícito no código
+- Inconsistências de naming, padrões, ou estrutura entre módulos similares
+
+### 9. Anexos úteis
+- Cole o conteúdo de `package.json` (apenas dependencies/devDependencies)
+- Cole o conteúdo de `tailwind.config.{js,ts}` se existir
+- Cole o conteúdo de qualquer arquivo `globals.css` ou equivalente que tenha tokens
+- Liste o conteúdo da pasta `components/ui/` ou equivalente (só nomes de arquivo)
+
+---
+
+## Instruções finais
+- Seja exaustivo nas seções 1, 2, 4 e 6 — são as mais importantes pro próximo passo.
+- Se algo não existir, diga explicitamente "não existe" em vez de pular a seção.
+- Não invente: se não conseguir determinar algo com certeza, escreva "não foi possível determinar" e explique por quê.
+- Salve o arquivo final em `LEVANTAMENTO_BENVERDE.md` na raiz do projeto.
