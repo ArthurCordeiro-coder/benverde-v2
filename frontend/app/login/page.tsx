@@ -49,6 +49,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showBanner, setShowBanner] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem('benverde_update_v2_seen') !== '1';
+  });
+
+  const dismissBanner = () => {
+    sessionStorage.setItem('benverde_update_v2_seen', '1');
+    setShowBanner(false);
+  };
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -99,6 +108,24 @@ export default function LoginPage() {
 
       <div className="relative flex h-screen w-full items-center justify-center px-6 lg:w-1/2">
         <div className="w-full max-w-md">
+
+          {/* Banner de atualização */}
+          {showBanner && (
+            <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 backdrop-blur-sm">
+              <span className="text-xl leading-none">🌿</span>
+              <p className="flex-1 text-sm leading-relaxed text-emerald-100">
+                <strong>Atualização:</strong> a versão mobile agora está disponível para o registro de caixas e o painel principal!
+              </p>
+              <button
+                type="button"
+                onClick={dismissBanner}
+                className="mt-0.5 shrink-0 text-emerald-300/60 transition-colors hover:text-emerald-200"
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-10 py-12 shadow-[0_20px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
             <div className="mb-8 text-center">
               <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full border border-emerald-300/30 bg-emerald-500/10">
