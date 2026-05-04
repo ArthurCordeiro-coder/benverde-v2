@@ -12,11 +12,35 @@ import {
 } from "@/lib/server/session-token";
 
 export async function proxy(request: NextRequest) {
+  const userAgent = request.headers.get("user-agent") || "";
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
   const pathname = request.nextUrl.pathname;
+
+  if (isMobile) {
+    if (
+      !pathname.startsWith("/mobile") &&
+      !pathname.startsWith("/api") &&
+      !pathname.startsWith("/_next") &&
+      !pathname.startsWith("/login") &&
+      !pathname.includes(".")
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/mobile";
+      return NextResponse.rewrite(url);
+    }
+  } else {
+    if (pathname.startsWith("/mobile")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const isDashboardRoute = pathname.startsWith("/dashboard");
+  const isMobileRoute = pathname.startsWith("/mobile");
   const isPriceRoute = pathname === "/precos" || pathname.startsWith("/precos/") || pathname === "/Precos" || pathname.startsWith("/Precos/");
-  const isProtectedRoute = isDashboardRoute || isPriceRoute;
+  const isProtectedRoute = isDashboardRoute || isPriceRoute || isMobileRoute;
   const isLegacyOperationalRoute =
     pathname === "/registro" ||
     pathname.startsWith("/registro/") ||

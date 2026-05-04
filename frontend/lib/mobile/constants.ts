@@ -1,0 +1,18 @@
+export const C = {
+  bg:       '#070d09',
+  surface:  'rgba(255,255,255,0.03)',
+  surface2: 'rgba(255,255,255,0.06)',
+  border:   'rgba(255,255,255,0.08)',
+  border2:  'rgba(255,255,255,0.14)',
+  green:    '#4ade80',
+  emerald:  '#10b981',
+  emeraldDim:'rgba(16,185,129,0.12)',
+  emeraldBorder:'rgba(16,185,129,0.25)',
+  text:     '#f1f5f9',
+  muted:    '#64748b',
+  muted2:   '#94a3b8',
+  yellow:   '#fbbf24',
+  red:      '#f87171',
+  redDim:   'rgba(248,113,113,0.12)',
+  yellowDim:'rgba(251,191,36,0.12)',
+};

@@ -481,8 +481,8 @@ export async function getDashboardData(): Promise<{
   if (overview.dates && overview.dates.length > 0) {
     const latestDateKey = overview.dates[0].key;
     const latestSnapshot = overview.snapshots[latestDateKey] || [];
-    
-    const validProducts = latestSnapshot.filter(item => 
+
+    const validProducts = latestSnapshot.filter(item =>
       item.prices["Semar"] !== null &&
       Object.keys(item.prices).some(k => k !== "Semar" && item.prices[k] !== null)
     );
@@ -493,7 +493,7 @@ export async function getDashboardData(): Promise<{
       produtoComparativo = chosenProduct;
 
       const historyDates = [...overview.dates].reverse();
-      
+
       for (const d of historyDates) {
         const snap = overview.snapshots[d.key] || [];
         const prodData = snap.find(p => p.produto === chosenProduct);
@@ -503,8 +503,8 @@ export async function getDashboardData(): Promise<{
             .filter(k => k !== "Semar" && prodData.prices[k] !== null)
             .map(k => prodData.prices[k] as number);
 
-          const marketAvg = confPrices.length > 0 
-            ? confPrices.reduce((a,b)=>a+b,0)/confPrices.length 
+          const marketAvg = confPrices.length > 0
+            ? confPrices.reduce((a, b) => a + b, 0) / confPrices.length
             : semarPrice;
 
           comparativoPrecos.push({
@@ -560,24 +560,34 @@ function categoriasProgresso(metas: DashboardMetaItem[], faturamento: any[]) {
   })).filter(c => c.valor > 0);
 }
 
-export async function getLojasData() {
+export async function getLojasData(mes?: string) {
+  let query = `
+     SELECT loja, produto, unidade, quant, valor_total
+     FROM cache_pedidos
+     WHERE loja IS NOT NULL AND produto IS NOT NULL AND quant > 0
+  `;
+  const params: any[] = [];
+
+  if (mes) {
+    query += ` AND TO_CHAR(data, 'YYYY-MM') = $1`;
+    params.push(mes);
+  }
+
   const rows = await queryRows<{
     loja: string | null;
     produto: string | null;
     unidade: string | null;
     quant: number | null;
     valor_total: number | null;
-  }>(`
-     SELECT loja, produto, unidade, quant, valor_total
-     FROM cache_pedidos
-     WHERE loja IS NOT NULL AND produto IS NOT NULL AND quant > 0
-  `);
+  }>(query, params);
 
-  const GRUPOS_GEOGRAFICOS: Record<string, number[]> = {
-    "Alto Tietê": [1, 27, 31, 7, 8, 22, 17, 23, 29, 32, 33],
-    "Vale do Paraíba": [10, 18, 11, 16, 19, 20, 30],
-    "Litoral Norte": [12, 25, 13, 14, 26, 21],
-    "Capital e ABC": [4, 5, 6],
+  const CIDADES_LOJAS: Record<number, string> = {
+    1: "SUZANO", 4: "SÃO PAULO", 5: "GUAIANAZES", 6: "MAUA", 7: "MOGI DAS CRUZES",
+    8: "MOGI DAS CRUZES", 10: "TAUBATE", 11: "PINDAMONHANGABA", 12: "SÃO SEBASTIÃO",
+    13: "CARAGUATATUBA", 14: "UBATUBA", 16: "PINDAMONHANGABA", 17: "POÁ", 18: "TAUBATE",
+    19: "NOVA LORENA", 20: "GUARATINGUETA", 21: "BERTIOGA", 22: "MOGI DAS CRUZES",
+    23: "FERRAZ DE VASCONCELOS", 25: "SÃO SEBASTIÃO", 26: "UBATUBA", 27: "SUZANO",
+    29: "ARUJA", 30: "SÃO JOSÉ DOS CAMPOS", 31: "SUZANO", 32: "ITAQUAQUECETUBA", 33: "ITAQUAQUECETUBA"
   };
 
   function extrair_peso_kg(produto: string): number | null {
@@ -609,14 +619,9 @@ export async function getLojasData() {
     const valorTotal = Number(row.valor_total) || 0;
 
     let lojaId = 999;
-    const matchLoja = lojaStr.match(/LOJA\s*(\d+)/i);
+    const matchLoja = lojaStr.match(/LOJAS?\s*(\d+)/i) || lojaStr.match(/\b(\d+)\b/);
     if (matchLoja) {
       lojaId = parseInt(matchLoja[1], 10);
-    } else {
-      const matchNum = lojaStr.match(/\b(\d+)\b/);
-      if (matchNum) {
-        lojaId = parseInt(matchNum[1], 10);
-      }
     }
 
     if (lojaId === 999) continue;
@@ -643,12 +648,7 @@ export async function getLojasData() {
     const lojaInfo = lojasMap.get(lojaId)!;
 
     if (!lojaInfo.grupo) {
-      for (const [grupo, ids] of Object.entries(GRUPOS_GEOGRAFICOS)) {
-        if (ids.includes(lojaId)) {
-          lojaInfo.grupo = grupo;
-          break;
-        }
-      }
+      lojaInfo.grupo = CIDADES_LOJAS[lojaId] || null;
     }
 
     const prodId = normalizeText(produtoStr);

@@ -50,13 +50,22 @@ function serializeCaixa(row: Record<string, unknown>): CaixaRegistro {
   };
 }
 
-export async function getCaixas(): Promise<CaixaRegistro[]> {
-  const rows = await queryRows<Record<string, unknown>>(
-    `SELECT id, data, loja, n_loja, caixas_benverde, caixas_ccj, ccj_banca,
+export async function getCaixas(mes?: string): Promise<CaixaRegistro[]> {
+  let query = `
+     SELECT id, data, loja, n_loja, caixas_benverde, caixas_ccj, ccj_banca,
             ccj_mercadoria, ccj_retirada, caixas_bananas, total, entregue
      FROM caixas_lojas
-     ORDER BY data DESC NULLS LAST, id DESC`,
-  );
+  `;
+  const params: any[] = [];
+
+  if (mes) {
+    query += ` WHERE TO_CHAR(data, 'YYYY-MM') = $1`;
+    params.push(mes);
+  }
+
+  query += ` ORDER BY data DESC NULLS LAST, id DESC`;
+
+  const rows = await queryRows<Record<string, unknown>>(query, params);
   return rows.map(serializeCaixa);
 }
 

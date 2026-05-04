@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Benverde Mobile – Wireframes v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #f0ebe0; font-family: 'Caveat', cursive; }
+
+.phone {
+  width: 260px; height: 520px;
+  border: 3px solid #1a1a1a; border-radius: 32px;
+  background: #fafaf7; position: relative; overflow: hidden;
+  box-shadow: 4px 4px 0px #1a1a1a;
+}
+.phone-screen {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  overflow: hidden; display: flex; flex-direction: column;
+}
+.phone-notch {
+  width: 70px; height: 16px; background: #1a1a1a;
+  border-radius: 0 0 10px 10px;
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  z-index: 10;
+}
+
+.status-bar {
+  height: 22px; padding: 4px 12px 0;
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: 'Space Mono', monospace; font-size: 8px; color: #666;
+  flex-shrink: 0; padding-top: 6px;
+}
+
+.scroll-area { flex: 1; overflow-y: auto; }
+.scroll-area::-webkit-scrollbar { display: none; }
+
+.bottom-nav {
+  border-top: 2px solid #1a1a1a; background: #fafaf7;
+  display: flex; justify-content: space-around; align-items: center;
+  padding: 5px 0 4px; flex-shrink: 0;
+}
+.nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  font-size: 8px; color: #999;
+}
+.nav-item.active { color: #1a1a1a; font-weight: 700; }
+.nav-icon {
+  width: 24px; height: 20px; border: 1.5px solid #ddd; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center; font-size: 11px;
+}
+.nav-icon.active { border-color: #1a1a1a; background: #1a1a1a; color: #fff; }
+
+.sr { border: 1.5px solid #1a1a1a; border-radius: 6px; background: #fff; }
+.sr.g { background: #e8f5e9; border-color: #388e3c; }
+.sr.y { background: #fffde7; border-color: #f9a825; }
+.sr.r { background: #fce4ec; border-color: #c62828; }
+.sr.dark { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+.sr.muted { background: #f4f4f4; border-color: #ccc; }
+
+.chip {
+  display: inline-block; border: 1.5px solid #ccc; border-radius: 20px;
+  padding: 1px 7px; font-size: 9px; background: #fff;
+}
+.chip.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+.chip.g { background: #c8e6c9; border-color: #388e3c; color: #1b5e20; }
+.chip.y { background: #fff9c4; border-color: #f9a825; color: #7c5200; }
+.chip.r { background: #ffcdd2; border-color: #c62828; color: #b71c1c; }
+
+.bar-track { height: 5px; border-radius: 3px; background: #e0e0e0; overflow: hidden; }
+.bar-fill { height: 100%; background: #2e7d32; border-radius: 3px; }
+
+.divider { border: none; border-top: 1.5px dashed #ddd; margin: 6px 0; }
+
+/* Canvas layout */
+.canvas { padding: 28px 32px; }
+.flow-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 40px; }
+.flow-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.flow-label { font-size: 12px; color: #888; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; font-family: 'Caveat', cursive; }
+.flow-arrow {
+  font-size: 28px; color: #ccc; align-self: center; margin-top: 60px;
+  user-select: none;
+}
+.section-title { font-size: 22px; font-weight: 700; color: #1a1a1a; margin-bottom: 4px; }
+.section-sub { font-size: 14px; color: #888; margin-bottom: 18px; }
+
+/* Tab bar */
+.tabs { display: flex; gap: 8px; padding: 12px 20px; background: #fff; border-bottom: 2px solid #1a1a1a; position: sticky; top: 0; z-index: 100; align-items: center; }
+.tab {
+  font-family: 'Caveat', cursive; font-size: 14px; font-weight: 600;
+  padding: 4px 14px; border: 2px solid #1a1a1a; border-radius: 20px;
+  cursor: pointer; background: #fff; color: #1a1a1a; transition: all 0.15s;
+}
+.tab.active { background: #1a1a1a; color: #fff; }
+.tabs-title { font-family: 'Caveat', cursive; font-size: 17px; font-weight: 700; margin-right: 8px; color: #1a1a1a; }
+
+/* Zoom overlay */
+.zoom-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  z-index: 1000; display: flex; align-items: center; justify-content: center;
+  cursor: zoom-out;
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel">
+
+
+const { useState } = React;
+
+// ─── PRIMITIVES ───────────────────────────────────────────
+
+const NAV_ITEMS = [
+{ key: 'home', icon: '⊞', label: 'Início' },
+{ key: 'estoque', icon: '▤', label: 'Estoque' },
+{ key: 'precos', icon: '◈', label: 'Preços' },
+{ key: 'lojas', icon: '⊙', label: 'Lojas' },
+{ key: 'mita', icon: '◎', label: 'Mita' }];
+
+
+function StatusBar() {
+  return (
+    <div className="status-bar">
+      <span>9:41</span>
+      <span style={{ fontSize: 7 }}>●●● WiFi 🔋</span>
+    </div>);
+
+}
+
+function BottomNav({ active }) {
+  return (
+    <div className="bottom-nav">
+      {NAV_ITEMS.map((item) =>
+      <div key={item.key} className={`nav-item ${active === item.key ? 'active' : ''}`}>
+          <div className={`nav-icon ${active === item.key ? 'active' : ''}`}>{item.icon}</div>
+          <span>{item.label}</span>
+        </div>
+      )}
+    </div>);
+
+}
+
+function Bar({ pct, color }) {
+  return (
+    <div className="bar-track">
+      <div className="bar-fill" style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color || '#2e7d32' }} />
+    </div>);
+
+}
+
+function KpiStrip({ items }) {
+  return (
+    <div style={{ display: 'flex', gap: 5, padding: '7px 10px', flexShrink: 0 }}>
+      {items.map((item, i) =>
+      <div key={i} className={`sr ${item.cls || ''}`} style={{ flex: 1, padding: '5px 6px' }}>
+          <div style={{ fontSize: 8, color: '#888', fontFamily: 'Space Mono', textTransform: 'uppercase', letterSpacing: 0.3 }}>{item.label}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.1, color: item.cls === 'dark' ? '#fff' : '#1a1a1a' }}>{item.value}</div>
+          {item.sub && <div style={{ fontSize: 8, color: item.cls === 'dark' ? '#aaa' : '#999' }}>{item.sub}</div>}
+        </div>
+      )}
+    </div>);
+
+}
+
+function SectionHeader({ back, title, subtitle }) {
+  return (
+    <div style={{ padding: '10px 10px 7px', borderBottom: '1.5px solid #eee', flexShrink: 0 }}>
+      {back && <div style={{ fontSize: 10, color: '#888', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
+        <span>◀</span><span>{back}</span>
+      </div>}
+      <div style={{ fontSize: 16, fontWeight: 700 }}>{title}</div>
+      {subtitle && <div style={{ fontSize: 10, color: '#888' }}>{subtitle}</div>}
+    </div>);
+
+}
+
+function Phone({ children, label, zoomable = true }) {
+  const [zoomed, setZoomed] = useState(false);
+  return (
+    <div className="flow-col">
+      <div
+        className="phone"
+        onClick={zoomable ? () => setZoomed(true) : undefined}
+        style={{ cursor: zoomable ? 'zoom-in' : 'default' }}>
+        
+        <div className="phone-notch" />
+        <div className="phone-screen">{children}</div>
+      </div>
+      {label && <div className="flow-label">{label}</div>}
+      {zoomed &&
+      <div className="zoom-overlay" onClick={() => setZoomed(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ transform: 'scale(1.55)', transformOrigin: 'center' }}>
+            <div className="phone" style={{ cursor: 'zoom-out' }} onClick={() => setZoomed(false)}>
+              <div className="phone-notch" />
+              <div className="phone-screen">{children}</div>
+            </div>
+          </div>
+        </div>
+      }
+    </div>);
+
+}
+
+// ─── SCREEN: HOME (Feed B — sticky header + chips + seções expansíveis) ──────
+
+function ScreenHome() {
+  const [activeChip, setActiveChip] = useState('Tudo');
+  const [expanded, setExpanded] = useState({ estoque: true, metas: false, caixas: false, precos: false });
+
+  const toggle = (key) => setExpanded((e) => ({ ...e, [key]: !e[key] }));
+
+  return (
+    <Phone label="1. Home">
+      <StatusBar />
+
+      {/* Sticky header */}
+      <div style={{ padding: '8px 10px 5px', background: '#fafaf7', borderBottom: '1.5px dashed #ddd', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+          <span style={{ fontSize: 15, fontWeight: 700 }}>🌿 Benverde</span>
+          <div style={{ display: 'flex', gap: 5 }}>
+            <div className="sr" style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>↺</div>
+            <div className="sr" style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>◎</div>
+          </div>
+        </div>
+        {/* Chips de filtro */}
+        <div style={{ display: 'flex', gap: 4, overflowX: 'auto' }}>
+          {['Tudo', 'Estoque', 'Caixas', 'Preços', 'Lojas'].map((c) =>
+          <span
+            key={c}
+            className={`chip ${activeChip === c ? 'active' : ''}`}
+            onClick={() => setActiveChip(c)}
+            style={{ cursor: 'pointer', flexShrink: 0 }}>
+            {c}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="scroll-area" style={{ padding: '7px 10px' }}>
+        {/* KPI resumo */}
+        <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+          <div className="sr" style={{ flex: 1, padding: '5px 6px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#999' }}>Saldo KG</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>19k</div>
+          </div>
+          <div className="sr g" style={{ flex: 1, padding: '5px 6px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#2e7d32' }}>Metas</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>12</div>
+          </div>
+          <div className="sr y" style={{ flex: 1, padding: '5px 6px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#f9a825' }}>Entrega</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>84%</div>
+          </div>
+        </div>
+
+        {/* Seção Estoque — expandida por padrão */}
+        <div style={{ marginBottom: 6 }}>
+          <div
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, cursor: 'pointer' }}
+            onClick={() => toggle('estoque')}>
+            
+            <span style={{ fontSize: 12, fontWeight: 700 }}>▤ Estoque</span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 10, color: '#2e7d32', textDecoration: 'underline' }}>Ver tudo →</span>
+              <span style={{ fontSize: 11, color: '#aaa' }}>{expanded.estoque ? '▴' : '▾'}</span>
+            </div>
+          </div>
+          {expanded.estoque &&
+          <>
+              {[['Nanica', 16635, 87], ['Prata', 2054, 11], ['Maçã', 288, 2]].map(([n, v, p]) =>
+            <div key={n} style={{ marginBottom: 5 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                    <span style={{ color: '#444' }}>{n}</span>
+                    <span style={{ fontWeight: 700 }}>{Number(v).toLocaleString('pt-BR')} kg</span>
+                  </div>
+                  <Bar pct={p} />
+                </div>
+            )}
+            </>
+          }
+        </div>
+
+        <div className="divider" />
+
+        {/* Seção Metas — colapsada */}
+        <div
+          className="sr muted"
+          style={{ padding: '6px 9px', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          onClick={() => toggle('metas')}>
+          
+          <span style={{ fontSize: 12, fontWeight: 700 }}>◈ Metas Ativas <span className="chip g" style={{ marginLeft: 4 }}>12</span></span>
+          <span style={{ fontSize: 13 }}>{expanded.metas ? '▴' : '▾'}</span>
+        </div>
+        {expanded.metas &&
+        <div style={{ marginBottom: 6 }}>
+            {[['Banana Nanica', 83, 'y'], ['Alface Crespa', 100, 'g'], ['Banana Prata', 41, '']].map(([n, p, c]) =>
+          <div key={n} style={{ marginBottom: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+                  <span>{n}</span><span style={{ fontWeight: 700 }}>{p}%</span>
+                </div>
+                <Bar pct={p} />
+              </div>
+          )}
+            <span style={{ fontSize: 10, color: '#888', textDecoration: 'underline' }}>Ver todas →</span>
+          </div>
+        }
+
+        <div className="divider" />
+
+        {/* Seção Preços — colapsada */}
+        <div
+          className="sr muted"
+          style={{ padding: '6px 9px', marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          onClick={() => toggle('precos')}>
+          
+          <span style={{ fontSize: 12, fontWeight: 700 }}>◈ Preços <span style={{ fontSize: 9, color: '#888', fontWeight: 400 }}>concorrentes</span></span>
+          <span style={{ fontSize: 13 }}>{expanded.precos ? '▴' : '▾'}</span>
+        </div>
+
+        {/* Mita banner */}
+        <div className="sr dark" style={{ padding: '8px 10px', marginTop: 4 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span>◎</span> Pergunte à Mita
+          </div>
+          <div style={{ height: 22, border: '1.5px solid #555', borderRadius: 5, background: '#333', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+            <span style={{ fontSize: 9, color: '#777' }}>Como está o estoque hoje?</span>
+          </div>
+        </div>
+        <div style={{ height: 8 }} />
+      </div>
+      <BottomNav active="home" />
+    </Phone>);
+
+}
+
+// ─── SCREEN: ESTOQUE DETALHE ──────────────────────────────
+
+function ScreenEstoque() {
+  return (
+    <Phone label="2. Estoque — Detalhe">
+      <StatusBar />
+      <SectionHeader back="Início" title="Estoque de Bananas" subtitle="Saldo e movimentações em tempo real" />
+      <KpiStrip items={[
+      { label: 'Saldo Total', value: '19.057 kg', sub: 'consolidado' },
+      { label: 'Saídas', value: '74.680 kg', cls: 'y', sub: 'acumuladas' },
+      { label: 'Risco', value: 'Terra', cls: 'r', sub: 'menor saldo' }]
+      } />
+      <div className="scroll-area" style={{ padding: '0 10px 10px' }}>
+        {/* Mita insight */}
+        <div className="sr g" style={{ padding: '6px 8px', marginBottom: 8 }}>
+          <div style={{ fontSize: 9, color: '#888', marginBottom: 1 }}>◎ Mita detectou</div>
+          <div style={{ fontSize: 10, color: '#1b5e20', lineHeight: 1.4 }}>
+            Menor cobertura para <strong>Banana da Terra</strong> (80 kg). Reposição recomendada nas próximas 48h.
+          </div>
+        </div>
+
+        {/* Distribuição */}
+        <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>Distribuição de Saldo</div>
+        {[['Banana Nanica', 16635, 87], ['Banana Prata', 2054, 11], ['Banana Maçã', 288, 1.5], ['Banana da Terra', 80, 0.4]].map(([n, v, p]) =>
+        <div key={n} style={{ marginBottom: 7 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+              <span style={{ color: '#444' }}>{n}</span>
+              <span style={{ fontWeight: 700 }}>{Number(v).toLocaleString('pt-BR')} kg</span>
+            </div>
+            <Bar pct={p} />
+          </div>
+        )}
+
+        <div className="divider" />
+
+        {/* Fluxo recente */}
+        <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>Fluxo Recente</div>
+        {[
+        { t: '+', p: 'Banana Nanica', q: '1.200 kg', l: 'Loja Centro', c: '#c8e6c9' },
+        { t: '-', p: 'Banana Prata', q: '340 kg', l: 'Loja Sul', c: '#ffcdd2' },
+        { t: '+', p: 'Banana Nanica', q: '800 kg', l: 'Importação', c: '#c8e6c9' },
+        { t: '-', p: 'Banana da Terra', q: '20 kg', l: 'Loja Norte', c: '#ffcdd2' }].
+        map((item, i) =>
+        <div key={i} className="sr" style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5, padding: '5px 8px' }}>
+            <div style={{ width: 20, height: 20, borderRadius: 5, background: item.c, border: '1px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{item.t}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 700 }}>{item.p}</div>
+              <div style={{ fontSize: 9, color: '#999' }}>{item.l}</div>
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700 }}>{item.q}</div>
+          </div>
+        )}
+
+        {/* Ação */}
+        <div className="sr dark" style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}>
+          <span style={{ fontSize: 12 }}>+</span>
+          <span style={{ fontSize: 12, fontWeight: 700 }}>Nova Movimentação</span>
+        </div>
+      </div>
+      <BottomNav active="estoque" />
+    </Phone>);
+
+}
+
+// ─── SCREEN: CAIXAS DETALHE ───────────────────────────────
+
+function ScreenCaixas() {
+  return (
+    <Phone label="3. Caixas — Detalhe">
+      <StatusBar />
+      <SectionHeader back="Início" title="Caixas das Lojas" subtitle="Volume e status de entrega" />
+      <KpiStrip items={[
+      { label: 'Vol. Total', value: '74.680 kg', sub: 'entregue' },
+      { label: 'Caixas', value: '0', sub: 'registradas' },
+      { label: 'Status', value: '—', cls: 'muted', sub: 'pendências' }]
+      } />
+      <div className="scroll-area" style={{ padding: '0 10px 10px' }}>
+        {/* Filtros */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+          {['Todas', 'Entregue', 'Pendente'].map((c, i) =>
+          <span key={c} className={`chip ${i === 0 ? 'active' : ''}`}>{c}</span>
+          )}
+        </div>
+
+        {/* Lista de caixas por loja */}
+        {[
+        { loja: 'Loja Centro', tipo: 'Banana Nanica', total: '2.400 kg', status: 'Entregue', sc: 'g' },
+        { loja: 'Loja Sul', tipo: 'Mix Banana', total: '1.800 kg', status: 'Entregue', sc: 'g' },
+        { loja: 'Loja Norte', tipo: 'Banana Prata', total: '900 kg', status: 'Pendente', sc: 'y' },
+        { loja: 'Loja Leste', tipo: 'Banana Nanica', total: '600 kg', status: 'Pendente', sc: 'y' },
+        { loja: 'Loja Oeste', tipo: 'Banana Maçã', total: '200 kg', status: 'Entregue', sc: 'g' }].
+        map((item, i) =>
+        <div key={i} className="sr" style={{ marginBottom: 6, padding: '7px 9px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700 }}>{item.loja}</div>
+              <div style={{ fontSize: 9, color: '#999' }}>{item.tipo}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 12, fontWeight: 700 }}>{item.total}</div>
+              <span className={`chip ${item.sc}`}>{item.status}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="divider" />
+        <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>Tipos de Caixa</div>
+        {[['Caixa P', 45], ['Caixa M', 80], ['Caixa G', 120]].map(([t, v]) =>
+        <div key={t} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
+            <span>{t}</span><span style={{ fontWeight: 700 }}>{v} unidades</span>
+          </div>
+        )}
+      </div>
+      <BottomNav active="caixas" />
+    </Phone>);
+
+}
+
+// ─── SCREEN: PREÇOS LISTA FILTRADA ───────────────────────
+
+function ScreenPrecos() {
+  return (
+    <Phone label="4. Preços — Lista Filtrada">
+      <StatusBar />
+      <SectionHeader back="Início" title="Preços Concorrentes" />
+      <div className="scroll-area" style={{ padding: '8px 10px' }}>
+        {/* Busca */}
+        <div className="sr" style={{ padding: '5px 8px', display: 'flex', gap: 5, alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 12, color: '#ccc' }}>⌕</span>
+          <span style={{ fontSize: 10, color: '#bbb' }}>Buscar produto ou estabelecimento...</span>
+        </div>
+
+        {/* Filtros */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+          {['Todos', 'Frutas', 'Legumes', 'Verduras', 'Hoje'].map((c, i) =>
+          <span key={c} className={`chip ${i === 0 ? 'active' : ''}`}>{c}</span>
+          )}
+        </div>
+
+        {/* Resumo */}
+        <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+          <div className="sr" style={{ flex: 1, padding: '5px 7px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#999' }}>Preço Médio</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>R$ 2,40</div>
+            <div style={{ fontSize: 8, color: '#999' }}>por kg</div>
+          </div>
+          <div className="sr" style={{ flex: 1, padding: '5px 7px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#999' }}>Mais Barato</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>R$ 1,80</div>
+            <div style={{ fontSize: 8, color: '#2e7d32' }}>Loja Sul</div>
+          </div>
+          <div className="sr" style={{ flex: 1, padding: '5px 7px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#999' }}>Mais Caro</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>R$ 3,20</div>
+            <div style={{ fontSize: 8, color: '#c62828' }}>Mercado X</div>
+          </div>
+        </div>
+
+        {/* Lista */}
+        {[
+        { p: 'Banana Nanica', est: 'Mercado Central', preco: 'R$ 2,20/kg', cat: 'Frutas', destaque: false },
+        { p: 'Banana Nanica', est: 'Loja Sul', preco: 'R$ 1,80/kg', cat: 'Frutas', destaque: true },
+        { p: 'Banana Prata', est: 'Mercado X', preco: 'R$ 3,20/kg', cat: 'Frutas', destaque: false },
+        { p: 'Alface Crespa', est: 'Atacado Norte', preco: 'R$ 0,90/un', cat: 'Verduras', destaque: false },
+        { p: 'Cenoura', est: 'Loja Norte', preco: 'R$ 4,50/kg', cat: 'Legumes', destaque: false }].
+        map((item, i) =>
+        <div key={i} className={`sr ${item.destaque ? 'g' : ''}`} style={{ marginBottom: 5, padding: '6px 9px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700 }}>{item.p}</div>
+              <div style={{ fontSize: 9, color: '#888' }}>{item.est}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: item.destaque ? '#1b5e20' : '#1a1a1a' }}>{item.preco}</div>
+              <span className="chip" style={{ fontSize: 8 }}>{item.cat}</span>
+            </div>
+          </div>
+        )}
+      </div>
+      <BottomNav active="precos" />
+    </Phone>);
+
+}
+
+// ─── SCREEN: LOJAS (lista) + LOJA DETALHE ────────────────
+
+const LOJAS_DATA = [
+{ nome: 'Loja 01', cidade: 'Alto Tietê', status: 'Ativa', massa: '1.979,6 kg', unidades: '9.136', fat: 'R$ 37.194,46',
+  produtos: [
+  { p: 'Batata Lavada KG', kg: '1.000 KG', un: '1.000', val: 'R$ 3.850,00' },
+  { p: 'Repolho Verde KG', kg: '427 KG', un: '427', val: 'R$ 1.678,11' },
+  { p: 'Mexerica Ponkan KG', kg: '360 KG', un: '360', val: 'R$ 1.404,00' },
+  { p: 'Morango 250g', kg: '120 KG', un: '480', val: 'R$ 3.969,00' },
+  { p: 'Pimentão Verde KG', kg: '30 KG', un: '30', val: 'R$ 294,00' }]
+
+},
+{ nome: 'Loja 02', cidade: 'Centro', status: 'Ativa', massa: '2.400 kg', unidades: '11.200', fat: 'R$ 44.800,00', produtos: [] },
+{ nome: 'Loja 03', cidade: 'Sul', status: 'Ativa', massa: '1.800 kg', unidades: '8.400', fat: 'R$ 33.600,00', produtos: [] },
+{ nome: 'Loja 04', cidade: 'Norte', status: 'Pendente', massa: '900 kg', unidades: '4.200', fat: 'R$ 16.800,00', produtos: [] },
+{ nome: 'Loja 05', cidade: 'Oeste', status: 'Inativa', massa: '—', unidades: '—', fat: '—', produtos: [] }];
+
+
+function ScreenLojas() {
+  const [selected, setSelected] = useState(null);
+  if (selected !== null) return <ScreenLojaDetalhe loja={LOJAS_DATA[selected]} onBack={() => setSelected(null)} />;
+  return (
+    <Phone label="5. Lojas — Lista">
+      <StatusBar />
+      <SectionHeader back="Início" title="Lojas" subtitle="Toque para ver detalhes e caixas" />
+      <div className="scroll-area" style={{ padding: '8px 10px' }}>
+        <div className="sr" style={{ padding: '5px 8px', display: 'flex', gap: 5, alignItems: 'center', marginBottom: 7 }}>
+          <span style={{ fontSize: 12, color: '#ccc' }}>⌕</span>
+          <span style={{ fontSize: 10, color: '#bbb' }}>Buscar loja...</span>
+        </div>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
+          {['Todas', 'Ativas', 'Pendente', 'Inativas'].map((c, i) =>
+          <span key={c} className={`chip ${i === 0 ? 'active' : ''}`}>{c}</span>
+          )}
+        </div>
+        {LOJAS_DATA.map((loja, i) =>
+        <div
+          key={i} className="sr"
+          style={{ marginBottom: 6, padding: '8px 10px', cursor: 'pointer' }}
+          onClick={() => setSelected(i)}>
+          
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700 }}>{loja.nome}</div>
+                <div style={{ fontSize: 9, color: '#999' }}>Loja · {loja.cidade}</div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                <span className={`chip ${loja.status === 'Ativa' ? 'g' : loja.status === 'Pendente' ? 'y' : 'r'}`}>{loja.status}</span>
+                <span style={{ fontSize: 9, color: '#888' }}>{loja.fat}</span>
+              </div>
+            </div>
+            {loja.status !== 'Inativa' &&
+          <div style={{ display: 'flex', gap: 10, marginTop: 5, fontSize: 9, color: '#888' }}>
+                <span>⊡ {loja.massa}</span>
+                <span>◻ {loja.unidades} un</span>
+                <span style={{ marginLeft: 'auto', color: '#888' }}>ver detalhes →</span>
+              </div>
+          }
+          </div>
+        )}
+      </div>
+      <BottomNav active="lojas" />
+    </Phone>);
+
+}
+
+function ScreenLojaDetalhe({ loja, onBack }) {
+  return (
+    <Phone label="5b. Loja — Detalhe">
+      <StatusBar />
+      {/* Header */}
+      <div style={{ padding: '10px 10px 7px', borderBottom: '1.5px solid #eee', flexShrink: 0 }}>
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer' }} onClick={onBack}>
+          <span>◀</span><span>Lojas</span>
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>{loja.nome}</div>
+        <div style={{ fontSize: 9, color: '#999' }}>Loja · {loja.cidade}</div>
+      </div>
+
+      {/* KPIs: Massa, Unidades, Faturamento */}
+      <div style={{ display: 'flex', padding: '7px 10px', flexShrink: 0, width: "25.545px", gap: "5px", fontWeight: "300" }}>
+        <div className="sr" style={{ flex: 1, padding: '6px 7px', width: "70000.7px" }}>
+          <div style={{ fontSize: 8, color: '#888' }}>⊡ Massa Total</div>
+          <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.2 }}>{loja.massa}</div>
+          <div style={{ fontSize: 8, color: '#999' }}>Volume distribuído</div>
+        </div>
+        <div className="sr" style={{ flex: 1, padding: '6px 7px' }}>
+          <div style={{ fontSize: 8, color: '#888' }}>◻ Unidades</div>
+          <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.2 }}>{loja.unidades}</div>
+          <div style={{ fontSize: 8, color: '#999' }}>Itens unitários</div>
+        </div>
+        <div className="sr g" style={{ flex: 1, padding: '6px 7px' }}>
+          <div style={{ fontSize: 8, color: '#2e7d32' }}>↗ Faturamento</div>
+          <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.2, color: '#1b5e20' }}>{loja.fat}</div>
+          <div style={{ fontSize: 8, color: '#999' }}>Valor da venda</div>
+        </div>
+      </div>
+
+      {/* Caixas */}
+      <div style={{ padding: '0 10px 6px', flexShrink: 0 }}>
+        <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>⊡ Caixas</div>
+        {/* Status */}
+        <div style={{ display: 'flex', gap: 5, marginBottom: 6 }}>
+          <div className="sr g" style={{ flex: 1, padding: '5px 7px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#2e7d32' }}>Entregue</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>18</div>
+          </div>
+          <div className="sr y" style={{ flex: 1, padding: '5px 7px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#f9a825' }}>Pendente</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>3</div>
+          </div>
+          <div className="sr" style={{ flex: 1, padding: '5px 7px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#888' }}>Total</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>21</div>
+          </div>
+        </div>
+        {/* Tipos de caixa */}
+        {[['Caixa P', '8 un', '240 kg', 'g'], ['Caixa M', '9 un', '720 kg', ''], ['Caixa G', '4 un', '1.019,6 kg', '']].map(([tipo, un, kg, cls]) =>
+        <div key={tipo} className={`sr ${cls}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, padding: '4px 8px' }}>
+            <span style={{ fontSize: 11, fontWeight: 700 }}>{tipo}</span>
+            <span style={{ fontSize: 9, color: '#888' }}>{un}</span>
+            <span style={{ fontSize: 10, fontWeight: 700 }}>{kg}</span>
+          </div>
+        )}
+        <div className="divider" />
+      </div>
+
+      {/* Composição por Produto */}
+      <div className="scroll-area" style={{ padding: '0 10px 10px' }}>
+        <div style={{ fontSize: 10, color: '#888', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>
+          Composição por Produto
+        </div>
+
+        {/* Cabeçalho da tabela */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 4, padding: '0 2px' }}>
+          <div style={{ flex: 2, fontSize: 8, color: '#aaa', textTransform: 'uppercase', letterSpacing: 0.5 }}>Produto</div>
+          <div style={{ flex: 1, fontSize: 8, color: '#aaa', textTransform: 'uppercase', textAlign: 'right' }}>KG</div>
+          <div style={{ flex: 1, fontSize: 8, color: '#aaa', textTransform: 'uppercase', textAlign: 'right' }}>Un</div>
+          <div style={{ flex: 1, fontSize: 8, color: '#aaa', textTransform: 'uppercase', textAlign: 'right' }}>Valor</div>
+        </div>
+
+        {loja.produtos.length === 0 ?
+        <div className="sr muted" style={{ padding: '8px', textAlign: 'center', fontSize: 10, color: '#aaa' }}>
+            Sem composição disponível
+          </div> :
+        loja.produtos.map((item, i) =>
+        <div key={i} style={{
+          display: 'flex', gap: 4, padding: '5px 2px',
+          borderBottom: '1px dashed #eee', alignItems: 'center'
+        }}>
+            <div style={{ flex: 2, fontSize: 10, fontWeight: 700, lineHeight: 1.2 }}>{item.p}</div>
+            <div style={{ flex: 1, fontSize: 9, textAlign: 'right', color: '#555' }}>{item.kg}</div>
+            <div style={{ flex: 1, fontSize: 9, textAlign: 'right', color: '#555' }}>{item.un}</div>
+            <div style={{ flex: 1, fontSize: 9, textAlign: 'right', fontWeight: 700, color: '#1b5e20' }}>{item.val}</div>
+          </div>
+        )}
+      </div>
+      <BottomNav active="lojas" />
+    </Phone>);
+
+}
+
+// ─── SCREEN: MITA CHAT ────────────────────────────────────
+
+function ScreenMita() {
+  return (
+    <Phone label="6. Mita — Tab Dedicada">
+      <StatusBar />
+      {/* Header */}
+      <div style={{ padding: '8px 10px 7px', borderBottom: '1.5px solid #eee', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#fff', flexShrink: 0 }}>◎</div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Mita</div>
+            <div style={{ fontSize: 9, color: '#2e7d32' }}>● online · sua gerente de dados</div>
+          </div>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+            <div className="sr" style={{ padding: '2px 6px', fontSize: 9 }}>Limpar</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Chat area */}
+      <div className="scroll-area" style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {/* Sugestões rápidas */}
+        <div style={{ fontSize: 9, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1 }}>Perguntas sugeridas</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {['Como está o estoque hoje?', 'Top 5 progresso de metas', 'Risco de ruptura agora'].map((q) =>
+          <div key={q} className="sr muted" style={{ padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 10 }}>{q}</span>
+              <span style={{ fontSize: 11, color: '#888' }}>→</span>
+            </div>
+          )}
+        </div>
+
+        <div className="divider" />
+
+        {/* Mensagens */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div className="sr dark" style={{ padding: '6px 10px', maxWidth: '80%', borderRadius: '12px 12px 2px 12px', fontSize: 11, lineHeight: 1.4 }}>
+            Como está o estoque de Nanica?
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 5, alignItems: 'flex-end' }}>
+          <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', flexShrink: 0 }}>◎</div>
+          <div className="sr g" style={{ padding: '6px 10px', maxWidth: '80%', borderRadius: '12px 12px 12px 2px', fontSize: 11, color: '#1b5e20', lineHeight: 1.4 }}>
+            Temos <strong>16.635 kg</strong> disponíveis, 87% do estoque total. Sem risco de ruptura no momento ✅
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div className="sr dark" style={{ padding: '6px 10px', maxWidth: '80%', borderRadius: '12px 12px 2px 12px', fontSize: 11, lineHeight: 1.4 }}>
+            E a Banana da Terra?
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 5, alignItems: 'flex-end' }}>
+          <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', flexShrink: 0 }}>◎</div>
+          <div className="sr" style={{ padding: '6px 10px', maxWidth: '80%', borderRadius: '12px 12px 12px 2px', fontSize: 11, background: '#fff9c4', borderColor: '#f9a825', color: '#7c5200', lineHeight: 1.4 }}>
+            ⚠️ Apenas <strong>80 kg</strong> em estoque. Risco de ruptura se não houver reposição em 48h.
+          </div>
+        </div>
+
+        {/* Typing indicator */}
+        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+          <div style={{ width: 20, height: 20, borderRadius: '50%', background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', flexShrink: 0 }}>◎</div>
+          <div className="sr muted" style={{ padding: '5px 10px', display: 'flex', gap: 3, alignItems: 'center' }}>
+            {[0, 1, 2].map((i) => <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: '#999' }} />)}
+          </div>
+        </div>
+        <div style={{ height: 4 }} />
+      </div>
+
+      {/* Input */}
+      <div style={{ padding: '5px 8px', borderTop: '1.5px solid #eee', display: 'flex', gap: 5, flexShrink: 0 }}>
+        <div className="sr" style={{ flex: 1, height: 30, display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+          <span style={{ fontSize: 10, color: '#bbb' }}>Pergunte sobre seus dados...</span>
+        </div>
+        <div className="sr dark" style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>→</div>
+      </div>
+
+      <BottomNav active="mita" />
+    </Phone>);
+
+}
+
+// ─── SCREEN: METAS (parte do Painel) ──────────────────────
+
+function ScreenMetas() {
+  return (
+    <Phone label="7. Metas (do Painel)">
+      <StatusBar />
+      <SectionHeader back="Início" title="Metas Ativas" subtitle="12 metas no painel" />
+      <div className="scroll-area" style={{ padding: '7px 10px' }}>
+        {/* KPIs */}
+        <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+          <div className="sr" style={{ flex: 1, padding: '5px 7px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#999' }}>Média Entrega</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>84%</div>
+          </div>
+          <div className="sr g" style={{ flex: 1, padding: '5px 7px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#2e7d32' }}>Atingidas</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>3</div>
+          </div>
+          <div className="sr y" style={{ flex: 1, padding: '5px 7px', textAlign: 'center' }}>
+            <div style={{ fontSize: 8, color: '#f9a825' }}>Próximas</div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>4</div>
+          </div>
+        </div>
+
+        {/* Filtros */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 7, flexWrap: 'wrap' }}>
+          {['Todos', 'Frutas', 'Legumes', 'Verduras', 'Atingidas'].map((c, i) =>
+          <span key={c} className={`chip ${i === 0 ? 'active' : ''}`}>{c}</span>
+          )}
+        </div>
+
+        {/* Lista */}
+        {[
+        { p: 'Banana Nanica', meta: 20000, pedido: 16635, pct: 83, sc: 'y', s: 'Próxima' },
+        { p: 'Alface Crespa', meta: 800, pedido: 800, pct: 100, sc: 'g', s: 'Atingida' },
+        { p: 'Banana Prata', meta: 5000, pedido: 2054, pct: 41, sc: '', s: 'Pendente' },
+        { p: 'Cenoura', meta: 1200, pedido: 864, pct: 72, sc: 'y', s: 'Próxima' },
+        { p: 'Banana Maçã', meta: 1000, pedido: 288, pct: 29, sc: '', s: 'Pendente' }].
+        map((item, i) =>
+        <div key={i} className="sr" style={{ marginBottom: 6, padding: '7px 9px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 700 }}>{item.p}</div>
+              <span className={`chip ${item.sc}`}>{item.s}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#888', marginBottom: 3 }}>
+              <span>Meta: {item.meta.toLocaleString('pt-BR')} · Pedido: {item.pedido.toLocaleString('pt-BR')}</span>
+              <span style={{ fontWeight: 700, color: '#1a1a1a' }}>{item.pct}%</span>
+            </div>
+            <Bar pct={item.pct} />
+          </div>
+        )}
+      </div>
+      <BottomNav active="home" />
+    </Phone>);
+
+}
+
+// ─── FLOW CONNECTORS ─────────────────────────────────────
+
+function Arrow({ label }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: 55, gap: 3 }}>
+      <div style={{ fontSize: 22, color: '#bbb' }}>→</div>
+      {label && <div style={{ fontSize: 10, color: '#aaa', fontFamily: 'Caveat', textAlign: 'center', maxWidth: 60 }}>{label}</div>}
+    </div>);
+
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────
+
+function App() {
+  const [tab, setTab] = useState('flow');
+  const tabs = [
+  { key: 'flow', label: '① Fluxo Principal' },
+  { key: 'details', label: '② Telas de Detalhe' },
+  { key: 'mita', label: '③ Mita AI' },
+  { key: 'arch', label: '④ Arquitetura' }];
+
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f0ebe0' }}>
+      {/* Tab bar */}
+      <div className="tabs">
+        <span className="tabs-title">Benverde Mobile — v2</span>
+        {tabs.map((t) =>
+        <button key={t.key} className={`tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>{t.label}</button>
+        )}
+      </div>
+
+      {/* ① FLUXO PRINCIPAL */}
+      {tab === 'flow' &&
+      <div className="canvas">
+          <div className="section-title">Fluxo de Navegação Principal</div>
+          <div className="section-sub">Home feed → tap em bloco → tela de detalhe. Nav bottom sempre presente.</div>
+          <div className="flow-row" style={{ alignItems: 'flex-start' }}>
+            <ScreenHome />
+            <Arrow label="tap em bloco" />
+            <ScreenEstoque />
+            <Arrow label="tap em bloco" />
+            <ScreenMetas />
+          </div>
+        </div>
+      }
+
+      {/* ② TELAS DE DETALHE */}
+      {tab === 'details' &&
+      <div className="canvas">
+          <div className="section-title">Telas de Detalhe por Seção</div>
+          <div className="section-sub">Clique nas telas para ampliar. Lojas inclui detalhe de caixas integrado.</div>
+          <div className="flow-row">
+            <ScreenEstoque />
+            <ScreenPrecos />
+            <ScreenLojas />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <div className="section-title" style={{ fontSize: 16 }}>Detalhe da Loja (ao tocar num card)</div>
+            <div className="section-sub" style={{ marginBottom: 12 }}>KPIs de caixas no topo + composição por produto</div>
+            <div className="flow-row">
+              <ScreenLojaDetalhe loja={LOJAS_DATA[0]} onBack={() => {}} />
+              <div style={{ marginTop: 40, maxWidth: 220, fontFamily: 'Caveat', fontSize: 13, color: '#555', lineHeight: 1.7 }}>
+                <div className="sr" style={{ padding: 12, marginBottom: 8 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 4 }}>📦 Caixas integradas em Lojas</div>
+                  <div>• Seção "Caixas" removida da nav</div>
+                  <div>• KPIs Massa / Unidades / Faturamento no topo</div>
+                  <div>• Tabela de composição por produto abaixo</div>
+                  <div>• Mesmo padrão do dashboard desktop</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+
+      {/* ③ MITA AI */}
+      {tab === 'mita' &&
+      <div className="canvas">
+          <div className="section-title">Mita — Tab Dedicada</div>
+          <div className="section-sub">Chat IA nativo como tab principal da nav. Sugestões contextuais + histórico.</div>
+          <div className="flow-row" style={{ alignItems: 'flex-start' }}>
+            <ScreenMita />
+            <div style={{ marginTop: 60, maxWidth: 260, fontFamily: 'Caveat', fontSize: 13, color: '#555', lineHeight: 1.7 }}>
+              <div className="sr" style={{ padding: 14, marginBottom: 10 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>🤖 Comportamento da Mita</div>
+                <div>• Sugestões de perguntas na abertura</div>
+                <div>• Histórico de conversa persistido</div>
+                <div>• Contexto automático por dado da tela</div>
+                <div>• Indicador de "digitando..."</div>
+                <div>• Botão limpar conversa</div>
+              </div>
+              <div className="sr g" style={{ padding: 14, marginBottom: 10 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4, color: '#1b5e20' }}>💡 Insights proativos</div>
+                <div style={{ color: '#2e7d32' }}>Na home e nas telas de detalhe, a Mita exibe um banner contextual com alertas automáticos (ex: risco de ruptura, meta quase atingida).</div>
+              </div>
+              <div className="sr y" style={{ padding: 14 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4, color: '#7c5200' }}>📲 Entrada de perguntas</div>
+                <div style={{ color: '#7c5200' }}>Input fixo no rodapé. Enter envia. Botão de perguntas sugeridas como atalho rápido.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+
+      {/* ④ ARQUITETURA */}
+      {tab === 'arch' &&
+      <div className="canvas">
+          <div className="section-title">Arquitetura de Informação</div>
+          <div className="section-sub">Mapa de telas e navegação acordada.</div>
+          <div style={{ maxWidth: 700, fontFamily: 'Caveat', fontSize: 14, lineHeight: 1.8 }}>
+            <div className="sr dark" style={{ padding: '10px 16px', marginBottom: 12, borderRadius: 8 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>📱 Nav Bottom (5 tabs fixas)</div>
+              {['🏠 Início (Home Feed)', '▤ Estoque', '◈ Preços', '⊙ Lojas (+ Caixas integrado)', '◎ Mita'].map((t) =>
+            <div key={t} style={{ color: '#ccc', fontSize: 13 }}>• {t}</div>
+            )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {[
+            {
+              title: '🏠 Home Feed', cls: '',
+              items: [
+              'Banner Mita contextual',
+              'Card expandível → Estoque',
+              'Card expandível → Metas',
+              'Card expandível → Preços',
+              'Card expandível → Lojas']
+
+            },
+            {
+              title: '▤ Estoque Detalhe', cls: 'g',
+              items: [
+              'KPIs: Saldo, Saídas, Risco',
+              'Banner insight Mita',
+              'Distribuição por variedade',
+              'Fluxo de movimentação',
+              'Botão: Nova Movimentação']
+
+            },
+            {
+              title: '◈ Preços — Lista Filtrada', cls: '',
+              items: [
+              'Busca por produto/estabelecimento',
+              'Filtros por categoria',
+              'Resumo: médio / mais barato / mais caro',
+              'Lista filtrada de preços']
+
+            },
+            {
+              title: '⊙ Lojas — Lista + Detalhe', cls: 'y',
+              items: [
+              'Busca e filtro status',
+              'Card por loja: massa, unidades, faturamento',
+              '→ Detalhe: KPIs de caixas (Massa / Un / Fat)',
+              '→ Detalhe: tabela Composição por Produto',
+              'Caixas integradas no detalhe da loja']
+
+            },
+            {
+              title: '◎ Mita Chat', cls: 'g',
+              items: [
+              'Tab dedicada na nav',
+              'Perguntas sugeridas na abertura',
+              'Histórico de conversa persistido',
+              'Contexto automático de dados',
+              'Banners proativos nas outras telas']
+
+            }].
+            map((card) =>
+            <div key={card.title} className={`sr ${card.cls}`} style={{ padding: '10px 12px' }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 5 }}>{card.title}</div>
+                  {card.items.map((i) => <div key={i} style={{ fontSize: 11, color: '#555' }}>· {i}</div>)}
+                </div>
+            )}
+            </div>
+
+            <div className="sr" style={{ padding: '10px 14px', marginTop: 12, background: '#f9f9f9' }}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>🔀 Gestos e navegação</div>
+              <div style={{ fontSize: 12, color: '#666' }}>
+                • Nav bottom para troca entre tabs principais<br />
+                • Back (◀) para retornar da tela de detalhe<br />
+                • Pull-to-refresh em todas as telas de dados<br />
+                • Tap em card da home → push para detalhe
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+    </div>);
+
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -5,10 +5,14 @@ import { createCaixa, getCaixas } from "@/lib/server/caixas";
 import { toErrorResponse } from "@/lib/server/errors";
 import { readJsonBody } from "@/lib/server/http";
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request) {
   try {
     await requireDashboardScope("caixas");
-    return NextResponse.json(await getCaixas());
+    const { searchParams } = new URL(request.url);
+    const mes = searchParams.get("mes");
+    return NextResponse.json(await getCaixas(mes || undefined));
   } catch (error) {
     return toErrorResponse(error);
   }

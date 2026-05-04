@@ -104,6 +104,7 @@ function SimpleTable<T>({ columns, data }: SimpleTableProps<T>) {
 
 export default function LojasPage() {
     const [viewMode, setViewMode] = useState<'lojas' | 'grupos'>('lojas');
+    const [mes, setMes] = useState('');
     const [lojas, setLojas] = useState<LojaData[]>([]);
     const [grupos, setGrupos] = useState<GrupoData[]>([]);
     
@@ -115,7 +116,8 @@ export default function LojasPage() {
         async function fetchLojas() {
             try {
                 setIsLoading(true);
-                const { data } = await api.get("/api/dashboard/lojas");
+                const q = mes ? `?mes=${mes}` : '';
+                const { data } = await api.get(`/api/dashboard/lojas${q}`);
                 const lojasData: LojaData[] = data.lojas || [];
                 setLojas(lojasData);
 
@@ -154,7 +156,7 @@ export default function LojasPage() {
             }
         }
         fetchLojas();
-    }, []);
+    }, [mes]);
 
     if (isLoading) {
         return (
@@ -183,9 +185,11 @@ export default function LojasPage() {
                     <ArrowLeft size={16} /> Voltar para {viewMode === 'lojas' ? 'Lojas' : 'Grupos'}
                 </button>
                 <header className="mb-8">
-                    <h1 className="text-3xl font-bold tracking-tight text-white">{entityData.nome}</h1>
+                    <h1 className="text-3xl font-bold tracking-tight text-white">
+                        {selectedEntity.type === 'loja' ? `${(entityData as LojaData).grupo || 'Geral'} - Loja ${(entityData as LojaData).id}` : entityData.nome}
+                    </h1>
                     <p className="text-slate-400 mt-1">
-                        {selectedEntity.type === 'loja' ? `Loja • ${(entityData as LojaData).grupo || "Sem grupo"}` : `Grupo Geográfico • ${(entityData as GrupoData).lojasCount} loja(s)`}
+                        {selectedEntity.type === 'loja' ? `Loja • ${entityData.nome}` : `Grupo Geográfico • ${(entityData as GrupoData).lojasCount} loja(s)`}
                     </p>
                 </header>
 
@@ -236,27 +240,35 @@ export default function LojasPage() {
                         Visualize indicadores de performance das unidades.
                     </p>
                 </div>
-                <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 backdrop-blur-md">
-                    <button
-                        onClick={() => setViewMode('lojas')}
-                        className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                            viewMode === 'lojas'
-                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                                : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        <Store size={16} /> Lojas
-                    </button>
-                    <button
-                        onClick={() => setViewMode('grupos')}
-                        className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all ${
-                            viewMode === 'grupos'
-                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                                : 'text-slate-400 hover:text-white'
-                        }`}
-                    >
-                        <Map size={16} /> Grupos Geográficos
-                    </button>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <input 
+                        type="month" 
+                        value={mes} 
+                        onChange={(e) => setMes(e.target.value)}
+                        className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white backdrop-blur-md outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1 backdrop-blur-md">
+                        <button
+                            onClick={() => setViewMode('lojas')}
+                            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                                viewMode === 'lojas'
+                                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                                    : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            <Store size={16} /> Lojas
+                        </button>
+                        <button
+                            onClick={() => setViewMode('grupos')}
+                            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all ${
+                                viewMode === 'grupos'
+                                    ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                                    : 'text-slate-400 hover:text-white'
+                            }`}
+                        >
+                            <Map size={16} /> Grupos Geográficos
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -274,8 +286,10 @@ export default function LojasPage() {
                                         <Store size={20} />
                                     </div>
                                     <div>
-                                        <h3 className="font-semibold text-white group-hover:text-emerald-400 transition-colors line-clamp-1">{loja.nome}</h3>
-                                        <p className="text-xs text-slate-400">{loja.grupo || "Sem grupo"}</p>
+                                        <h3 className="font-semibold text-white group-hover:text-emerald-400 transition-colors line-clamp-1">
+                                            {loja.grupo || 'Geral'} - Loja {loja.id}
+                                        </h3>
+                                        <p className="text-xs text-slate-400">{loja.nome}</p>
                                     </div>
                                 </div>
                                 <div className="rounded-full bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-300 border border-white/5 line-clamp-1 truncate max-w-[80px]" title={loja.id}>

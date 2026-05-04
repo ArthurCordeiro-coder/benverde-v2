@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Benverde Mobile – Wireframes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f5f0e8; font-family: 'Caveat', cursive; }
+
+  /* Sketchy phone frame */
+  .phone {
+    width: 260px;
+    height: 520px;
+    border: 3px solid #1a1a1a;
+    border-radius: 32px;
+    background: #fafaf7;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 4px 4px 0px #1a1a1a;
+  }
+  .phone-notch {
+    width: 80px; height: 18px;
+    background: #1a1a1a;
+    border-radius: 0 0 12px 12px;
+    margin: 0 auto;
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  }
+  .phone-screen {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Sketchy elements */
+  .sketch-rect {
+    border: 2px solid #1a1a1a;
+    border-radius: 6px;
+    background: #fff;
+    position: relative;
+  }
+  .sketch-rect.filled { background: #1a1a1a; color: #fff; }
+  .sketch-rect.tinted { background: #e8f5e9; }
+  .sketch-rect.accent { background: #1a1a1a; }
+  .sketch-rect.green { background: #c8e6c9; border-color: #2e7d32; }
+  .sketch-rect.yellow { background: #fff9c4; border-color: #f57f17; }
+  .sketch-rect.muted { background: #f0f0f0; border-color: #999; }
+
+  /* Sketch line / bar */
+  .sketch-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: #1a1a1a;
+  }
+  .sketch-bar.green { background: #2e7d32; }
+  .sketch-bar.track { background: #e0e0e0; }
+
+  /* Nav bar */
+  .bottom-nav {
+    border-top: 2px solid #1a1a1a;
+    background: #fafaf7;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 6px 0 4px;
+    flex-shrink: 0;
+  }
+  .nav-item {
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+    font-family: 'Caveat', cursive; font-size: 9px; color: #888;
+  }
+  .nav-item.active { color: #1a1a1a; font-weight: 700; }
+  .nav-dot { width: 22px; height: 22px; border: 2px solid #ccc; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+  .nav-dot.active { border-color: #1a1a1a; background: #1a1a1a; }
+
+  /* Status bar */
+  .status-bar {
+    height: 24px; padding: 4px 12px 0;
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: 'Space Mono', monospace; font-size: 8px; color: #555;
+    flex-shrink: 0;
+  }
+
+  /* Scroll area */
+  .scroll-area {
+    flex: 1; overflow-y: auto; padding: 8px 12px;
+  }
+  .scroll-area::-webkit-scrollbar { display: none; }
+
+  /* Label annotation */
+  .label {
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    color: #555;
+    text-align: center;
+    margin-top: 8px;
+  }
+  .label strong { color: #1a1a1a; font-size: 15px; }
+
+  /* Arrow annotation */
+  .annotation {
+    font-family: 'Caveat', cursive;
+    font-size: 11px;
+    color: #888;
+    font-style: italic;
+  }
+
+  /* Section title on canvas */
+  .section-label {
+    font-family: 'Caveat', cursive;
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+  }
+  .section-sub {
+    font-family: 'Caveat', cursive;
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 20px;
+  }
+
+  /* Fab button */
+  .fab {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    position: absolute;
+    bottom: 54px; right: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: #fff;
+    border: 2px solid #1a1a1a;
+    box-shadow: 2px 2px 0 #555;
+  }
+
+  /* Chip */
+  .chip {
+    display: inline-block;
+    border: 1.5px solid #1a1a1a;
+    border-radius: 20px;
+    padding: 1px 8px;
+    font-size: 10px;
+    font-family: 'Caveat', cursive;
+    background: #fff;
+  }
+  .chip.active { background: #1a1a1a; color: #fff; }
+  .chip.green { background: #c8e6c9; border-color: #2e7d32; color: #1b5e20; }
+  .chip.yellow { background: #fff9c4; border-color: #f9a825; color: #7c5200; }
+  .chip.red { background: #ffcdd2; border-color: #c62828; color: #b71c1c; }
+
+  /* Divider */
+  .divider {
+    border: none;
+    border-top: 1.5px dashed #ccc;
+    margin: 6px 0;
+  }
+
+  /* Tweak tabs */
+  .tweak-bar {
+    display: flex; gap: 8px;
+    padding: 10px 16px;
+    background: #fff;
+    border-bottom: 2px solid #1a1a1a;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .tweak-tab {
+    font-family: 'Caveat', cursive;
+    font-size: 14px; font-weight: 600;
+    padding: 4px 14px;
+    border: 2px solid #1a1a1a;
+    border-radius: 20px;
+    cursor: pointer;
+    background: #fff;
+    color: #1a1a1a;
+    transition: all 0.15s;
+  }
+  .tweak-tab.active {
+    background: #1a1a1a;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState } = React;
+
+// ─── PRIMITIVE COMPONENTS ─────────────────────────────────
+
+function PhoneShell({ children, label, sublabel }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+      <div className="phone">
+        <div className="phone-notch"></div>
+        <div className="phone-screen">
+          {children}
+        </div>
+      </div>
+      {label && <div className="label"><strong>{label}</strong></div>}
+      {sublabel && <div className="label" style={{ fontSize: 11, marginTop: 2 }}>{sublabel}</div>}
+    </div>
+  );
+}
+
+function StatusBar({ time = "9:41" }) {
+  return (
+    <div className="status-bar">
+      <span>{time}</span>
+      <span>●●●  WiFi  🔋</span>
+    </div>
+  );
+}
+
+function BottomNav({ items, active }) {
+  const icons = { home: '⊞', estoque: '▤', caixas: '⊡', precos: '◈', lojas: '⊙', mita: '◎' };
+  return (
+    <div className="bottom-nav">
+      {items.map(item => (
+        <div key={item.key} className={`nav-item ${active === item.key ? 'active' : ''}`}>
+          <div className={`nav-dot ${active === item.key ? 'active' : ''}`}>
+            <span style={{ fontSize: 11 }}>{icons[item.key] || '○'}</span>
+          </div>
+          <span>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Bar({ pct, color = 'green', height = 5 }) {
+  return (
+    <div style={{ height, borderRadius: 3, background: '#e0e0e0', overflow: 'hidden' }}>
+      <div style={{ height: '100%', width: `${pct}%`, background: color === 'green' ? '#2e7d32' : '#f9a825', borderRadius: 3 }} />
+    </div>
+  );
+}
+
+function KpiCard({ label, value, sub, color = '#fff' }) {
+  return (
+    <div className="sketch-rect" style={{ background: color, padding: '6px 8px', flex: 1 }}>
+      <div style={{ fontSize: 9, fontFamily: 'Space Mono', color: '#888', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</div>
+      <div style={{ fontSize: 17, fontWeight: 700, fontFamily: 'Caveat', color: '#1a1a1a', lineHeight: 1.1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 9, color: '#888', fontFamily: 'Caveat' }}>{sub}</div>}
+    </div>
+  );
+}
+
+function Hatch({ width = '100%', height = 40, label = '' }) {
+  return (
+    <div className="sketch-rect muted" style={{ width, height, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <svg width="100%" height="100%" style={{ position: 'absolute', opacity: 0.15 }}>
+        <defs>
+          <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="8" stroke="#666" strokeWidth="1.5" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#hatch)" />
+      </svg>
+      <span style={{ fontSize: 10, fontFamily: 'Caveat', color: '#666', zIndex: 1, textAlign: 'center', padding: '0 4px' }}>{label}</span>
+    </div>
+  );
+}
+
+// ─── WIREFRAME A: BLOCOS POR SEÇÃO ────────────────────────
+// Home = cards grandes por seção. Tap abre detalhe.
+// Nav bottom com 5 itens.
+
+function WireframeA_Home() {
+  const sections = [
+    { key: 'estoque', emoji: '▤', label: 'Estoque', val: '19.057 kg', sub: 'Saldo total', chip: 'Normal', chipColor: 'green' },
+    { key: 'caixas',  emoji: '⊡', label: 'Caixas',  val: '74.680 kg', sub: 'Volume entregue', chip: '0 caixas', chipColor: '' },
+    { key: 'precos',  emoji: '◈', label: 'Preços',  val: 'R$ 0,00', sub: 'Preço médio', chip: '0 preços', chipColor: '' },
+    { key: 'lojas',   emoji: '⊙', label: 'Lojas',   val: '—', sub: 'Cadastradas', chip: '', chipColor: '' },
+  ];
+  return (
+    <PhoneShell label="A — Blocos por Seção" sublabel="Home com cards navegáveis">
+      <StatusBar />
+      {/* Header */}
+      <div style={{ padding: '14px 12px 8px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: 11, fontFamily: 'Caveat', color: '#888' }}>Bom dia 👋</div>
+            <div style={{ fontSize: 18, fontFamily: 'Caveat', fontWeight: 700 }}>Painel Benverde</div>
+          </div>
+          <div className="sketch-rect" style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>◎</div>
+        </div>
+        {/* Mita banner */}
+        <div className="sketch-rect tinted" style={{ marginTop: 8, padding: '5px 8px', display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: 13 }}>◎</span>
+          <span style={{ fontSize: 11, fontFamily: 'Caveat', color: '#2e7d32' }}>Oie! Sou a Mita. Como posso ajudar?</span>
+        </div>
+      </div>
+
+      <div className="scroll-area" style={{ paddingTop: 4 }}>
+        {sections.map(s => (
+          <div key={s.key} className="sketch-rect" style={{ marginBottom: 8, padding: '10px 10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+                <span style={{ fontSize: 16 }}>{s.emoji}</span>
+                <div>
+                  <div style={{ fontSize: 13, fontFamily: 'Caveat', fontWeight: 700 }}>{s.label}</div>
+                  <div style={{ fontSize: 10, color: '#888', fontFamily: 'Caveat' }}>{s.sub}</div>
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 16, fontFamily: 'Caveat', fontWeight: 700 }}>{s.val}</div>
+                {s.chip && <span className={`chip ${s.chipColor}`}>{s.chip}</span>}
+              </div>
+            </div>
+            {s.key === 'estoque' && (
+              <div style={{ marginTop: 8 }}>
+                {[['Nanica', 87], ['Prata', 11], ['Maçã', 2]].map(([n, p]) => (
+                  <div key={n} style={{ marginBottom: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontFamily: 'Caveat', color: '#888' }}>
+                      <span>{n}</span><span>{p}%</span>
+                    </div>
+                    <Bar pct={p} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        <div style={{ height: 8 }} />
+      </div>
+
+      <div className="fab">◎</div>
+      <BottomNav
+        items={[{key:'home',label:'Início'},{key:'estoque',label:'Estoque'},{key:'caixas',label:'Caixas'},{key:'precos',label:'Preços'},{key:'lojas',label:'Lojas'}]}
+        active="home"
+      />
+    </PhoneShell>
+  );
+}
+
+function WireframeA_Estoque() {
+  return (
+    <PhoneShell label="A — Detalhe: Estoque" sublabel="Distribuição + histórico">
+      <StatusBar />
+      <div style={{ padding: '12px 12px 6px', flexShrink: 0, borderBottom: '1.5px solid #eee' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 14 }}>◀</span>
+          <span style={{ fontSize: 16, fontFamily: 'Caveat', fontWeight: 700 }}>Estoque de Bananas</span>
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      <div style={{ display: 'flex', gap: 6, padding: '8px 12px', flexShrink: 0 }}>
+        <KpiCard label="Saldo Total" value="19.057 kg" sub="consolidado" />
+        <KpiCard label="Saídas" value="74.680 kg" sub="acumuladas" color="#fff9c4" />
+        <KpiCard label="Risco" value="Terra" sub="menor saldo" color="#ffcdd2" />
+      </div>
+
+      <div className="scroll-area">
+        {/* Distribuição */}
+        <div style={{ fontSize: 11, fontFamily: 'Caveat', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Distribuição de Saldo</div>
+        {[['Banana Nanica', 16635, 87], ['Banana Prata', 2054, 11], ['Banana Maçã', 288, 1.5], ['Banana da Terra', 80, 0.4]].map(([n, v, p]) => (
+          <div key={n} style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: 'Caveat' }}>
+              <span style={{ color: '#444' }}>{n}</span>
+              <span style={{ fontWeight: 700 }}>{v.toLocaleString('pt-BR')} kg</span>
+            </div>
+            <Bar pct={p} height={6} />
+          </div>
+        ))}
+
+        <hr className="divider" style={{ margin: '12px 0 8px' }} />
+
+        {/* Histórico */}
+        <div style={{ fontSize: 11, fontFamily: 'Caveat', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Fluxo Recente</div>
+        {[
+          { tipo: '+', prod: 'Banana Nanica', qtd: '1.200 kg', loja: 'Loja Centro', cor: '#c8e6c9' },
+          { tipo: '-', prod: 'Banana Prata', qtd: '340 kg', loja: 'Loja Sul', cor: '#ffcdd2' },
+          { tipo: '+', prod: 'Banana Nanica', qtd: '800 kg', loja: 'Importação', cor: '#c8e6c9' },
+          { tipo: '-', prod: 'Banana Maçã', qtd: '50 kg', loja: 'Loja Norte', cor: '#ffcdd2' },
+        ].map((item, i) => (
+          <div key={i} className="sketch-rect" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, padding: '6px 8px' }}>
+            <div style={{ width: 22, height: 22, borderRadius: 6, background: item.cor, border: '1.5px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{item.tipo}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, fontFamily: 'Caveat', fontWeight: 700 }}>{item.prod}</div>
+              <div style={{ fontSize: 9, fontFamily: 'Caveat', color: '#888' }}>{item.loja}</div>
+            </div>
+            <div style={{ fontSize: 11, fontFamily: 'Caveat', fontWeight: 700 }}>{item.qtd}</div>
+          </div>
+        ))}
+        <div style={{ height: 8 }} />
+      </div>
+
+      <BottomNav
+        items={[{key:'home',label:'Início'},{key:'estoque',label:'Estoque'},{key:'caixas',label:'Caixas'},{key:'precos',label:'Preços'},{key:'lojas',label:'Lojas'}]}
+        active="estoque"
+      />
+    </PhoneShell>
+  );
+}
+
+// ─── WIREFRAME B: FEED SCROLL + HEADER STICKY ─────────────
+// Home = scroll único, cards de seção colapsáveis, header sticky com busca
+
+function WireframeB_Home() {
+  return (
+    <PhoneShell label="B — Feed Unificado" sublabel="Tudo numa tela, scroll contínuo">
+      <StatusBar />
+      {/* Sticky header */}
+      <div style={{ padding: '10px 12px 6px', background: '#fafaf7', borderBottom: '1.5px dashed #ddd', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 15, fontFamily: 'Caveat', fontWeight: 700 }}>🌿 Benverde</span>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div className="sketch-rect" style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>↺</div>
+            <div className="sketch-rect" style={{ width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11 }}>◎</div>
+          </div>
+        </div>
+        {/* Chips de filtro */}
+        <div style={{ display: 'flex', gap: 5, marginTop: 6, overflow: 'hidden' }}>
+          {['Tudo', 'Estoque', 'Caixas', 'Preços', 'Lojas'].map((c, i) => (
+            <span key={c} className={`chip ${i === 0 ? 'active' : ''}`}>{c}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="scroll-area">
+        {/* Resumo rápido */}
+        <div style={{ display: 'flex', gap: 5, marginBottom: 10 }}>
+          <KpiCard label="Saldo KG" value="19k" />
+          <KpiCard label="Metas" value="12" sub="ativas" color="#e8f5e9" />
+          <KpiCard label="Entrega" value="84%" sub="média" color="#fff9c4" />
+        </div>
+
+        {/* Seção Estoque – expandida */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+            <span style={{ fontSize: 13, fontFamily: 'Caveat', fontWeight: 700 }}>▤ Estoque</span>
+            <span style={{ fontSize: 10, color: '#2e7d32', fontFamily: 'Caveat', textDecoration: 'underline' }}>Ver tudo →</span>
+          </div>
+          {[['Nanica', 16635, 87], ['Prata', 2054, 11], ['Maçã', 288, 2]].map(([n, v, p]) => (
+            <div key={n} style={{ marginBottom: 5 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontFamily: 'Caveat' }}>
+                <span>{n}</span><span style={{ fontWeight: 700 }}>{Number(v).toLocaleString('pt-BR')} kg</span>
+              </div>
+              <Bar pct={p} />
+            </div>
+          ))}
+        </div>
+
+        <hr className="divider" />
+
+        {/* Seção Metas – colapsada */}
+        <div className="sketch-rect muted" style={{ padding: '7px 10px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 13, fontFamily: 'Caveat', fontWeight: 700 }}>◈ Metas Ativas  <span className="chip green">12</span></span>
+          <span style={{ fontSize: 14 }}>▾</span>
+        </div>
+
+        {/* Seção Caixas – colapsada */}
+        <div className="sketch-rect muted" style={{ padding: '7px 10px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 13, fontFamily: 'Caveat', fontWeight: 700 }}>⊡ Caixas  <span style={{ fontSize: 10, color: '#888' }}>74.680 kg</span></span>
+          <span style={{ fontSize: 14 }}>▾</span>
+        </div>
+
+        {/* Seção Preços – colapsada */}
+        <div className="sketch-rect muted" style={{ padding: '7px 10px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 13, fontFamily: 'Caveat', fontWeight: 700 }}>◈ Preços  <span style={{ fontSize: 10, color: '#888' }}>concorrentes</span></span>
+          <span style={{ fontSize: 14 }}>▾</span>
+        </div>
+
+        {/* Mita banner */}
+        <div className="sketch-rect" style={{ background: '#1a1a1a', color: '#fff', padding: '8px 10px', marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontFamily: 'Caveat', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+            <span>◎</span> <strong>Pergunte à Mita</strong>
+          </div>
+          <div style={{ height: 22, border: '1.5px solid #555', borderRadius: 6, background: '#333', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+            <span style={{ fontSize: 9, color: '#888', fontFamily: 'Caveat' }}>Como está o estoque hoje?</span>
+          </div>
+        </div>
+        <div style={{ height: 8 }} />
+      </div>
+
+      <BottomNav
+        items={[{key:'home',label:'Feed'},{key:'estoque',label:'Estoque'},{key:'caixas',label:'Caixas'},{key:'precos',label:'Preços'},{key:'mita',label:'Mita'}]}
+        active="home"
+      />
+    </PhoneShell>
+  );
+}
+
+function WireframeB_Metas() {
+  return (
+    <PhoneShell label="B — Metas (tab)" sublabel="Lista filtrada por categoria">
+      <StatusBar />
+      <div style={{ padding: '12px 12px 6px', flexShrink: 0, borderBottom: '1.5px solid #eee' }}>
+        <div style={{ fontSize: 16, fontFamily: 'Caveat', fontWeight: 700 }}>Metas Ativas</div>
+        <div style={{ display: 'flex', gap: 5, marginTop: 5 }}>
+          {['Todos', 'Frutas', 'Legumes', 'Verduras'].map((c, i) => (
+            <span key={c} className={`chip ${i === 0 ? 'active' : ''}`}>{c}</span>
+          ))}
+        </div>
+      </div>
+
+      <div className="scroll-area">
+        {[
+          { p: 'Banana Nanica', meta: 20000, pedido: 16635, pct: 83, status: 'Próxima', sc: 'yellow' },
+          { p: 'Banana Prata', meta: 5000, pedido: 2054, pct: 41, status: 'Pendente', sc: '' },
+          { p: 'Banana Maçã', meta: 1000, pedido: 288, pct: 29, status: 'Pendente', sc: '' },
+          { p: 'Banana da Terra', meta: 500, pedido: 80, pct: 16, status: 'Pendente', sc: '' },
+          { p: 'Alface Crespa', meta: 800, pedido: 800, pct: 100, status: 'Atingida', sc: 'green' },
+        ].map((item, i) => (
+          <div key={i} className="sketch-rect" style={{ marginBottom: 6, padding: '7px 10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 12, fontFamily: 'Caveat', fontWeight: 700 }}>{item.p}</div>
+                <div style={{ fontSize: 9, fontFamily: 'Caveat', color: '#888' }}>Meta: {item.meta.toLocaleString('pt-BR')} kg · Pedido: {item.pedido.toLocaleString('pt-BR')} kg</div>
+              </div>
+              <span className={`chip ${item.sc}`}>{item.status}</span>
+            </div>
+            <div style={{ marginTop: 5 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, fontFamily: 'Caveat', color: '#888', marginBottom: 2 }}>
+                <span>Progresso</span><span style={{ fontWeight: 700, color: '#1a1a1a' }}>{item.pct}%</span>
+              </div>
+              <Bar pct={item.pct} color={item.pct >= 100 ? 'green' : 'green'} height={5} />
+            </div>
+          </div>
+        ))}
+        <div style={{ height: 8 }} />
+      </div>
+
+      <BottomNav
+        items={[{key:'home',label:'Feed'},{key:'estoque',label:'Estoque'},{key:'caixas',label:'Caixas'},{key:'precos',label:'Preços'},{key:'mita',label:'Mita'}]}
+        active="estoque"
+      />
+    </PhoneShell>
+  );
+}
+
+// ─── WIREFRAME C: CARD DECK / SWIPE ───────────────────────
+// Home = swipe horizontal entre módulos, mais visual
+// Nav = bottom tabs + swipe gestures
+
+function WireframeC_Home() {
+  return (
+    <PhoneShell label="C — Hub Swipável" sublabel="Módulos em carrossel horizontal">
+      <StatusBar />
+      <div style={{ padding: '10px 12px 4px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 16, fontFamily: 'Caveat', fontWeight: 700 }}>Benverde</div>
+            <div style={{ fontSize: 10, fontFamily: 'Caveat', color: '#888' }}>Gestão Inteligente</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div className="sketch-rect green" style={{ padding: '2px 8px', fontSize: 10, fontFamily: 'Caveat' }}>◎ Mita</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Cards swipe area */}
+      <div style={{ padding: '8px 12px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 8, overflow: 'hidden' }}>
+          {/* Active card */}
+          <div className="sketch-rect" style={{ background: '#1a1a1a', color: '#fff', padding: '12px', minWidth: 180, flexShrink: 0 }}>
+            <div style={{ fontSize: 10, fontFamily: 'Caveat', color: '#aaa', marginBottom: 2 }}>▤ ESTOQUE</div>
+            <div style={{ fontSize: 22, fontFamily: 'Caveat', fontWeight: 700 }}>19.057 kg</div>
+            <div style={{ marginTop: 8 }}>
+              {[['Nanica', 87], ['Prata', 11], ['Maçã', 2]].map(([n, p]) => (
+                <div key={n} style={{ marginBottom: 3 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: '#aaa', fontFamily: 'Caveat' }}>
+                    <span>{n}</span><span>{p}%</span>
+                  </div>
+                  <div style={{ height: 4, borderRadius: 2, background: '#555' }}>
+                    <div style={{ height: '100%', width: `${p}%`, background: '#4caf50', borderRadius: 2 }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Peek next card */}
+          <div className="sketch-rect muted" style={{ padding: '10px', minWidth: 60, flexShrink: 0, opacity: 0.6 }}>
+            <div style={{ fontSize: 10, fontFamily: 'Caveat', color: '#888' }}>⊡</div>
+            <div style={{ fontSize: 11, fontFamily: 'Caveat', fontWeight: 700, marginTop: 2 }}>Caixas</div>
+          </div>
+        </div>
+        {/* Dots */}
+        <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 6 }}>
+          {[1,2,3,4].map((_, i) => (
+            <div key={i} style={{ width: i===0?16:6, height: 5, borderRadius: 3, background: i===0?'#1a1a1a':'#ccc' }} />
+          ))}
+        </div>
+      </div>
+
+      <div className="scroll-area" style={{ paddingTop: 6 }}>
+        {/* Quick actions */}
+        <div style={{ fontSize: 11, fontFamily: 'Caveat', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Ações Rápidas</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
+          {[
+            { icon: '↑', label: 'Nova Movimentação', color: '#e8f5e9' },
+            { icon: '↓', label: 'Exportar Tabela', color: '#fff' },
+            { icon: '⊞', label: 'Importar Metas', color: '#fff' },
+            { icon: '◎', label: 'Perguntar à Mita', color: '#1a1a1a' },
+          ].map(a => (
+            <div key={a.label} className="sketch-rect" style={{ background: a.color, padding: '8px', display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 18, color: a.color==='#1a1a1a'?'#fff':'#1a1a1a' }}>{a.icon}</span>
+              <span style={{ fontSize: 11, fontFamily: 'Caveat', fontWeight: 700, color: a.color==='#1a1a1a'?'#fff':'#1a1a1a', lineHeight: 1.2 }}>{a.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Top 5 */}
+        <div style={{ fontSize: 11, fontFamily: 'Caveat', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Top 5 Progresso</div>
+        {[['Alface Crespa', 100, 'green'], ['Banana Nanica', 83, 'yellow'], ['Cenoura', 72, ''], ['Banana Prata', 41, ''], ['Banana Maçã', 29, '']].map(([n, p, sc], i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+            <div style={{ width: 16, height: 16, borderRadius: '50%', border: '1.5px solid #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontFamily: 'Space Mono', flexShrink: 0 }}>{i+1}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, fontFamily: 'Caveat' }}>
+                <span>{n}</span><span style={{ fontWeight: 700 }}>{p}%</span>
+              </div>
+              <Bar pct={p} height={4} />
+            </div>
+          </div>
+        ))}
+        <div style={{ height: 8 }} />
+      </div>
+
+      <BottomNav
+        items={[{key:'home',label:'Home'},{key:'estoque',label:'Estoque'},{key:'caixas',label:'Caixas'},{key:'precos',label:'Preços'},{key:'lojas',label:'Lojas'}]}
+        active="home"
+      />
+    </PhoneShell>
+  );
+}
+
+function WireframeC_Mita() {
+  return (
+    <PhoneShell label="C — Chat Mita (tela dedicada)" sublabel="IA integrada como tab principal">
+      <StatusBar />
+      <div style={{ padding: '12px 12px 8px', flexShrink: 0, borderBottom: '1.5px solid #eee', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 20 }}>◎</span>
+        <div>
+          <div style={{ fontSize: 15, fontFamily: 'Caveat', fontWeight: 700 }}>Mita</div>
+          <div style={{ fontSize: 9, fontFamily: 'Caveat', color: '#2e7d32' }}>● online · sua gerente de dados</div>
+        </div>
+      </div>
+
+      <div className="scroll-area" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Perguntas sugeridas */}
+        <div style={{ fontSize: 10, fontFamily: 'Caveat', color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Sugestões</div>
+        {['Como está o saldo hoje?', 'Top 5 progresso de metas', 'Risco de ruptura no estoque'].map(q => (
+          <div key={q} className="sketch-rect" style={{ padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontFamily: 'Caveat' }}>{q}</span>
+            <span style={{ fontSize: 12 }}>→</span>
+          </div>
+        ))}
+        <hr className="divider" />
+        {/* Chat bubbles */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div className="sketch-rect" style={{ background: '#1a1a1a', color: '#fff', padding: '6px 10px', maxWidth: '80%', borderRadius: '12px 12px 2px 12px' }}>
+            <span style={{ fontSize: 11, fontFamily: 'Caveat' }}>Como está o estoque de Nanica?</span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          <div className="sketch-rect tinted" style={{ padding: '6px 10px', maxWidth: '85%', borderRadius: '12px 12px 12px 2px' }}>
+            <span style={{ fontSize: 11, fontFamily: 'Caveat', color: '#1b5e20' }}>Temos 16.635 kg de Nanica disponíveis, representando 87% do estoque total. Sem risco de ruptura no momento. ✅</span>
+          </div>
+        </div>
+        <div style={{ height: 8 }} />
+      </div>
+
+      {/* Input */}
+      <div style={{ padding: '6px 10px', borderTop: '1.5px solid #eee', display: 'flex', gap: 6, flexShrink: 0 }}>
+        <div className="sketch-rect" style={{ flex: 1, height: 30, display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+          <span style={{ fontSize: 10, fontFamily: 'Caveat', color: '#bbb' }}>Pergunte algo...</span>
+        </div>
+        <div className="sketch-rect filled" style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>→</div>
+      </div>
+
+      <BottomNav
+        items={[{key:'home',label:'Home'},{key:'estoque',label:'Estoque'},{key:'caixas',label:'Caixas'},{key:'precos',label:'Preços'},{key:'mita',label:'Mita'}]}
+        active="mita"
+      />
+    </PhoneShell>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────
+
+function App() {
+  const [tab, setTab] = useState('home');
+
+  const tabs = [
+    { key: 'home', label: 'Home & Módulos' },
+    { key: 'detail', label: 'Telas de Detalhe' },
+    { key: 'mita', label: 'Mita AI' },
+  ];
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f5f0e8' }}>
+      <div className="tweak-bar">
+        <span style={{ fontFamily: 'Caveat', fontWeight: 700, fontSize: 16, color: '#1a1a1a', marginRight: 8 }}>Benverde Mobile — Wireframes</span>
+        {tabs.map(t => (
+          <button key={t.key} className={`tweak-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'home' && (
+        <DCCanvas>
+          <DCSection id="direction-a" title="A — Blocos por Seção">
+            <DCArtboard id="a1" label="Home" width={300} height={600}>
+              <WireframeA_Home />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="direction-b" title="B — Feed Unificado (scroll)">
+            <DCArtboard id="b1" label="Home Feed" width={300} height={600}>
+              <WireframeB_Home />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="direction-c" title="C — Hub com Carrossel">
+            <DCArtboard id="c1" label="Home + Quick Actions" width={300} height={600}>
+              <WireframeC_Home />
+            </DCArtboard>
+          </DCSection>
+        </DCCanvas>
+      )}
+
+      {tab === 'detail' && (
+        <DCCanvas>
+          <DCSection id="detail-a" title="A — Detalhe de Seção (push)">
+            <DCArtboard id="da1" label="Estoque Detalhe" width={300} height={600}>
+              <WireframeA_Estoque />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="detail-b" title="B — Lista Filtrada">
+            <DCArtboard id="db1" label="Metas por Categoria" width={300} height={600}>
+              <WireframeB_Metas />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="detail-c" title="Notas de Fluxo">
+            <DCArtboard id="dc1" label="Navegação" width={260} height={600}>
+              <div style={{ padding: 16, fontFamily: 'Caveat', fontSize: 13, color: '#333', lineHeight: 1.6 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>📋 Fluxo de Navegação</div>
+                <div className="sketch-rect" style={{ padding: 8, marginBottom: 8, background: '#e8f5e9' }}>
+                  <strong>A – Push Navigation</strong><br/>
+                  Home → tap em bloco → tela de detalhe (push). Volta com ← header. Nav bottom sempre visível.
+                </div>
+                <div className="sketch-rect" style={{ padding: 8, marginBottom: 8, background: '#fff9c4' }}>
+                  <strong>B – Expansão in-place</strong><br/>
+                  Seções colapsam/expandem no feed. Chip filtra o feed. "Ver tudo →" abre lista dedicada.
+                </div>
+                <div className="sketch-rect" style={{ padding: 8, marginBottom: 8, background: '#fce4ec' }}>
+                  <strong>C – Carrossel + Tabs</strong><br/>
+                  Swipe entre módulos no carrossel. Nav bottom = tabs principais. Mita é uma tab dedicada.
+                </div>
+                <hr className="divider" />
+                <div style={{ marginTop: 8, fontSize: 12, color: '#888' }}>
+                  <strong>Gestos suportados:</strong><br/>
+                  • Swipe ← → entre cards (C)<br/>
+                  • Pull to refresh (todos)<br/>
+                  • Tap longo = preview rápido (a definir)
+                </div>
+              </div>
+            </DCArtboard>
+          </DCSection>
+        </DCCanvas>
+      )}
+
+      {tab === 'mita' && (
+        <DCCanvas>
+          <DCSection id="mita-a" title="A — Mita como FAB">
+            <DCArtboard id="ma1" label="Chat flutuante" width={300} height={600}>
+              <PhoneShell label="FAB (atual)" sublabel="Chat overlay no fundo da tela">
+                <StatusBar />
+                <div className="scroll-area">
+                  <div style={{ fontSize: 13, fontFamily: 'Caveat', color: '#888', textAlign: 'center', marginTop: 40 }}>
+                    Conteúdo da tela atual...
+                  </div>
+                  <Hatch height={300} label="conteúdo da página" />
+                </div>
+                {/* FAB */}
+                <div style={{ position: 'absolute', bottom: 58, right: 10, width: 36, height: 36, borderRadius: '50%', background: '#1a1a1a', border: '2px solid #1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: '#fff', boxShadow: '2px 2px 0 #555', zIndex: 10 }}>◎</div>
+                {/* Mini chat overlay */}
+                <div className="sketch-rect" style={{ position: 'absolute', bottom: 100, right: 8, left: 8, background: '#fafaf7', border: '2px solid #1a1a1a', padding: 8, zIndex: 10 }}>
+                  <div style={{ fontSize: 11, fontFamily: 'Caveat', fontWeight: 700, marginBottom: 6 }}>◎ Chat da Mita</div>
+                  <Hatch height={120} label="mensagens do chat" />
+                  <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                    <div className="sketch-rect" style={{ flex: 1, height: 24, display: 'flex', alignItems: 'center', paddingLeft: 6 }}>
+                      <span style={{ fontSize: 9, fontFamily: 'Caveat', color: '#ccc' }}>Digite...</span>
+                    </div>
+                    <div className="sketch-rect filled" style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12 }}>→</div>
+                  </div>
+                </div>
+                <BottomNav items={[{key:'home',label:'Início'},{key:'estoque',label:'Estoque'},{key:'caixas',label:'Caixas'},{key:'precos',label:'Preços'},{key:'lojas',label:'Lojas'}]} active="home" />
+              </PhoneShell>
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="mita-b" title="B — Mita como Tab dedicada">
+            <DCArtboard id="mb1" label="Tab própria na nav" width={300} height={600}>
+              <WireframeC_Mita />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection id="mita-c" title="C — Mita inline no header">
+            <DCArtboard id="mc1" label="Banner contextual" width={300} height={600}>
+              <PhoneShell label="Mita no contexto" sublabel="Insight automático por tela">
+                <StatusBar />
+                <div style={{ padding: '10px 12px 6px', flexShrink: 0 }}>
+                  <div style={{ fontSize: 16, fontFamily: 'Caveat', fontWeight: 700 }}>Estoque</div>
+                </div>
+                {/* Mita contextual insight */}
+                <div className="sketch-rect" style={{ margin: '0 12px', background: '#e8f5e9', border: '1.5px dashed #2e7d32', padding: '7px 10px', flexShrink: 0 }}>
+                  <div style={{ fontSize: 10, fontFamily: 'Caveat', color: '#888', marginBottom: 2 }}>◎ Mita diz:</div>
+                  <div style={{ fontSize: 11, fontFamily: 'Caveat', color: '#1b5e20' }}>
+                    "Banana da Terra corre risco de ruptura com apenas 80 kg. Considere reabastecer nos próximos dias."
+                  </div>
+                  <div style={{ marginTop: 4, fontSize: 10, fontFamily: 'Caveat', color: '#2e7d32', textDecoration: 'underline' }}>
+                    Perguntar mais →
+                  </div>
+                </div>
+                <div className="scroll-area" style={{ paddingTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+                    <KpiCard label="Saldo" value="19k kg" />
+                    <KpiCard label="Saídas" value="74k kg" color="#fff9c4" />
+                    <KpiCard label="Risco" value="Terra" color="#ffcdd2" />
+                  </div>
+                  {[['Nanica', 87], ['Prata', 11], ['Maçã', 2], ['Terra', 0.4]].map(([n, p]) => (
+                    <div key={n} style={{ marginBottom: 7 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, fontFamily: 'Caveat' }}>
+                        <span>{n}</span><span style={{ fontWeight: 700 }}>{p}%</span>
+                      </div>
+                      <Bar pct={p} height={6} />
+                    </div>
+                  ))}
+                </div>
+                <BottomNav items={[{key:'home',label:'Home'},{key:'estoque',label:'Estoque'},{key:'caixas',label:'Caixas'},{key:'precos',label:'Preços'},{key:'lojas',label:'Lojas'}]} active="estoque" />
+              </PhoneShell>
+            </DCArtboard>
+          </DCSection>
+        </DCCanvas>
+      )}
+    </div>
+  );
+}
+
+// ─── CANVAS HELPERS ───────────────────────────────────────
+// Thin wrappers so we can embed phones without using DCArtboard's full complexity
+
+function DCCanvas({ children }) {
+  return (
+    <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 40 }}>
+      {children}
+    </div>
+  );
+}
+
+function DCSection({ title, children }) {
+  return (
+    <div>
+      <div className="section-label">{title}</div>
+      <div className="section-sub">Toque numa tela para expandir em foco</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DCArtboard({ label, width, height, children }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ fontSize: 12, fontFamily: 'Caveat', color: '#888', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</div>
+        <div
+          onClick={() => setFocused(true)}
+          style={{ cursor: 'zoom-in', width, userSelect: 'none' }}
+        >
+          {children}
+        </div>
+      </div>
+      {focused && (
+        <div
+          onClick={() => setFocused(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ transform: 'scale(1.5)', transformOrigin: 'center' }}>
+            {children}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
