@@ -41,7 +41,7 @@ function formatQuantity(value: number, unit = 'kg'): string {
 }
 
 export function ScreenHome({ onNav, onGoEstoque, onGoLojas, onGoMita }: any) {
-  const [open, setOpen] = useState({ estoque: true, metas: false });
+  const [open, setOpen] = useState({ estoque: false, metas: false });
   const toggle = (k: keyof typeof open) => setOpen(o => ({ ...o, [k]: !o[k] }));
 
   const [loading, setLoading] = useState(true);
@@ -264,6 +264,22 @@ export function ScreenHome({ onNav, onGoEstoque, onGoLojas, onGoMita }: any) {
                   </div>
                 );
               })
+            )}
+            {!loading && metas.length > 0 && (
+              <button
+                onClick={() => {
+                  const rows = [...metas].sort((a, b) => b.progresso - a.progresso);
+                  const ths = ['Produto','Categoria','Meta','Pedido','Progresso','Status'].map(h => '<th>' + h + '</th>').join('');
+                  const trs = rows.map(m => '<tr><td>' + m.produto + '</td><td>' + m.categoria + '</td><td>' + m.meta.toLocaleString('pt-BR') + ' kg</td><td>' + m.pedido.toLocaleString('pt-BR') + ' kg</td><td>' + m.progresso.toFixed(1) + '%</td><td>' + m.status + '</td></tr>').join('');
+                  const css = 'body{font-family:sans-serif;padding:24px}table{width:100%;border-collapse:collapse;font-size:13px}th{background:#052e16;color:#fff;padding:8px}td{padding:7px;border-bottom:1px solid #e5e7eb}';
+                  const html = '<html><head><meta charset="utf-8"><style>' + css + '</style></head><body><h1>Metas</h1><table><thead><tr>' + ths + '</tr></thead><tbody>' + trs + '</tbody></table></body></html>';
+                  const w = window.open('', '_blank');
+                  if (w) { w.document.write(html); w.document.close(); w.print(); }
+                }}
+                style={{ marginTop: 10, width: '100%', padding: '10px 0', borderRadius: 12, border: '1px solid rgba(251,191,36,0.25)', background: 'rgba(251,191,36,0.08)', color: '#fbbf24', fontFamily: 'Space Grotesk', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                📄 Tabela completa ({metas.length} metas)
+              </button>
             )}
           </div>
         </UI.SectionBlock>

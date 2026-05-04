@@ -22,8 +22,8 @@ export async function POST(request: Request) {
   try {
     await requireDashboardScope("caixas");
     const payload = await readJsonBody(request);
-    await createCaixa(payload);
-    return NextResponse.json({ success: true });
+    const id = await createCaixa(payload);
+    return NextResponse.json({ success: true, id });
   } catch (error) {
     return toErrorResponse(error);
   }

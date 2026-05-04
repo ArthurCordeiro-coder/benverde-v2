@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import { ScreenHome } from '@/components/mobile/screens/Home';
 import { ScreenEstoque } from '@/components/mobile/screens/Estoque';
@@ -9,14 +9,32 @@ import { ScreenPrecos } from '@/components/mobile/screens/Precos';
 import { ScreenLojas } from '@/components/mobile/screens/Lojas';
 import { ScreenLojaDetalhe } from '@/components/mobile/screens/LojaDetalhe';
 import { ScreenMita } from '@/components/mobile/screens/Mita';
+import RegistroCaixas from '@/app/Caixas/page';
 
-export default function App() {
+const VALID_SCREENS = ['home', 'estoque', 'precos', 'lojas', 'loja-detalhe', 'mita', 'caixas'] as const;
+type Screen = typeof VALID_SCREENS[number];
+
+function isValidScreen(s: string | null): s is Screen {
+  return s !== null && (VALID_SCREENS as readonly string[]).includes(s);
+}
+
+function MobileApp() {
   const router = useRouter();
-  // screen: 'home' | 'estoque' | 'precos' | 'lojas' | 'loja-detalhe' | 'mita'
-  const [screen, setScreen] = useState('home');
+  const searchParams = useSearchParams();
+  const initial = searchParams.get('screen');
+  const safeInitial: Screen = isValidScreen(initial) ? initial : 'home';
+
+  const [screen, setScreen] = useState<Screen>(safeInitial);
   const [selectedLoja, setSelectedLoja] = useState<any>(null);
   const [direction, setDirection] = useState('forward');
   const [loadingAuth, setLoadingAuth] = useState(true);
+
+  useEffect(() => {
+    const s = searchParams.get('screen');
+    if (isValidScreen(s) && s !== screen) {
+      setScreen(s);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -45,7 +63,7 @@ export default function App() {
   }
 
   function handleNav(tab: string) {
-    const tabScreens: Record<string, string> = { home: 'home', estoque: 'estoque', precos: 'precos', lojas: 'lojas', mita: 'mita' };
+    const tabScreens: Record<string, string> = { home: 'home', estoque: 'estoque', precos: 'precos', lojas: 'lojas', mita: 'mita', caixas: 'caixas' };
     navTo(tabScreens[tab] || tab, 'forward');
   }
 
@@ -81,6 +99,13 @@ export default function App() {
     case 'mita':
       screenEl = <ScreenMita onBack={() => navTo('home', 'back')} onNav={handleNav} />;
       break;
+    case 'caixas':
+      screenEl = (
+        <div className="h-full w-full overflow-y-auto">
+          <RegistroCaixas />
+        </div>
+      );
+      break;
   }
 
   return (
@@ -89,5 +114,13 @@ export default function App() {
         {screenEl}
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Suspense fallback={<div style={{ height: '100dvh', background: '#070d09' }}></div>}>
+      <MobileApp />
+    </Suspense>
   );
 }

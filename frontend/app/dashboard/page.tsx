@@ -526,6 +526,15 @@ const formatarNumero = (valor: number): string => valor.toLocaleString('pt-BR');
 
 
 export default function DashboardHome() {
+  const metasColumns: ColumnDef<DashboardMeta>[] = [
+    { header: "Produto", accessor: (row) => <span className="font-semibold text-white">{row.produto}</span> },
+    { header: "Categoria", accessor: (row) => <span className="text-gray-300">{row.categoria}</span> },
+    { header: "Meta", accessor: (row) => <span className="text-gray-300">{formatQuantity(row.meta, "kg")}</span>, align: "right" },
+    { header: "Pedido", accessor: (row) => <span className="text-gray-300">{formatQuantity(row.pedido, "kg")}</span>, align: "right" },
+    { header: "Progresso", accessor: (row) => <span className="text-green-400 font-bold">{row.progresso.toFixed(1)}%</span>, align: "right" },
+    { header: "Status", accessor: (row) => <span className="px-2 py-1 rounded-full text-xs font-bold bg-white/5 text-gray-300">{row.status}</span>, align: "center" },
+  ];
+
   const mitaEndpoint = "/api/mita-ai/chat";
   const [summary, setSummary] = useState<DashboardSummary>(EMPTY_SUMMARY);
   const [metas, setMetas] = useState<DashboardMeta[]>([]);
@@ -1256,6 +1265,45 @@ export default function DashboardHome() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-3xl border border-emerald-400/20 bg-emerald-500/5 p-6 backdrop-blur-md overflow-hidden">
+        <h3 className="mb-6 flex items-center gap-2 text-sm font-semibold text-white">
+          <Tags size={18} className="text-emerald-400" />
+          Tabela de Metas
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-[10px] text-gray-500 bg-white/[0.02] uppercase tracking-widest border-b border-white/5">
+              <tr>
+                {metasColumns.map((col, i) => (
+                  <th key={i} className={`px-4 py-3 font-bold ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : ''}`}>
+                    {col.header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {filteredAndSortedData.length === 0 ? (
+                <tr>
+                  <td colSpan={metasColumns.length} className="px-4 py-8 text-center text-sm text-gray-500">
+                    Nenhuma meta encontrada.
+                  </td>
+                </tr>
+              ) : (
+                filteredAndSortedData.map((row, i) => (
+                  <tr key={i} className="hover:bg-white/[0.04] transition-colors group">
+                    {metasColumns.map((col, j) => (
+                      <td key={j} className={`px-4 py-4 ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : ''}`}>
+                        {col.accessor(row)}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 

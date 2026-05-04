@@ -24,8 +24,25 @@ export async function proxy(request: NextRequest) {
       !pathname.startsWith("/login") &&
       !pathname.includes(".")
     ) {
+      const MOBILE_SCREEN_MAP: Record<string, string> = {
+        "/Caixas": "caixas",
+        "/caixas": "caixas",
+        "/estoque": "estoque",
+        "/Estoque": "estoque",
+        "/precos": "precos",
+        "/Precos": "precos",
+        "/lojas": "lojas",
+        "/Lojas": "lojas",
+        "/mita": "mita",
+        "/Mita": "mita",
+      };
       const url = request.nextUrl.clone();
       url.pathname = "/mobile";
+      const mappedScreen = MOBILE_SCREEN_MAP[pathname];
+      if (mappedScreen) {
+        url.searchParams.set("screen", mappedScreen);
+        return NextResponse.redirect(url);
+      }
       return NextResponse.rewrite(url);
     }
   } else {
@@ -40,7 +57,8 @@ export async function proxy(request: NextRequest) {
   const isDashboardRoute = pathname.startsWith("/dashboard");
   const isMobileRoute = pathname.startsWith("/mobile");
   const isPriceRoute = pathname === "/precos" || pathname.startsWith("/precos/") || pathname === "/Precos" || pathname.startsWith("/Precos/");
-  const isProtectedRoute = isDashboardRoute || isPriceRoute || isMobileRoute;
+  const isCaixasRoute = pathname === "/Caixas" || pathname.startsWith("/Caixas/") || pathname === "/caixas" || pathname.startsWith("/caixas/");
+  const isProtectedRoute = isDashboardRoute || isPriceRoute || isMobileRoute || isCaixasRoute;
   const isLegacyOperationalRoute =
     pathname === "/registro" ||
     pathname.startsWith("/registro/") ||

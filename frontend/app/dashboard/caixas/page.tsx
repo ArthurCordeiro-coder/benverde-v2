@@ -22,6 +22,7 @@ import {
   PackageSearch,
   RefreshCw,
   Store,
+  Trash2,
   TrendingUp,
   X,
 } from "lucide-react";
@@ -123,6 +124,27 @@ export default function CaixasPage() {
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
 
+  // Controle de Deleção
+  const [sessionCreatedIds, setSessionCreatedIds] = useState<number[]>([]);
+  const [confirmingDelete, setConfirmingDelete] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Carrega IDs da sessão salvos no sessionStorage
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("caixas_session_ids");
+      if (saved) setSessionCreatedIds(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  const addSessionId = (id: number) => {
+    setSessionCreatedIds(prev => {
+      const updated = [...prev, id];
+      sessionStorage.setItem("caixas_session_ids", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // Campos do formulário
   const [loja, setLoja] = useState("");
   const [data, setData] = useState("");
@@ -177,6 +199,27 @@ export default function CaixasPage() {
   useEffect(() => {
     void carregarRegistros("initial");
   }, []);
+
+  const handleDelete = async (id: number) => {
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/caixas/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Falha ao apagar registro');
+      }
+      setRegistros(prev => prev.filter(c => c.id !== id));
+      setConfirmingDelete(null);
+      setFeedback({ tone: "success", text: "Registro apagado com sucesso." });
+    } catch (e) {
+      setFeedback({
+        tone: "error",
+        text: e instanceof Error ? e.message : 'Erro desconhecido ao apagar.'
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const toggleStatus = async (row: CaixaRegistro) => {
     const nextStatus = row.entregue === "sim" ? "nao" : "sim";
@@ -317,12 +360,15 @@ export default function CaixasPage() {
 
     setSalvando(true);
     try {
-      await api.post("/api/caixas", {
+      const res = await api.post("/api/caixas", {
         loja: loja.trim(),
         data,
         total: qtd,
         caixas_benverde: qtd,
       });
+      if (res.data?.id) {
+        addSessionId(res.data.id);
+      }
       setModalAberto(false);
       setLoja("");
       setData("");
@@ -562,6 +608,9 @@ export default function CaixasPage() {
                 <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">
                   Status
                 </th>
+                <th className="px-6 py-4 text-center text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -573,7 +622,7 @@ export default function CaixasPage() {
                 </tr>
               ) : filteredRows.length === 0 ? (
                 <tr>
-                  <td className="px-6 py-8 text-sm text-gray-500" colSpan={7}>
+                  <td className="px-6 py-8 text-sm text-gray-500" colSpan={8}>
                     Nenhum registro encontrado.
                   </td>
                 </tr>
@@ -634,6 +683,18 @@ export default function CaixasPage() {
                             </>
                           )}
                         </button>
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        {sessionCreatedIds.includes(row.id) && (
+                          <button
+                            onClick={() => setConfirmingDelete(row.id)}
+                            className="flex items-center justify-center rounded-lg p-2 text-red-300 hover:bg-red-500/10 hover:text-red-200 transition mx-auto"
+                            aria-label="Apagar registro"
+                            title="Apagar registro"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -728,6 +789,40 @@ export default function CaixasPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Deleção */}
+      {confirmingDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => !isDeleting && setConfirmingDelete(null)}
+        >
+          <div
+            className="rounded-2xl border border-red-400/30 bg-zinc-900 p-6 max-w-md w-full"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-red-200">Apagar registro?</h3>
+            <p className="mt-2 text-sm text-zinc-300">
+              Esta ação é <strong>irreversível</strong>. O registro será removido permanentemente do banco e não poderá ser recuperado.
+            </p>
+            <div className="mt-6 flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmingDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-lg border border-zinc-600 text-zinc-200 hover:bg-zinc-800 transition disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleDelete(confirmingDelete)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition disabled:opacity-50"
+              >
+                {isDeleting ? 'Apagando…' : 'Apagar'}
+              </button>
+            </div>
           </div>
         </div>
       )}

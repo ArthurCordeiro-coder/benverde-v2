@@ -69,7 +69,7 @@ export async function getCaixas(mes?: string): Promise<CaixaRegistro[]> {
   return rows.map(serializeCaixa);
 }
 
-export async function createCaixa(payload: unknown): Promise<void> {
+export async function createCaixa(payload: unknown): Promise<number> {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     badRequest("Payload deve ser um objeto JSON.");
   }
@@ -100,11 +100,11 @@ export async function createCaixa(payload: unknown): Promise<void> {
     badRequest("Informe a quantidade total de caixas.");
   }
 
-  await execute(
+  const rows = await queryRows<Record<string, unknown>>(
     `INSERT INTO caixas_lojas (
       data, loja, n_loja, caixas_benverde, caixas_ccj, ccj_banca,
       ccj_mercadoria, ccj_retirada, caixas_bananas, total, entregue
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
     [
       data,
       loja,
@@ -119,6 +119,8 @@ export async function createCaixa(payload: unknown): Promise<void> {
       normalizeEntregue(raw.entregue),
     ],
   );
+
+  return toInteger(rows[0]?.id);
 }
 
 export async function updateCaixaEntregue(id: number, payload: unknown): Promise<CaixaRegistro> {
@@ -141,4 +143,15 @@ export async function updateCaixaEntregue(id: number, payload: unknown): Promise
   }
 
   return serializeCaixa(rows[0]);
+}
+
+export async function deleteCaixa(id: number): Promise<void> {
+  const rows = await queryRows<Record<string, unknown>>(
+    `DELETE FROM caixas_lojas WHERE id = $1 RETURNING id`,
+    [id]
+  );
+
+  if (rows.length === 0) {
+    badRequest("Registro de caixa não encontrado.");
+  }
 }
