@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { C } from '@/lib/mobile/constants';
 import * as UI from '@/components/mobile/ui';
 import * as Icons from '@/components/mobile/icons';
@@ -141,10 +143,43 @@ export function ScreenMita({ onBack, onNav }: any) {
                 fontFamily: 'Space Grotesk', fontSize: 13, lineHeight: 1.55,
                 color: isAssistant ? 'rgba(74,222,128,0.9)' : C.text,
               }}>
-                {msg.content.split('**').map((part, j) => j % 2 === 1
-                  ? <strong key={j} style={{ color: isAssistant ? C.green : C.text }}>{part}</strong>
-                  : part
-                )}
+                {isAssistant ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      p: ({ children }) => <p style={{ margin: '0 0 12px', lineHeight: 1.6 }}>{children}</p>,
+                      strong: ({ children }) => <strong style={{ color: C.green, fontWeight: 700 }}>{children}</strong>,
+                      em: ({ children }) => <em style={{ color: 'rgba(74,222,128,0.7)', fontStyle: 'italic' }}>{children}</em>,
+                      code: ({ children }) => <code style={{ background: 'rgba(16,185,129,0.2)', color: C.green, borderRadius: 6, padding: '2px 6px', fontSize: 12, fontFamily: 'monospace' }}>{children}</code>,
+                      pre: ({ children }) => <pre style={{ background: 'rgba(16,185,129,0.08)', border: `1px solid ${C.emeraldBorder}`, borderRadius: 12, padding: '12px', overflowX: 'auto', margin: '12px 0', fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{children}</pre>,
+                      ul: ({ children }) => <ul style={{ paddingLeft: 22, margin: '8px 0 12px', listStyleType: 'disc' }}>{children}</ul>,
+                      ol: ({ children }) => <ol style={{ paddingLeft: 22, margin: '8px 0 12px', listStyleType: 'decimal' }}>{children}</ol>,
+                      li: ({ children }) => <li style={{ marginBottom: 6, lineHeight: 1.5 }}>{children}</li>,
+                      h1: ({ children }) => <h1 style={{ fontSize: 18, fontWeight: 700, color: C.green, margin: '16px 0 8px' }}>{children}</h1>,
+                      h2: ({ children }) => <h2 style={{ fontSize: 16, fontWeight: 700, color: C.green, margin: '14px 0 6px' }}>{children}</h2>,
+                      h3: ({ children }) => <h3 style={{ fontSize: 14, fontWeight: 700, color: C.green, margin: '12px 0 4px' }}>{children}</h3>,
+                      blockquote: ({ children }) => <blockquote style={{ borderLeft: `4px solid ${C.emeraldBorder}`, paddingLeft: 12, margin: '12px 0', color: 'rgba(74,222,128,0.7)', fontStyle: 'italic', background: 'rgba(16,185,129,0.03)', padding: '8px 12px' }}>{children}</blockquote>,
+                      a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: C.green, textDecoration: 'underline', fontWeight: 500 }}>{children}</a>,
+                      hr: () => <hr style={{ border: 'none', borderTop: `1px solid ${C.border}`, margin: '16px 0' }} />,
+                      img: ({ src, alt }) => (
+                        <img 
+                          src={src} 
+                          alt={alt} 
+                          style={{ 
+                            maxWidth: '100%', 
+                            borderRadius: 14, 
+                            margin: '12px 0', 
+                            display: 'block',
+                            border: `1px solid ${C.emeraldBorder}`,
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                          }} 
+                        />
+                      ),
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                ) : msg.content}
               </div>
             </div>
           );

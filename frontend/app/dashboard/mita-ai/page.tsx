@@ -2,6 +2,8 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { Bot, LoaderCircle, SendHorizonal, Sparkles } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import api from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/dashboard/client";
@@ -49,25 +51,16 @@ export default function MitaAiPage() {
         scope: "mita-ai",
       });
 
-      if (Array.isArray(response.data?.history) && response.data.history.length > 0) {
-        setMessages(
-          response.data.history.filter(
-            (item): item is ChatMessage =>
-              (item.role === "user" || item.role === "assistant") &&
-              typeof item.content === "string",
-          ),
-        );
-        return;
-      }
+      const answer = response.data?.answer?.trim();
 
-      const answer =
-        typeof response.data?.answer === "string" && response.data.answer.trim()
-          ? response.data.answer.trim()
-          : "Não consegui montar uma resposta agora.";
-      setMessages([...optimisticMessages, { role: "assistant", content: answer }]);
+      if (answer) {
+        setMessages(prev => [...prev, { role: "assistant", content: answer }]);
+      } else {
+        setMessages(prev => [...prev, { role: "assistant", content: "Não consegui montar uma resposta agora." }]);
+      }
     } catch (error: unknown) {
-      setMessages([
-        ...optimisticMessages,
+      setMessages(prev => [
+        ...prev,
         {
           role: "assistant",
           content: getApiErrorMessage(
@@ -149,7 +142,55 @@ export default function MitaAiPage() {
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                     {message.role === "assistant" ? "Mita" : "Você"}
                   </p>
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  {message.role === "assistant" ? (
+                    <div className="space-y-3">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          p: ({ children }) => <p className="mb-4 leading-relaxed last:mb-0">{children}</p>,
+                          strong: ({ children }) => <strong className="font-bold text-emerald-300">{children}</strong>,
+                          em: ({ children }) => <em className="italic text-emerald-200/90">{children}</em>,
+                          ul: ({ children }) => <ul className="mb-4 ml-6 list-disc space-y-2 last:mb-0">{children}</ul>,
+                          ol: ({ children }) => <ol className="mb-4 ml-6 list-decimal space-y-2 last:mb-0">{children}</ol>,
+                          li: ({ children }) => <li>{children}</li>,
+                          code: ({ children }) => <code className="rounded-md bg-emerald-900/40 px-2 py-0.5 font-mono text-xs text-emerald-100 border border-emerald-500/20">{children}</code>,
+                          pre: ({ children }) => (
+                            <pre className="my-4 overflow-x-auto rounded-2xl border border-emerald-500/20 bg-black/40 p-5 font-mono text-xs leading-relaxed text-emerald-200 shadow-inner">
+                              {children}
+                            </pre>
+                          ),
+                          h1: ({ children }) => <h1 className="mb-4 mt-8 text-2xl font-bold tracking-tight text-emerald-300 first:mt-0">{children}</h1>,
+                          h2: ({ children }) => <h2 className="mb-3 mt-6 text-xl font-bold tracking-tight text-emerald-300 first:mt-0">{children}</h2>,
+                          h3: ({ children }) => <h3 className="mb-2 mt-4 text-lg font-bold tracking-tight text-emerald-300 first:mt-0">{children}</h3>,
+                          blockquote: ({ children }) => (
+                            <blockquote className="my-4 border-l-4 border-emerald-500/40 bg-emerald-500/5 py-2 pl-5 italic text-emerald-200/80 rounded-r-lg">
+                              {children}
+                            </blockquote>
+                          ),
+                          a: ({ href, children }) => (
+                            <a href={href} target="_blank" rel="noopener noreferrer" className="font-medium text-emerald-300 underline decoration-emerald-500/40 underline-offset-4 hover:text-emerald-200 hover:decoration-emerald-500 transition-colors">
+                              {children}
+                            </a>
+                          ),
+                          img: ({ src, alt }) => (
+                            <div className="my-6">
+                              <img
+                                src={src}
+                                alt={alt}
+                                className="mx-auto block max-w-full rounded-2xl border border-white/10 shadow-2xl transition-transform hover:scale-[1.01]"
+                              />
+                              {alt && <p className="mt-3 text-center text-xs text-slate-500 italic">{alt}</p>}
+                            </div>
+                          ),
+                          hr: () => <hr className="my-8 border-white/10" />,
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                  )}
                 </div>
               ))
             )}
