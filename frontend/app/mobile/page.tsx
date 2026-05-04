@@ -59,7 +59,7 @@ function MobileApp() {
 
   function navTo(s: string, dir = 'forward') {
     setDirection(dir);
-    setScreen(s);
+    setScreen(s as Screen);
   }
 
   function handleNav(tab: string) {
