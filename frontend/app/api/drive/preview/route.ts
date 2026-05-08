@@ -1,0 +1,63 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { google } from 'googleapis'
+import { verifySessionToken } from '@/lib/server/session-token'
+
+function getDriveClient() {
+  const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY!)
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
+  })
+  return google.drive({ version: 'v3', auth })
+}
+
+const TEXT_EXTENSIONS = ['.mk', '.md', '.json', '.txt']
+
+export async function GET(req: NextRequest) {
+  const cookieStore = await cookies()
+  const token = cookieStore.get('lumii_token')?.value
+
+  if (!token) {
+    return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  }
+
+  const payload = await verifySessionToken(token)
+  if (!payload || payload.funcionalidade !== 'administracao geral') {
+    return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+  }
+
+  const fileId = req.nextUrl.searchParams.get('fileId')
+  const fileName = req.nextUrl.searchParams.get('name') ?? ''
+
+  if (!fileId) {
+    return NextResponse.json({ error: 'fileId obrigatório' }, { status: 400 })
+  }
+
+  const isText = TEXT_EXTENSIONS.some(ext =>
+    fileName.toLowerCase().endsWith(ext)
+  )
+
+  if (!isText) {
+    return NextResponse.json({
+      type: 'iframe',
+      url: `https://drive.google.com/file/d/${fileId}/preview`,
+    })
+  }
+
+  try {
+    const drive = getDriveClient()
+    const res = await drive.files.get(
+      { fileId, alt: 'media' },
+      { responseType: 'text' }
+    )
+    return NextResponse.json({
+      type: 'text',
+      content: res.data as string,
+      fileName,
+    })
+  } catch (err) {
+    console.error('[Drive Preview] Erro ao buscar conteúdo:', err)
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 })
+  }
+}
