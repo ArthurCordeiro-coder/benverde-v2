@@ -409,7 +409,9 @@ export default function ArquivosPage() {
 
   const onDownload = (f: DisplayFile) => {
     if (f.type === "folder") return;
-    const url = `https://drive.google.com/uc?export=download&id=${f.id}`;
+    // Proxy through our service-account-authed endpoint so the user does not
+    // need direct Drive access to the file.
+    const url = `/api/drive/download?fileId=${encodeURIComponent(f.id)}&disposition=attachment`;
     window.open(url, "_blank");
     showToast(`Baixando "${f.name}"`);
   };
@@ -421,7 +423,10 @@ export default function ArquivosPage() {
   const onBulkDownload = () => {
     const items = files.filter((f) => selected.has(f.id) && f.type !== "folder");
     items.forEach((f) => {
-      window.open(`https://drive.google.com/uc?export=download&id=${f.id}`, "_blank");
+      window.open(
+        `/api/drive/download?fileId=${encodeURIComponent(f.id)}&disposition=attachment`,
+        "_blank",
+      );
     });
     showToast(`${items.length} arquivo(s) baixado(s)`);
   };

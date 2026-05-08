@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { google } from 'googleapis'
+import { google, type drive_v3 } from 'googleapis'
 import { verifySessionToken } from '@/lib/server/session-token'
 
 function getDriveClient() {
@@ -30,14 +30,24 @@ export async function GET(req: NextRequest) {
 
   try {
     const drive = getDriveClient()
-    const res = await drive.files.list({
-      q: `'${folderId}' in parents and trashed = false`,
-      fields: 'files(id, name, mimeType, modifiedTime, size)',
-      orderBy: 'folder, name',
-      pageSize: 200,
-    })
+    const allFiles: drive_v3.Schema$File[] = []
+    let pageToken: string | undefined
 
-    return NextResponse.json({ files: res.data.files ?? [] })
+    // Paginate through every page so folders with > pageSize entries
+    // are not silently truncated.
+    do {
+      const res = await drive.files.list({
+        q: `'${folderId}' in parents and trashed = false`,
+        fields: 'nextPageToken, files(id, name, mimeType, modifiedTime, size)',
+        orderBy: 'folder, name',
+        pageSize: 1000,
+        pageToken,
+      })
+      if (res.data.files) allFiles.push(...res.data.files)
+      pageToken = res.data.nextPageToken ?? undefined
+    } while (pageToken)
+
+    return NextResponse.json({ files: allFiles })
   } catch (err) {
     console.error('[Drive] Erro ao listar arquivos:', err)
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 })

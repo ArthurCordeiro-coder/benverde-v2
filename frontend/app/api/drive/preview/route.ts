@@ -39,9 +39,13 @@ export async function GET(req: NextRequest) {
   )
 
   if (!isText) {
+    // Stream through our own proxy so the request is authenticated by the
+    // service account, not by the end user's Google session. Drive's native
+    // /preview iframe would 403 because the folder is shared only with the
+    // service account, not with the logged-in user.
     return NextResponse.json({
       type: 'iframe',
-      url: `https://drive.google.com/file/d/${fileId}/preview`,
+      url: `/api/drive/download?fileId=${encodeURIComponent(fileId)}&disposition=inline`,
     })
   }
 
