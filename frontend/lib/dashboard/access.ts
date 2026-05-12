@@ -1,4 +1,4 @@
-export type DashboardScope = "overview" | "estoque" | "caixas" | "precos" | "mita-ai" | "lojas";
+export type DashboardScope = "overview" | "estoque" | "caixas" | "precos" | "mita-ai" | "lojas" | "drive";
 
 export type DashboardPath =
   | "/dashboard"
@@ -6,7 +6,8 @@ export type DashboardPath =
   | "/dashboard/caixas"
   | "/dashboard/precos"
   | "/dashboard/mita-ai"
-  | "/dashboard/lojas";
+  | "/dashboard/lojas"
+  | "/dashboard/drive";
 
 export type DashboardNavItem = {
   href: DashboardPath;
@@ -20,6 +21,7 @@ const ALL_DASHBOARD_PATHS: DashboardPath[] = [
   "/dashboard/precos",
   "/dashboard/mita-ai",
   "/dashboard/lojas",
+  "/dashboard/drive",
 ];
 
 const DASHBOARD_SCOPE_PATHS: Record<DashboardScope, DashboardPath> = {
@@ -29,6 +31,7 @@ const DASHBOARD_SCOPE_PATHS: Record<DashboardScope, DashboardPath> = {
   precos: "/dashboard/precos",
   "mita-ai": "/dashboard/mita-ai",
   lojas: "/dashboard/lojas",
+  drive: "/dashboard/drive",
 };
 
 const RESTRICTED_SCOPE_BY_FUNCIONALIDADE: Record<string, DashboardScope[]> = {
@@ -36,6 +39,8 @@ const RESTRICTED_SCOPE_BY_FUNCIONALIDADE: Record<string, DashboardScope[]> = {
   "registro de caixas": ["caixas"],
   "busca de precos": ["precos"],
 };
+
+const DRIVE_ALLOWED_FUNCIONALIDADES = new Set(["administracao geral"]);
 
 export function normalizeFuncionalidade(value?: string | null): string {
   return String(value ?? "")
@@ -45,7 +50,12 @@ export function normalizeFuncionalidade(value?: string | null): string {
 
 export function getAllowedDashboardScopes(funcionalidade?: string | null): DashboardScope[] {
   const normalized = normalizeFuncionalidade(funcionalidade);
-  return RESTRICTED_SCOPE_BY_FUNCIONALIDADE[normalized] ?? [
+  const restricted = RESTRICTED_SCOPE_BY_FUNCIONALIDADE[normalized];
+  if (restricted) {
+    return restricted;
+  }
+
+  const baseScopes: DashboardScope[] = [
     "overview",
     "estoque",
     "caixas",
@@ -53,6 +63,12 @@ export function getAllowedDashboardScopes(funcionalidade?: string | null): Dashb
     "mita-ai",
     "lojas",
   ];
+
+  if (DRIVE_ALLOWED_FUNCIONALIDADES.has(normalized)) {
+    baseScopes.push("drive");
+  }
+
+  return baseScopes;
 }
 
 export function canAccessDashboardScope(
@@ -89,6 +105,9 @@ export function getDashboardScopeFromPath(pathname: string): DashboardScope | nu
   }
   if (path === "/dashboard/lojas" || path.startsWith("/dashboard/lojas/")) {
     return "lojas";
+  }
+  if (path === "/dashboard/drive") {
+    return "drive";
   }
   return null;
 }

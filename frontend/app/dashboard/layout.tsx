@@ -6,6 +6,7 @@ import api from "@/lib/api";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
+import { LuArchive } from "react-icons/lu";
 import {
   AlertCircle,
   Banana,
@@ -62,6 +63,7 @@ const navItems: Array<{ href: DashboardPath; label: string; icon: ReactNode }> =
   { href: "/dashboard/caixas", label: "Caixas das Lojas", icon: <PackageSearch size={18} /> },
   { href: "/dashboard/precos", label: "Preços Concorrentes", icon: <Tags size={18} /> },
   { href: "/dashboard/lojas", label: "Lojas", icon: <Store size={18} /> },
+  { href: "/dashboard/drive", label: "Arquivos", icon: <LuArchive size={18} /> },
 ];
 
 function getNavClass(active: boolean, isHighlight = false) {
