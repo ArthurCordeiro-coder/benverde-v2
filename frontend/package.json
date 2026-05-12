@@ -12,6 +12,7 @@
         "next": "^16.2.1",
         "react": "^19.2.4",
         "react-dom": "^19.2.4",
+        "react-icons": "^5.6.0",
         "react-markdown": "^10.1.0",
         "recharts": "^3.8.1",
         "remark-gfm": "^4.0.1",
@@ -26,10 +27,10 @@
         "start": "next start"
     },
     "devDependencies": {
+        "@tailwindcss/typography": "^0.5.19",
         "@types/node": "^25.5.0",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
-        "@tailwindcss/typography": "^0.5.19",
         "autoprefixer": "^10.4.20",
         "eslint": "^9.39.1",
         "eslint-config-next": "^16.2.1",
