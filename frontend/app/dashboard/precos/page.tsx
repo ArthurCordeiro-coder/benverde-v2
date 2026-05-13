@@ -1292,17 +1292,16 @@ export default function PrecosPage() {
                 type="button"
                 onClick={() => {
                   const rows: { produto_buscado: string; estabelecimento: string; preco: number }[] = [];
-                  for (const items of Object.values(snapshots)) {
-                    for (const item of items ?? []) {
-                      const prices = item.prices ?? {};
-                      for (const [estabelecimento, preco] of Object.entries(prices)) {
-                        if (typeof preco === "number" && Number.isFinite(preco) && preco > 0) {
-                          rows.push({
-                            produto_buscado: String(item.produto ?? "").trim(),
-                            estabelecimento,
-                            preco,
-                          });
-                        }
+                  const items = snapshots[selectedDate] ?? [];
+                  for (const item of items) {
+                    const prices = item.prices ?? {};
+                    for (const [estabelecimento, preco] of Object.entries(prices)) {
+                      if (typeof preco === "number" && Number.isFinite(preco) && preco > 0) {
+                        rows.push({
+                          produto_buscado: String(item.produto ?? "").trim(),
+                          estabelecimento,
+                          preco,
+                        });
                       }
                     }
                   }
@@ -1316,7 +1315,16 @@ export default function PrecosPage() {
                     `precos-base-${selectedDate === GENERAL_KEY ? "geral" : selectedDate}.xlsx`,
                   );
                 }}
-                disabled={Object.keys(snapshots).length === 0}
+                disabled={
+                  Object.keys(snapshots).length === 0 ||
+                  selectedDate === GENERAL_KEY ||
+                  selectedDate.startsWith("GERAL_")
+                }
+                title={
+                  selectedDate === GENERAL_KEY || selectedDate.startsWith("GERAL_")
+                    ? "Selecione uma data específica para exportar"
+                    : undefined
+                }
                 className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400 transition-all hover:bg-white/10 hover:text-green-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Download size={14} />
