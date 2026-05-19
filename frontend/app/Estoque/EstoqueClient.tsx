@@ -1,9 +1,11 @@
 "use client";
 
 import api from "@/lib/api";
+import { useRouter } from "next/navigation";
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Banana,
+  Bot,
   FileText,
   History,
   UploadCloud,
@@ -13,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  MessageSquareWarning,
 } from "lucide-react";
 
 const LOJAS_ESTOQUE = [
@@ -43,7 +46,7 @@ const LOJAS_ESTOQUE = [
   "Loja 31 - SUZANO",
   "Loja 32 - ITAQUAQUECETUBA",
   "Loja 33 - ITAQUAQUECETUBA",
-  "Frutas/Legumes",
+  "Perda",
   "Outra",
 ];
 
@@ -103,6 +106,7 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 
 
 export default function EstoqueClient() {
+  const router = useRouter();
   const idCounter = useRef(5);
   const nextId = () => ++idCounter.current;
 
@@ -291,11 +295,19 @@ export default function EstoqueClient() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(234,179,8,0.18),_transparent_35%),_#07130d] px-4 py-8 text-gray-100">
       <div className="mx-auto max-w-4xl space-y-8 animate-in fade-in duration-300">
 
-        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-6 shadow-xl backdrop-blur-md">
-          <h1 className="text-2xl font-bold text-white flex items-center gap-3">
-            <Banana className="text-yellow-400" /> Registro de Estoque
-          </h1>
-          <p className="text-sm text-gray-400 mt-1">Registro manual de entradas e saídas e extração de NFe.</p>
+        <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-6 shadow-xl backdrop-blur-md flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+              <Banana className="text-yellow-400" /> Registro de Estoque
+            </h1>
+            <p className="text-sm text-gray-400 mt-1">Registro manual de entradas e saídas e extração de NFe.</p>
+          </div>
+          <button
+            onClick={() => router.push("/Estoque/correcao")}
+            className="flex shrink-0 items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-300 transition-all hover:bg-emerald-500/20"
+          >
+            <Bot size={16} /> Assistente
+          </button>
         </div>
 
         {feedback && (
@@ -482,16 +494,20 @@ export default function EstoqueClient() {
                       <td className="py-3 font-semibold text-white">{r.produto}</td>
                       <td className="py-3 tabular-nums">{r.quant.toFixed(1)} {r.unidade}</td>
                       <td className="py-3">{r.loja}</td>
-                      <td className="py-3 text-right">
+                      <td className="py-3 text-right flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => router.push(`/Estoque/correcao?id=${r.id}`)}
+                          title="Corrigir com assistente"
+                          className="p-2 text-gray-500 hover:text-yellow-400 hover:bg-yellow-500/10 rounded-lg transition-colors"
+                        >
+                          <MessageSquareWarning size={16} />
+                        </button>
                         <button
                           onClick={() => void deletarRegistro(r.id)}
                           disabled={deletingId === r.id}
                           className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
                         >
-                          {deletingId === r.id
-                            ? <Loader2 size={16} className="animate-spin" />
-                            : <Trash2 size={16} />
-                          }
+                          {deletingId === r.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                         </button>
                       </td>
                     </tr>

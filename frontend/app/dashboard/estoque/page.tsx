@@ -35,6 +35,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   type FormEvent,
   type ReactNode,
@@ -183,6 +184,7 @@ function bubbleClass(role: ChatMessage["role"]) {
 }
 
 export default function EstoquePage() {
+  const router = useRouter();
   const mitaEndpoint = "/api/mita-ai/chat";
 
   const [saldo, setSaldo] = useState(0);
@@ -502,6 +504,13 @@ export default function EstoquePage() {
           >
             {isRefreshing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             Sincronizar Carga
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/Estoque/correcao")}
+            className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-5 py-2.5 text-sm font-semibold text-emerald-200 transition-all hover:bg-emerald-500/20"
+          >
+            <Bot size={16} /> Assistente
           </button>
           <button
             type="button"
