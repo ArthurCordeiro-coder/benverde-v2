@@ -7,7 +7,7 @@ export const NAV = [
   { key: 'estoque', icon: Icons.BoxIcon,     label: 'Estoque' },
   { key: 'precos',  icon: Icons.TagIcon,     label: 'Preços'  },
   { key: 'lojas',   icon: Icons.StoreIcon,   label: 'Lojas'   },
-  { key: 'mita',    icon: Icons.BotIcon,     label: 'Mita'    },
+  { key: 'mita',    icon: Icons.BotIcon,     label: 'Lumii'    },
 ];
 
 export function StatusBar() {
@@ -182,7 +182,7 @@ export function MitaBanner({ text, onChat }: any) {
         <Icons.SparklesIcon size={14} color={C.green} />
       </div>
       <div style={{ flex: 1 }}>
-        <div style={{ fontFamily: 'Space Grotesk', fontSize: 10, fontWeight: 600, color: C.emerald, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.6 }}>Mita diz</div>
+        <div style={{ fontFamily: 'Space Grotesk', fontSize: 10, fontWeight: 600, color: C.emerald, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.6 }}>Lumii diz</div>
         <div style={{ fontFamily: 'Space Grotesk', fontSize: 12, color: 'rgba(74,222,128,0.8)', lineHeight: 1.5 }}>{text}</div>
         {onChat && (
           <button onClick={onChat} style={{

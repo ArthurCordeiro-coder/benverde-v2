@@ -18,17 +18,17 @@ export async function proxy(request: NextRequest) {
 
   if (isMobile) {
     if (
-      !pathname.startsWith("/mobile") &&
+      !pathname.startsWith("/benverde/mobile") &&
       !pathname.startsWith("/api") &&
       !pathname.startsWith("/_next") &&
       !pathname.startsWith("/login") &&
       !pathname.includes(".")
     ) {
       const MOBILE_SCREEN_MAP: Record<string, string> = {
-        "/Caixas": "caixas",
-        "/caixas": "caixas",
-        "/estoque": "estoque",
-        "/Estoque": "estoque",
+        "/benverde/Caixas": "caixas",
+        "/benverde/caixas": "caixas",
+        "/benverde/estoque": "estoque",
+        "/benverde/Estoque": "estoque",
         "/precos": "precos",
         "/Precos": "precos",
         "/lojas": "lojas",
@@ -37,7 +37,7 @@ export async function proxy(request: NextRequest) {
         "/Mita": "mita",
       };
       const url = request.nextUrl.clone();
-      url.pathname = "/mobile";
+      url.pathname = "/benverde/mobile";
       const mappedScreen = MOBILE_SCREEN_MAP[pathname];
       if (mappedScreen) {
         url.searchParams.set("screen", mappedScreen);
@@ -46,7 +46,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.rewrite(url);
     }
   } else {
-    if (pathname.startsWith("/mobile")) {
+    if (pathname.startsWith("/benverde/mobile")) {
       const url = request.nextUrl.clone();
       url.pathname = "/";
       return NextResponse.redirect(url);
@@ -54,21 +54,21 @@ export async function proxy(request: NextRequest) {
   }
 
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  const isDashboardRoute = pathname.startsWith("/dashboard");
-  const isMobileRoute = pathname.startsWith("/mobile");
+  const isDashboardRoute = pathname.startsWith("/benverde/dashboard");
+  const isMobileRoute = pathname.startsWith("/benverde/mobile");
   const isPriceRoute = pathname === "/precos" || pathname.startsWith("/precos/") || pathname === "/Precos" || pathname.startsWith("/Precos/");
-  const isCaixasRoute = pathname === "/Caixas" || pathname.startsWith("/Caixas/") || pathname === "/caixas" || pathname.startsWith("/caixas/");
+  const isCaixasRoute = pathname === "/benverde/Caixas" || pathname.startsWith("/benverde/Caixas/") || pathname === "/benverde/caixas" || pathname.startsWith("/benverde/caixas/");
   const isProtectedRoute = isDashboardRoute || isPriceRoute || isMobileRoute || isCaixasRoute;
   const isLegacyOperationalRoute =
     pathname === "/registro" ||
     pathname.startsWith("/registro/") ||
     pathname === "/registro-caixas" ||
     pathname.startsWith("/registro-caixas/") ||
-    pathname === "/dashboard/registro" ||
-    pathname.startsWith("/dashboard/registro/");
+    pathname === "/benverde/dashboard/registro" ||
+    pathname.startsWith("/benverde/dashboard/registro/");
 
   if (isLegacyOperationalRoute) {
-    const dashboardUrl = new URL("/dashboard", request.url);
+    const dashboardUrl = new URL("/benverde/dashboard", request.url);
     return NextResponse.redirect(dashboardUrl);
   }
 

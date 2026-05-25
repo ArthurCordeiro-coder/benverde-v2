@@ -402,19 +402,21 @@ export default function PrecosStandalonePage() {
   const exportToExcel = useCallback(() => {
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(
-      visibleRows.map((row) => ({
-        Produto: row.produto,
-        "Preco Semar": row.prices.Semar,
-        "Melhor Concorrente": row.bestCompetitor,
-        "Preco Concorrente": row.bestCompetitorPrice,
-        Media: row.averagePrice,
-        Status: getRowStatus(row).label,
-      })),
+      visibleRows.map((row) => {
+        const rowData: any = { Produto: row.produto };
+        markets.forEach((market) => {
+          rowData[market] = row.prices[market];
+        });
+        rowData["Melhor Concorrente"] = row.bestCompetitor;
+        rowData["Media"] = row.averagePrice;
+        rowData["Status"] = getRowStatus(row).label;
+        return rowData;
+      }),
     );
 
     XLSX.utils.book_append_sheet(workbook, worksheet, "Precos");
     XLSX.writeFile(workbook, `precos-${selectedDate}.xlsx`);
-  }, [selectedDate, visibleRows]);
+  }, [selectedDate, visibleRows, markets]);
 
   return (
     <section className="min-h-screen bg-[#07130d] px-4 py-6 text-gray-100 md:px-8 md:py-10">
@@ -548,29 +550,28 @@ export default function PrecosStandalonePage() {
                       {getSortIcon(sortConfig, "produto")}
                     </button>
                   </th>
-                  <th className="border-r border-white/5 p-5 text-right">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSortConfig((current) => ({
-                          key: "Semar",
-                          direction:
-                            current.key === "Semar" && current.direction === "ascending"
-                              ? "descending"
-                              : "ascending",
-                        }))
-                      }
-                      className="ml-auto flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
-                    >
-                      Preco Semar
-                      {getSortIcon(sortConfig, "Semar")}
-                    </button>
-                  </th>
+                  {markets.map((market) => (
+                    <th key={market} className="border-r border-white/5 p-5 text-right">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSortConfig((current) => ({
+                            key: market,
+                            direction:
+                              current.key === market && current.direction === "ascending"
+                                ? "descending"
+                                : "ascending",
+                          }))
+                        }
+                        className="ml-auto flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
+                      >
+                        {market}
+                        {getSortIcon(sortConfig, market)}
+                      </button>
+                    </th>
+                  ))}
                   <th className="border-r border-white/5 p-5 text-[10px] font-black uppercase tracking-widest">
                     Melhor Concorrente
-                  </th>
-                  <th className="border-r border-white/5 p-5 text-right text-[10px] font-black uppercase tracking-widest">
-                    Preco Concorrente
                   </th>
                   <th className="border-r border-white/5 p-5 text-right">
                     <button
@@ -613,7 +614,7 @@ export default function PrecosStandalonePage() {
               <tbody className="divide-y divide-white/5">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="p-20 text-center text-gray-500">
+                    <td colSpan={4 + markets.length} className="p-20 text-center text-gray-500">
                       <div className="flex flex-col items-center gap-4">
                         <Loader2 className="animate-spin text-green-500" size={36} />
                         <span className="text-xs font-bold uppercase tracking-[0.2em]">
@@ -624,7 +625,7 @@ export default function PrecosStandalonePage() {
                   </tr>
                 ) : visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-20 text-center text-gray-500">
+                    <td colSpan={4 + markets.length} className="p-20 text-center text-gray-500">
                       Nenhum registro encontrado para esse filtro.
                     </td>
                   </tr>
@@ -648,24 +649,15 @@ export default function PrecosStandalonePage() {
                             <span className={isBanana ? "text-yellow-50" : "text-white"}>{row.produto}</span>
                           </div>
                         </td>
-                        <td className="border-r border-white/5 p-5 text-right tabular-nums">
-                          <span className="font-medium text-white">{formatCurrency(row.prices.Semar)}</span>
-                        </td>
+                        {markets.map((market) => (
+                          <td key={market} className="border-r border-white/5 p-5 text-right tabular-nums">
+                            <span className={market === "Semar" ? "font-medium text-white" : "text-gray-300"}>
+                              {formatCurrency(row.prices[market])}
+                            </span>
+                          </td>
+                        ))}
                         <td className="border-r border-white/5 p-5 text-gray-300">
                           {row.bestCompetitor ?? <span className="text-gray-500">-</span>}
-                        </td>
-                        <td className="border-r border-white/5 p-5 text-right tabular-nums">
-                          <span
-                            className={
-                              row.prices.Semar !== null &&
-                              row.bestCompetitorPrice !== null &&
-                              row.bestCompetitorPrice < row.prices.Semar
-                                ? "font-medium text-red-400"
-                                : "text-white"
-                            }
-                          >
-                            {formatCurrency(row.bestCompetitorPrice)}
-                          </span>
                         </td>
                         <td className="border-r border-white/5 p-5 text-right tabular-nums text-gray-300">
                           {formatCurrency(row.averagePrice)}

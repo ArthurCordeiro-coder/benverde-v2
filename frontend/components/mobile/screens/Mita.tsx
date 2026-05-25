@@ -21,7 +21,7 @@ export function ScreenMita({ onBack, onNav }: any) {
   ];
 
   const INITIAL_MESSAGES: ChatMessage[] = [
-    { role: 'assistant', content: 'Oi! Sou a Mita, sua gerente de dados. Posso te ajudar com estoque, metas, preços e caixas. O que você precisa hoje?' },
+    { role: 'assistant', content: 'Oi! Sou a Lumii, sua gerente de dados. Posso te ajudar com estoque, metas, preços e caixas. O que você precisa hoje?' },
   ];
 
   const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
@@ -85,7 +85,7 @@ export function ScreenMita({ onBack, onNav }: any) {
             <Icons.BotIcon size={20} color={C.green} />
           </div>
           <div>
-            <div style={{ fontFamily: 'Space Grotesk', fontWeight: 700, fontSize: 17, color: C.text }}>Mita</div>
+            <div style={{ fontFamily: 'Space Grotesk', fontWeight: 700, fontSize: 17, color: C.text }}>Lumii</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, boxShadow: '0 0 6px rgba(74,222,128,0.8)' }} />
               <span style={{ fontFamily: 'Space Grotesk', fontSize: 11, color: C.green }}>online · sua gerente de dados</span>

@@ -1,6 +1,77 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@font-face {
+  font-family: "Stack Sans Notch";
+  src: url("/fonts/StackSansNotch-VariableFont_wght.ttf") format("truetype-variations"),
+       url("/fonts/StackSansNotch-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --lumii-bg:            #070d09;
+  --lumii-bg-1:          #07140e;
+  --lumii-bg-2:          #0b1f15;
+  --lumii-bg-3:          #06100b;
+
+  --lumii-surface:       rgba(255, 255, 255, 0.03);
+  --lumii-surface-2:     rgba(255, 255, 255, 0.06);
+  --lumii-surface-3:     rgba(255, 255, 255, 0.08);
+
+  --lumii-border:        rgba(255, 255, 255, 0.08);
+  --lumii-border-2:      rgba(255, 255, 255, 0.14);
+  --lumii-border-3:      rgba(255, 255, 255, 0.20);
+
+  --lumii-primary:       #10b981;
+  --lumii-primary-600:   #059669;
+  --lumii-primary-500:   #10b981;
+  --lumii-primary-400:   #34d399;
+  --lumii-primary-300:   #6ee7b7;
+  --lumii-glow:          #4ade80;
+
+  --lumii-primary-dim:        rgba(16, 185, 129, 0.12);
+  --lumii-primary-dim-strong: rgba(16, 185, 129, 0.20);
+  --lumii-primary-border:     rgba(16, 185, 129, 0.25);
+  --lumii-primary-halo:       rgba(52, 211, 153, 0.12);
+
+  --lumii-fg:            #f1f5f9;
+  --lumii-fg-1:          #e2e8f0;
+  --lumii-fg-muted:      #94a3b8;
+  --lumii-fg-subtle:     #64748b;
+  --lumii-fg-disabled:   #475569;
+
+  --lumii-success:       #4ade80;
+  --lumii-success-bg:    rgba(74, 222, 128, 0.10);
+  --lumii-success-border:rgba(74, 222, 128, 0.25);
+
+  --lumii-warning:       #fbbf24;
+  --lumii-warning-bg:    rgba(251, 191, 36, 0.12);
+  --lumii-warning-border:rgba(251, 191, 36, 0.25);
+
+  --lumii-danger:        #f87171;
+  --lumii-danger-bg:     rgba(248, 113, 113, 0.12);
+  --lumii-danger-border: rgba(248, 113, 113, 0.25);
+
+  --lumii-font-sans:     "Stack Sans Notch", "Space Grotesk",
+                         -apple-system, BlinkMacSystemFont,
+                         "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --lumii-font-mono:     "JetBrains Mono", ui-monospace, "SF Mono", Menlo,
+                         Consolas, monospace;
+
+  --lumii-shadow-sm:     0 4px 20px -4px rgba(0, 0, 0, 0.20);
+  --lumii-shadow-md:     0 8px 32px rgba(0, 0, 0, 0.20);
+  --lumii-shadow-lg:     0 20px 50px rgba(0, 0, 0, 0.60);
+  --lumii-shadow-xl:     0 20px 70px rgba(0, 0, 0, 0.45);
+
+  --lumii-glow-sm:       0 0 8px  rgba(16, 185, 129, 0.30);
+  --lumii-glow-md:       0 0 16px rgba(16, 185, 129, 0.15);
+  --lumii-glow-lg:       0 0 20px rgba(16, 185, 129, 0.10);
+}
 
 @layer base {
   :root {
@@ -9,8 +80,39 @@
 
   body {
     min-height: 100vh;
-    background:
-      radial-gradient(circle at top, rgba(52, 211, 153, 0.12), transparent 32%),
-      linear-gradient(180deg, #07140e 0%, #0b1f15 48%, #06100b 100%);
+    font-family: var(--lumii-font-sans);
+    background: var(--lumii-bg);
+    color: var(--lumii-fg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
+}
+
+@keyframes lumii-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.9); }
+}
+
+@keyframes lumii-ring {
+  0% { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+
+@keyframes lumii-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes lumii-slide-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes lumii-slide-out {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(-20px); }
+}
+
+@keyframes lumii-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
 }

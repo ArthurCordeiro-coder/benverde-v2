@@ -1,217 +1,338 @@
 "use client";
 
-import Image from "next/image";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Lock, User } from "lucide-react";
-
+import { Eye, EyeOff } from "lucide-react";
 import api from "@/lib/api";
 
-type ApiError = {
-  request?: unknown;
-  response?: {
-    data?: {
-      detail?: string;
-    };
-  };
-};
-
-type LoginResponse = {
-  user?: {
-    funcionalidade?: string;
-  };
-};
+type ApiError = { request?: unknown; response?: { data?: { detail?: string } } };
+type LoginResponse = { user?: { funcionalidade?: string } };
 
 function getRedirectPath(funcionalidade?: string) {
-  const normalized = String(funcionalidade ?? "")
-    .trim()
-    .toLowerCase();
-
-  if (normalized === "busca de precos") {
-    return "/Precos";
-  }
-
-  if (normalized === "registro de estoque") {
-    return "/Estoque";
-  }
-
-  if (normalized === "registro de caixas") {
-    return "/Caixas";
-  }
-
-  return "/dashboard";
+  const n = String(funcionalidade ?? "").trim().toLowerCase();
+  if (n === "busca de precos") return "/Precos";
+  if (n === "registro de estoque") return "/benverde/Estoque";
+  if (n === "registro de caixas") return "/benverde/Caixas";
+  return "/benverde/dashboard";
 }
 
+/* ─── Brand mark ─── */
+function BrandMark({ size = 44 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden>
+      <defs>
+        <linearGradient id="auth-lg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#34d399" />
+          <stop offset="100%" stopColor="#10b981" />
+        </linearGradient>
+      </defs>
+      <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#auth-lg)" />
+      <path d="M16 14 L16 33 L31 33" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <circle cx="32" cy="17" r="2.6" fill="#fff" />
+    </svg>
+  );
+}
+
+/* ─── Floating label input ─── */
+function FloatInput({
+  label, value, onChange, type = "text", autoFocus, error, onEnter, name, autoComplete, rightSlot,
+}: {
+  label: string; value: string; onChange: (v: string) => void; type?: string;
+  autoFocus?: boolean; error?: string; onEnter?: () => void; name?: string; autoComplete?: string; rightSlot?: React.ReactNode;
+}) {
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      const t = setTimeout(() => inputRef.current?.focus(), 220);
+      return () => clearTimeout(t);
+    }
+  }, [autoFocus]);
+
+  const float = focused || value.length > 0;
+  const errored = !!error;
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div
+        className="relative h-14 transition-all duration-150"
+        style={{
+          borderRadius: 14,
+          border: `1px solid ${errored ? "rgba(248,113,113,0.55)" : focused ? "var(--lumii-primary-300)" : "var(--lumii-border-2)"}`,
+          background: focused ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,0.02)",
+          boxShadow: focused && !errored ? "0 0 0 3px rgba(110,231,183,0.10)" : "none",
+        }}
+      >
+        <label
+          className="pointer-events-none absolute transition-all duration-200"
+          style={{
+            left: 18,
+            top: float ? 10 : "50%",
+            transform: float ? "translateY(0)" : "translateY(-50%)",
+            fontSize: float ? 11 : 15,
+            color: errored ? "#fca5a5" : focused ? "var(--lumii-primary-300)" : "var(--lumii-fg-muted)",
+            background: float ? "var(--lumii-bg-1)" : "transparent",
+            padding: float ? "0 6px" : "0",
+            marginLeft: float ? -6 : 0,
+            letterSpacing: float ? "0.02em" : "0",
+            fontFamily: "var(--lumii-font-sans)",
+          }}
+        >
+          {label}
+        </label>
+        <input
+          ref={inputRef}
+          name={name}
+          type={type}
+          autoComplete={autoComplete}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onKeyDown={(e) => e.key === "Enter" && onEnter?.()}
+          className="absolute inset-0 h-full w-full border-none bg-transparent outline-none"
+          style={{
+            color: "var(--lumii-fg)",
+            fontSize: 15,
+            fontFamily: "var(--lumii-font-sans)",
+            padding: rightSlot ? "16px 52px 0 18px" : "16px 18px 0",
+          }}
+        />
+        {rightSlot && (
+          <div className="absolute bottom-0 right-3 top-0 flex items-center">
+            {rightSlot}
+          </div>
+        )}
+      </div>
+      {error && <p className="pl-1 text-xs text-red-300">{error}</p>}
+    </div>
+  );
+}
+
+/* ─── Step panel (animated) ─── */
+function StepPanel({ children, active, direction }: { children: React.ReactNode; active: boolean; direction: "left" | "right" }) {
+  return (
+    <div
+      className="flex flex-col gap-3.5"
+      style={{
+        transition: "opacity 0.25s, transform 0.25s cubic-bezier(0.4,0,0.2,1)",
+        opacity: active ? 1 : 0,
+        transform: active ? "translateX(0)" : direction === "right" ? "translateX(24px)" : "translateX(-24px)",
+        pointerEvents: active ? "auto" : "none",
+        position: active ? "relative" : "absolute",
+        inset: active ? "auto" : 0,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ─── Login page ─── */
 export default function LoginPage() {
   const router = useRouter();
-  const [showPassword, setShowPassword] = useState(false);
-  const [username, setUsername] = useState("");
+  const [step, setStep] = useState<"email" | "password">("email");
+  const [direction, setDirection] = useState<"left" | "right">("right");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showBanner, setShowBanner] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return sessionStorage.getItem('benverde_update_v2_seen') !== '1';
-  });
 
-  const dismissBanner = () => {
-    sessionStorage.setItem('benverde_update_v2_seen', '1');
-    setShowBanner(false);
+  const advanceToPassword = () => {
+    if (!email.trim()) { setError("Informe seu e-mail ou usuário."); return; }
+    setError("");
+    setDirection("right");
+    setStep("password");
   };
 
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const goBack = () => {
+    setError("");
+    setDirection("left");
+    setStep("email");
+  };
+
+  const handleLogin = async (e?: FormEvent) => {
+    e?.preventDefault();
+    if (!password) { setError("Digite sua senha."); return; }
     setLoading(true);
     setError("");
-
     try {
-      const response = await api.post<LoginResponse>("/api/login", {
-        username: username.trim(),
-        password,
-      });
-
-      router.push(getRedirectPath(response.data?.user?.funcionalidade));
+      const res = await api.post<LoginResponse>("/api/login", { username: email.trim(), password });
+      router.push(getRedirectPath(res.data?.user?.funcionalidade));
     } catch (err: unknown) {
-      const detail = (err as ApiError | undefined)?.response?.data?.detail;
-      setError(
-        typeof detail === "string"
-          ? detail
-          : (err as ApiError | undefined)?.request
-            ? "Nao foi possivel conectar ao servidor."
-            : "Usuario ou senha invalidos.",
-      );
+      const detail = (err as ApiError)?.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : (err as ApiError)?.request ? "Não foi possível conectar ao servidor." : "Usuário ou senha inválidos.");
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="relative flex min-h-screen w-full overflow-hidden bg-gradient-to-br from-benverde-base via-benverde-dark to-black">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
-        <div className="absolute -bottom-32 right-10 h-96 w-96 rounded-full bg-green-900/35 blur-3xl" />
-      </div>
+  const titleMap = { email: "Bem-vindo ao Lumii", password: "Digite sua senha" };
+  const subtitleMap = { email: "Acesse sua conta para continuar", password: email };
 
-      <div className="hidden h-screen lg:block lg:w-1/2">
-        <div className="relative h-full w-full">
-          <Image
-            src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=1920&q=80"
-            alt="Granja"
-            fill
-            priority
-            unoptimized
-            className="object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/35 to-transparent" />
+  return (
+    <div
+      className="relative flex min-h-screen flex-col px-8 py-8"
+      style={{
+        background: "radial-gradient(circle at top, rgba(52,211,153,0.12), transparent 32%), linear-gradient(180deg, #07140e 0%, #0b1f15 48%, #06100b 100%)",
+        fontFamily: "var(--lumii-font-sans)",
+      }}
+    >
+      {/* Ambient blobs */}
+      <div className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 right-10 h-96 w-96 rounded-full bg-green-900/35 blur-3xl" />
+
+      {/* Top bar */}
+      <div className="relative flex items-center justify-between">
+        <a href="/" className="flex items-center gap-2.5 no-underline">
+          <BrandMark size={28} />
+          <span className="text-base font-bold tracking-tight text-slate-100" style={{ letterSpacing: "-0.01em" }}>lumii</span>
+        </a>
+        <div className="flex items-center gap-4 text-[13px] text-slate-400">
+          <span>Não tem conta?</span>
+          <button
+            type="button"
+            onClick={() => router.push("/login/criar-conta")}
+            className="font-semibold text-emerald-300 transition-colors hover:text-emerald-200"
+          >
+            Criar conta
+          </button>
         </div>
       </div>
 
-      <div className="relative flex h-screen w-full items-center justify-center px-6 lg:w-1/2">
-        <div className="w-full max-w-md">
-
-          {/* Banner de atualização */}
-          {showBanner && (
-            <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 backdrop-blur-sm">
-              <span className="text-xl leading-none">🌿</span>
-              <p className="flex-1 text-sm leading-relaxed text-emerald-100">
-                <strong>Atualização:</strong> a versão mobile agora está disponível para o registro de caixas e o painel principal!
-              </p>
-              <button
-                type="button"
-                onClick={dismissBanner}
-                className="mt-0.5 shrink-0 text-emerald-300/60 transition-colors hover:text-emerald-200"
-                aria-label="Fechar"
+      {/* Center stage */}
+      <div className="relative flex flex-1 items-center justify-center py-4">
+        <div
+          className="w-full overflow-hidden"
+          style={{
+            maxWidth: "min(1100px, 100%)",
+            minHeight: 520,
+            borderRadius: 28,
+            border: "1px solid var(--lumii-border)",
+            background: "var(--lumii-surface)",
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
+            boxShadow: "0 20px 70px rgba(0,0,0,0.45)",
+            padding: "44px 56px 40px",
+            display: "grid",
+            gridTemplateColumns: "minmax(260px, 1fr) minmax(360px, 1fr)",
+            gap: 56,
+          }}
+        >
+          {/* Left column — animated title */}
+          <div className="flex flex-col justify-center pr-2">
+            <BrandMark size={44} />
+            <div className="mt-7">
+              <h1
+                key={step + "-title"}
+                className="font-semibold text-slate-100"
+                style={{
+                  fontSize: 40, lineHeight: 1.08, letterSpacing: "-0.02em",
+                  animation: "lumii-fade-up 0.35s cubic-bezier(0.16,1,0.3,1) both",
+                }}
               >
-                ✕
-              </button>
-            </div>
-          )}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-10 py-12 shadow-[0_20px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-            <div className="mb-8 text-center">
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full border border-emerald-300/30 bg-emerald-500/10">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="h-6 w-6"
-                  stroke="#34d399"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                {titleMap[step]}
+              </h1>
+              <p
+                key={step + "-sub"}
+                className="mt-4 text-[15px] leading-relaxed text-slate-400"
+                style={{ animation: "lumii-fade-up 0.35s 0.05s cubic-bezier(0.16,1,0.3,1) both" }}
+              >
+                {subtitleMap[step]}
+              </p>
+              {step === "password" && (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[13px] text-slate-100 transition-colors hover:bg-white/5"
+                  style={{ borderColor: "var(--lumii-border-2)" }}
                 >
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                  <polyline points="9 22 9 12 15 12 15 22" />
-                </svg>
-              </div>
-              <h1 className="text-2xl font-semibold text-white">Benverde</h1>
-              <p className="mt-1 text-sm text-slate-300">Acesse sua conta para continuar</p>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+                  {email}
+                </button>
+              )}
             </div>
+          </div>
 
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-300">Usuario</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70" />
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(event) => setUsername(event.target.value)}
-                    placeholder="Digite seu usuario"
-                    className="h-11 w-full rounded-lg border border-white/15 bg-black/30 pl-10 pr-4 text-sm text-white placeholder:text-slate-400 transition-colors focus:border-emerald-400/70 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
-                    required
+          {/* Right column — form */}
+          <div className="relative flex flex-col">
+            <div className="relative flex flex-1 flex-col justify-center" style={{ minHeight: 200 }}>
+              <form onSubmit={step === "email" ? (e) => { e.preventDefault(); advanceToPassword(); } : handleLogin}>
+                <StepPanel active={step === "email"} direction={direction}>
+                  <FloatInput
+                    label="E-mail ou usuário"
+                    value={email}
+                    onChange={setEmail}
+                    autoFocus={step === "email"}
+                    name="email"
+                    autoComplete="email"
+                    onEnter={advanceToPassword}
+                    error={step === "email" ? error : undefined}
                   />
-                </div>
-              </div>
+                </StepPanel>
 
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-300">Senha</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-300/70" />
-                  <input
-                    type={showPassword ? "text" : "password"}
+                <StepPanel active={step === "password"} direction={direction}>
+                  <FloatInput
+                    label="Senha"
                     value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Digite sua senha"
-                    className="h-11 w-full rounded-lg border border-white/15 bg-black/30 pl-10 pr-11 text-sm text-white placeholder:text-slate-400 transition-colors focus:border-emerald-400/70 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
-                    required
+                    onChange={setPassword}
+                    type={showPassword ? "text" : "password"}
+                    autoFocus={step === "password"}
+                    name="password"
+                    autoComplete="current-password"
+                    onEnter={() => handleLogin()}
+                    error={step === "password" ? error : undefined}
+                    rightSlot={
+                      <button type="button" onClick={() => setShowPassword((v) => !v)} className="text-slate-400 hover:text-slate-200">
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    }
                   />
+                </StepPanel>
+
+                {/* Actions row */}
+                <div className="mt-8 flex items-center justify-between gap-4 border-t pt-5" style={{ borderColor: "var(--lumii-border)" }}>
                   <button
                     type="button"
-                    onClick={() => setShowPassword((current) => !current)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-300/70 transition-colors hover:text-emerald-300"
-                    aria-label="Mostrar ou ocultar senha"
+                    onClick={() => router.push("/login/criar-conta")}
+                    className="text-[13px] font-semibold text-emerald-300 transition-colors hover:text-emerald-200"
+                    style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    Criar conta
+                  </button>
+
+                  <button
+                    type={step === "email" ? "button" : "submit"}
+                    onClick={step === "email" ? advanceToPassword : undefined}
+                    disabled={loading}
+                    className="inline-flex h-11 min-w-[116px] items-center justify-center gap-2 rounded-full px-7 text-[14px] font-semibold text-[#03110a] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                    style={{ background: "var(--lumii-primary-500)", boxShadow: "0 0 24px rgba(16,185,129,0.18)", fontFamily: "inherit" }}
+                  >
+                    {loading ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#03110a]/30 border-t-[#03110a]" />
+                    ) : (
+                      <>
+                        {step === "email" ? "Avançar" : "Entrar"}
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+                      </>
+                    )}
                   </button>
                 </div>
-              </div>
-
-              <p className="text-right text-xs text-slate-400">
-                Recuperacao de senha por e-mail fora do escopo desta migracao.
-              </p>
-
-              {error ? (
-                <p className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                  {error}
-                </p>
-              ) : null}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="h-11 w-full rounded-lg bg-emerald-600 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {loading ? "Entrando..." : "Login"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => router.push("/login/criar-conta")}
-                className="h-11 w-full rounded-lg border border-white/20 bg-white/5 text-sm font-semibold text-slate-100 transition-colors hover:bg-white/10"
-              >
-                Criar conta
-              </button>
-            </form>
+              </form>
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="relative flex items-center justify-between text-[12px] text-slate-600 px-2">
+        <span>Português (Brasil)</span>
+        <div className="flex gap-5">
+          <span className="cursor-default">Ajuda</span>
+          <span className="cursor-default">Privacidade</span>
+          <span className="cursor-default">Termos</span>
         </div>
       </div>
     </div>

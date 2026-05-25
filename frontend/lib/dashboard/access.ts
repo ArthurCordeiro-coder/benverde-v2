@@ -1,13 +1,13 @@
 export type DashboardScope = "overview" | "estoque" | "caixas" | "precos" | "mita-ai" | "lojas" | "drive";
 
 export type DashboardPath =
-  | "/dashboard"
-  | "/dashboard/estoque"
-  | "/dashboard/caixas"
-  | "/dashboard/precos"
-  | "/dashboard/mita-ai"
-  | "/dashboard/lojas"
-  | "/dashboard/drive";
+  | "/benverde/dashboard"
+  | "/benverde/dashboard/estoque"
+  | "/benverde/dashboard/caixas"
+  | "/benverde/dashboard/precos"
+  | "/benverde/dashboard/mita-ai"
+  | "/benverde/dashboard/lojas"
+  | "/benverde/dashboard/drive";
 
 export type DashboardNavItem = {
   href: DashboardPath;
@@ -15,23 +15,23 @@ export type DashboardNavItem = {
 };
 
 const ALL_DASHBOARD_PATHS: DashboardPath[] = [
-  "/dashboard",
-  "/dashboard/estoque",
-  "/dashboard/caixas",
-  "/dashboard/precos",
-  "/dashboard/mita-ai",
-  "/dashboard/lojas",
-  "/dashboard/drive",
+  "/benverde/dashboard",
+  "/benverde/dashboard/estoque",
+  "/benverde/dashboard/caixas",
+  "/benverde/dashboard/precos",
+  "/benverde/dashboard/mita-ai",
+  "/benverde/dashboard/lojas",
+  "/benverde/dashboard/drive",
 ];
 
 const DASHBOARD_SCOPE_PATHS: Record<DashboardScope, DashboardPath> = {
-  overview: "/dashboard",
-  estoque: "/dashboard/estoque",
-  caixas: "/dashboard/caixas",
-  precos: "/dashboard/precos",
-  "mita-ai": "/dashboard/mita-ai",
-  lojas: "/dashboard/lojas",
-  drive: "/dashboard/drive",
+  overview: "/benverde/dashboard",
+  estoque: "/benverde/dashboard/estoque",
+  caixas: "/benverde/dashboard/caixas",
+  precos: "/benverde/dashboard/precos",
+  "mita-ai": "/benverde/dashboard/mita-ai",
+  lojas: "/benverde/dashboard/lojas",
+  drive: "/benverde/dashboard/drive",
 };
 
 const RESTRICTED_SCOPE_BY_FUNCIONALIDADE: Record<string, DashboardScope[]> = {
@@ -83,30 +83,30 @@ export function getAllowedDashboardPaths(funcionalidade?: string | null): Dashbo
 }
 
 export function getDefaultDashboardPath(funcionalidade?: string | null): DashboardPath {
-  return getAllowedDashboardPaths(funcionalidade)[0] ?? "/dashboard";
+  return getAllowedDashboardPaths(funcionalidade)[0] ?? "/benverde/dashboard";
 }
 
 export function getDashboardScopeFromPath(pathname: string): DashboardScope | null {
   const path = pathname.toLowerCase();
-  if (path === "/dashboard") {
+  if (path === "/benverde/dashboard") {
     return "overview";
   }
-  if (path === "/dashboard/estoque") {
+  if (path === "/benverde/dashboard/estoque") {
     return "estoque";
   }
-  if (path === "/dashboard/caixas") {
+  if (path === "/benverde/dashboard/caixas") {
     return "caixas";
   }
-  if (path === "/dashboard/precos") {
+  if (path === "/benverde/dashboard/precos") {
     return "precos";
   }
-  if (path === "/dashboard/mita-ai") {
+  if (path === "/benverde/dashboard/mita-ai") {
     return "mita-ai";
   }
-  if (path === "/dashboard/lojas" || path.startsWith("/dashboard/lojas/")) {
+  if (path === "/benverde/dashboard/lojas" || path.startsWith("/benverde/dashboard/lojas/")) {
     return "lojas";
   }
-  if (path === "/dashboard/drive") {
+  if (path === "/benverde/dashboard/drive") {
     return "drive";
   }
   return null;

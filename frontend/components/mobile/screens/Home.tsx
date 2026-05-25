@@ -293,7 +293,7 @@ export function ScreenHome({ onNav, onGoEstoque, onGoLojas, onGoMita }: any) {
             <div style={{ width: 28, height: 28, borderRadius: 9, background: 'rgba(16,185,129,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Icons.BotIcon size={15} color={C.green} />
             </div>
-            <span style={{ fontFamily: 'Space Grotesk', fontWeight: 600, fontSize: 13, color: C.text }}>Pergunte à Mita</span>
+            <span style={{ fontFamily: 'Space Grotesk', fontWeight: 600, fontSize: 13, color: C.text }}>Pergunte à Lumii</span>
           </div>
           <div
             onClick={() => onNav('mita')}
