@@ -192,10 +192,14 @@ export default function LoginPage() {
         </a>
         <div className="flex items-center gap-4 text-[13px] text-slate-400">
           <span>Não tem conta?</span>
+          {/* TEMPORARIAMENTE DESATIVADO — remover disabled + style overrides para reativar */}
           <button
             type="button"
+            disabled
+            title="Cadastros temporariamente pausados"
             onClick={() => router.push("/login/criar-conta")}
             className="font-semibold text-emerald-300 transition-colors hover:text-emerald-200"
+            style={{ opacity: 0.5, cursor: "not-allowed" }}
           >
             Criar conta
           </button>
@@ -294,11 +298,14 @@ export default function LoginPage() {
 
                 {/* Actions row */}
                 <div className="mt-8 flex items-center justify-between gap-4 border-t pt-5" style={{ borderColor: "var(--lumii-border)" }}>
+                  {/* TEMPORARIAMENTE DESATIVADO — remover disabled + style overrides para reativar */}
                   <button
                     type="button"
+                    disabled
+                    title="Cadastros temporariamente pausados"
                     onClick={() => router.push("/login/criar-conta")}
                     className="text-[13px] font-semibold text-emerald-300 transition-colors hover:text-emerald-200"
-                    style={{ background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                    style={{ background: "none", border: "none", cursor: "not-allowed", fontFamily: "inherit", opacity: 0.5 }}
                   >
                     Criar conta
                   </button>

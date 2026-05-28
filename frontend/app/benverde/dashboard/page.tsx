@@ -104,7 +104,7 @@ type ChatMessage = {
   content: string;
 };
 
-type MitaResponse = {
+type LumiiResponse = {
   answer?: string;
   history?: ChatMessage[];
 };
@@ -537,7 +537,7 @@ export default function DashboardHome() {
     { header: "Status", accessor: (row) => <span className="px-2 py-1 rounded-full text-xs font-bold bg-white/5 text-gray-300">{row.status}</span>, align: "center" },
   ];
 
-  const mitaEndpoint = "/api/mita-ai/chat";
+  const lumiiEndpoint = "/api/mita-ai/chat";
   const [summary, setSummary] = useState<DashboardSummary>(EMPTY_SUMMARY);
   const [metas, setMetas] = useState<DashboardMeta[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
@@ -551,12 +551,12 @@ export default function DashboardHome() {
   const [filters, setFilters] = useState<FiltersState>({});
   const [activeFilter, setActiveFilter] = useState<SortableKey | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showMitaMenu, setShowMitaMenu] = useState(false);
-  const [mitaSubmenu, setMitaSubmenu] = useState<"evolucao" | null>(null);
+  const [showLumiiMenu, setShowLumiiMenu] = useState(false);
+  const [lumiiSubmenu, setLumiiSubmenu] = useState<"evolucao" | null>(null);
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [isMitaTyping, setIsMitaTyping] = useState(false);
+  const [isLumiiTyping, setIsLumiiTyping] = useState(false);
   const [currentInput, setCurrentInput] = useState("");
 
   const [showMetasModal, setShowMetasModal] = useState(false);
@@ -571,7 +571,7 @@ export default function DashboardHome() {
   const [formCategoria, setFormCategoria] = useState<DashboardCategory>("Frutas");
 
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
-  const mitaMenuRef = useRef<HTMLDivElement | null>(null);
+  const lumiiMenuRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const tableSectionRef = useRef<HTMLDivElement | null>(null);
   const draftMetaIndexRef = useRef(0);
@@ -628,9 +628,9 @@ export default function DashboardHome() {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
         setShowExportMenu(false);
       }
-      if (mitaMenuRef.current && !mitaMenuRef.current.contains(event.target as Node)) {
-        setShowMitaMenu(false);
-        setMitaSubmenu(null);
+      if (lumiiMenuRef.current && !lumiiMenuRef.current.contains(event.target as Node)) {
+        setShowLumiiMenu(false);
+        setLumiiSubmenu(null);
       }
     }
 
@@ -640,7 +640,7 @@ export default function DashboardHome() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, isMitaTyping]);
+  }, [chatMessages, isLumiiTyping]);
 
   const filteredAndSortedData = useMemo(() => {
     let result = [...metas];
@@ -931,7 +931,7 @@ export default function DashboardHome() {
     link.click();
   };
 
-  const buildFallbackMitaResponse = useCallback(
+  const buildFallbackLumiiResponse = useCallback(
     (question: string) => {
       const normalizedQuestion = normalizeText(question);
       const totalPedidos = metas.reduce((total, item) => total + item.pedido, 0);
@@ -967,25 +967,25 @@ export default function DashboardHome() {
     [categoriasProgresso, metas, summary, top5],
   );
 
-  const sendMitaMessage = useCallback(
+  const sendLumiiMessage = useCallback(
     async (rawQuestion: string) => {
       const question = rawQuestion.trim();
-      if (!question || isMitaTyping) {
+      if (!question || isLumiiTyping) {
         return;
       }
 
       setIsChatOpen(true);
-      setShowMitaMenu(false);
-      setMitaSubmenu(null);
+      setShowLumiiMenu(false);
+      setLumiiSubmenu(null);
       setCurrentInput("");
 
       const previousMessages = [...chatMessages];
       const optimisticMessages = [...previousMessages, { role: "user" as const, content: question }];
       setChatMessages(optimisticMessages);
-      setIsMitaTyping(true);
+      setIsLumiiTyping(true);
 
       try {
-        const response = await api.post<MitaResponse>(mitaEndpoint, {
+        const response = await api.post<LumiiResponse>(lumiiEndpoint, {
           message: question,
           history: previousMessages,
           scope: "overview",
@@ -1002,20 +1002,20 @@ export default function DashboardHome() {
         if (history.length > 0) {
           setChatMessages(history);
         } else {
-          const answer = coerceString(payload.answer).trim() || buildFallbackMitaResponse(question);
+          const answer = coerceString(payload.answer).trim() || buildFallbackLumiiResponse(question);
           setChatMessages([...optimisticMessages, { role: "assistant", content: answer }]);
         }
       } catch (error) {
-        console.error("Erro ao consultar Mita AI, usando resposta local:", error);
+        console.error("Erro ao consultar Lumii AI, usando resposta local:", error);
         setChatMessages([
           ...optimisticMessages,
-          { role: "assistant", content: buildFallbackMitaResponse(question) },
+          { role: "assistant", content: buildFallbackLumiiResponse(question) },
         ]);
       } finally {
-        setIsMitaTyping(false);
+        setIsLumiiTyping(false);
       }
     },
-    [buildFallbackMitaResponse, chatMessages, isMitaTyping, mitaEndpoint],
+    [buildFallbackLumiiResponse, chatMessages, isLumiiTyping, lumiiEndpoint],
   );
 
   const totalPedidosMetas = metas.reduce((total, item) => total + item.pedido, 0);
@@ -1131,12 +1131,12 @@ export default function DashboardHome() {
           ) : null}
         </div>
 
-        <div className="relative" ref={mitaMenuRef}>
+        <div className="relative" ref={lumiiMenuRef}>
           <button
             type="button"
             onClick={() => {
-              setShowMitaMenu((current) => !current);
-              setMitaSubmenu(null);
+              setShowLumiiMenu((current) => !current);
+              setLumiiSubmenu(null);
             }}
             className="group flex h-full w-full flex-col items-center justify-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] py-5 text-gray-300 backdrop-blur-xl transition-all hover:bg-white/[0.06] hover:text-white"
           >
@@ -1146,13 +1146,13 @@ export default function DashboardHome() {
             <span className="font-semibold text-sm">Perguntar a Lumii</span>
           </button>
 
-          {showMitaMenu ? (
+          {showLumiiMenu ? (
             <div className="absolute bottom-[110%] right-0 z-[60] w-64 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1f15]/95 shadow-2xl backdrop-blur-xl">
-              {mitaSubmenu === null ? (
+              {lumiiSubmenu === null ? (
                 <div className="py-2">
                   <button
                     type="button"
-                    onClick={() => void sendMitaMessage("Faça-me um resumo de todas as metas desse mês.")}
+                    onClick={() => void sendLumiiMessage("Faça-me um resumo de todas as metas desse mês.")}
                     className="flex w-full items-center gap-2 border-b border-white/5 px-4 py-3 text-left text-[11px] text-gray-300 transition-colors hover:bg-white/5 hover:text-green-400"
                   >
                     <Sparkles size={14} />
@@ -1160,7 +1160,7 @@ export default function DashboardHome() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setMitaSubmenu("evolucao")}
+                    onClick={() => setLumiiSubmenu("evolucao")}
                     className="flex w-full items-center justify-between border-b border-white/5 px-4 py-3 text-left text-[11px] text-gray-300 transition-colors hover:bg-white/5 hover:text-green-400"
                   >
                     <span className="flex items-center gap-2">
@@ -1171,7 +1171,7 @@ export default function DashboardHome() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void sendMitaMessage("Qual foi a evolução dos cinco produtos que mais estão vendendo?")}
+                    onClick={() => void sendLumiiMessage("Qual foi a evolução dos cinco produtos que mais estão vendendo?")}
                     className="flex w-full items-center gap-2 px-4 py-3 text-left text-[11px] text-gray-300 transition-colors hover:bg-white/5 hover:text-green-400"
                   >
                     <PackageSearch size={14} />
@@ -1182,7 +1182,7 @@ export default function DashboardHome() {
                 <div className="py-2">
                   <button
                     type="button"
-                    onClick={() => setMitaSubmenu(null)}
+                    onClick={() => setLumiiSubmenu(null)}
                     className="flex w-full items-center gap-2 border-b border-white/5 px-4 py-2 text-left text-[10px] font-bold uppercase text-gray-500 transition-colors hover:text-white"
                   >
                     ← Voltar
@@ -1191,7 +1191,7 @@ export default function DashboardHome() {
                     <button
                       key={category}
                       type="button"
-                      onClick={() => void sendMitaMessage(`Como anda a evolução de ${category.toLowerCase()}`)}
+                      onClick={() => void sendLumiiMessage(`Como anda a evolução de ${category.toLowerCase()}`)}
                       className="w-full border-b border-white/5 px-4 py-3 text-left text-[11px] capitalize text-gray-300 transition-colors last:border-0 hover:bg-white/5 hover:text-green-400"
                     >
                       {category.toLowerCase()}
@@ -1393,7 +1393,7 @@ export default function DashboardHome() {
               ))
             )}
 
-            {isMitaTyping ? (
+            {isLumiiTyping ? (
               <div className="flex justify-start">
                 <div className="rounded-2xl border border-emerald-400/10 bg-emerald-500/5 px-4 py-3 text-xs font-medium italic text-emerald-200">
                   Lumii está analisando os dados...
@@ -1416,8 +1416,8 @@ export default function DashboardHome() {
               <div className="flex justify-end px-2 pb-2">
                 <button
                   type="button"
-                  onClick={() => void sendMitaMessage(currentInput)}
-                  disabled={isMitaTyping || !currentInput.trim()}
+                  onClick={() => void sendLumiiMessage(currentInput)}
+                  disabled={isLumiiTyping || !currentInput.trim()}
                   className="rounded-xl bg-emerald-500 p-2 text-[#062010] shadow-lg transition-all hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-emerald-500/40 disabled:text-emerald-950/60"
                 >
                   <SendHorizonal size={18} />

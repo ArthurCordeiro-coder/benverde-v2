@@ -72,7 +72,7 @@ type ChatMessage = {
   content: string;
 };
 
-type MitaResponse = {
+type LumiiResponse = {
   answer?: string;
   history?: ChatMessage[];
 };
@@ -393,7 +393,7 @@ function sortRows(rows: DisplayRow[], sortConfig: SortConfig): DisplayRow[] {
 }
 
 export default function PrecosPage() {
-  const mitaEndpoint = "/api/mita-ai/chat";
+  const lumiiEndpoint = "/api/mita-ai/chat";
 
   const [dateOptions, setDateOptions] = useState<PriceDateOption[]>([]);
   const [markets, setMarkets] = useState<string[]>(["Semar"]);
@@ -412,12 +412,12 @@ export default function PrecosPage() {
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [isMitaTyping, setIsMitaTyping] = useState(false);
+  const [isLumiiTyping, setIsLumiiTyping] = useState(false);
   const [currentInput, setCurrentInput] = useState("");
-  const [showHeaderMitaMenu, setShowHeaderMitaMenu] = useState(false);
+  const [showHeaderLumiiMenu, setShowHeaderLumiiMenu] = useState(false);
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
-  const headerMitaRef = useRef<HTMLDivElement | null>(null);
+  const headerLumiiRef = useRef<HTMLDivElement | null>(null);
   const tableSectionRef = useRef<HTMLDivElement | null>(null);
   const chartSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -467,12 +467,12 @@ export default function PrecosPage() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, isMitaTyping]);
+  }, [chatMessages, isLumiiTyping]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (headerMitaRef.current && !headerMitaRef.current.contains(event.target as Node)) {
-        setShowHeaderMitaMenu(false);
+      if (headerLumiiRef.current && !headerLumiiRef.current.contains(event.target as Node)) {
+        setShowHeaderLumiiMenu(false);
       }
     }
 
@@ -757,7 +757,7 @@ export default function PrecosPage() {
     link.click();
   };
 
-  const buildFallbackMitaResponse = useCallback(
+  const buildFallbackLumiiResponse = useCallback(
     (question: string) => {
       const normalizedQuestion = normalizeText(question);
       const lossRows = selectedRows
@@ -816,24 +816,24 @@ export default function PrecosPage() {
     [bananaRows, competitorMarkets, selectedDateLabel, selectedRows, stats],
   );
 
-  const sendMitaMessage = useCallback(
+  const sendLumiiMessage = useCallback(
     async (rawQuestion: string) => {
       const question = rawQuestion.trim();
-      if (!question || isMitaTyping) {
+      if (!question || isLumiiTyping) {
         return;
       }
 
       setIsChatOpen(true);
-      setShowHeaderMitaMenu(false);
+      setShowHeaderLumiiMenu(false);
       setCurrentInput("");
 
       const previousMessages = [...chatMessages];
       const optimisticMessages = [...previousMessages, { role: "user" as const, content: question }];
       setChatMessages(optimisticMessages);
-      setIsMitaTyping(true);
+      setIsLumiiTyping(true);
 
       try {
-        const response = await api.post<MitaResponse>(mitaEndpoint, {
+        const response = await api.post<LumiiResponse>(lumiiEndpoint, {
           message: question,
           history: previousMessages,
           scope: "precos",
@@ -850,24 +850,24 @@ export default function PrecosPage() {
         if (history.length > 0) {
           setChatMessages(history);
         } else {
-          const answer = coerceString(payload.answer).trim() || buildFallbackMitaResponse(question);
+          const answer = coerceString(payload.answer).trim() || buildFallbackLumiiResponse(question);
           setChatMessages([...optimisticMessages, { role: "assistant", content: answer }]);
         }
       } catch (error) {
-        console.error("Erro ao consultar Mita AI, usando resposta local:", error);
+        console.error("Erro ao consultar Lumii AI, usando resposta local:", error);
         setChatMessages([
           ...optimisticMessages,
-          { role: "assistant", content: buildFallbackMitaResponse(question) },
+          { role: "assistant", content: buildFallbackLumiiResponse(question) },
         ]);
       } finally {
-        setIsMitaTyping(false);
+        setIsLumiiTyping(false);
       }
     },
-    [buildFallbackMitaResponse, chatMessages, isMitaTyping, mitaEndpoint],
+    [buildFallbackLumiiResponse, chatMessages, isLumiiTyping, lumiiEndpoint],
   );
 
   const generateAIReport = () => {
-    void sendMitaMessage(
+    void sendLumiiMessage(
       "Faça uma análise estratégica completa da nossa competitividade atual. Quem é nosso maior risco? Em quais produtos devemos baixar o preço?",
     );
   };
@@ -1015,17 +1015,17 @@ export default function PrecosPage() {
           </div>
 
           <div className="flex w-full flex-col gap-3 xl:w-auto xl:flex-row">
-            <div className="relative flex" ref={headerMitaRef}>
+            <div className="relative flex" ref={headerLumiiRef}>
               <button
                 type="button"
-                onClick={() => setShowHeaderMitaMenu((current) => !current)}
+                onClick={() => setShowHeaderLumiiMenu((current) => !current)}
                 className="flex h-full items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-xs font-bold text-gray-300 transition-all hover:bg-white/10 hover:text-green-400"
               >
                 <MessageCircleMore size={18} />
                 Perguntar a Lumii
               </button>
 
-              {showHeaderMitaMenu ? (
+              {showHeaderLumiiMenu ? (
                 <div className="absolute left-0 top-full z-[60] mt-2 w-72 overflow-hidden rounded-2xl border border-white/15 bg-[#0b1f15]/95 shadow-2xl backdrop-blur-xl animate-in slide-in-from-top-2 duration-200">
                   <div className="py-2">
                     {QUICK_QUESTIONS.map((question, index) => {
@@ -1042,7 +1042,7 @@ export default function PrecosPage() {
                         <button
                           key={question}
                           type="button"
-                          onClick={() => void sendMitaMessage(question)}
+                          onClick={() => void sendLumiiMessage(question)}
                           className="flex w-full items-center gap-2 border-b border-white/5 px-4 py-3 text-left text-[11px] text-gray-300 transition-colors last:border-0 hover:bg-white/5 hover:text-green-400"
                         >
                           <Icon size={14} className={accentClass} />
@@ -1481,14 +1481,14 @@ export default function PrecosPage() {
                 <div className="flex flex-wrap justify-center gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={() => void sendMitaMessage("Qual mercado está com as bananas mais baratas?")}
+                    onClick={() => void sendLumiiMessage("Qual mercado está com as bananas mais baratas?")}
                     className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] transition-all hover:bg-white/10"
                   >
                     Analisar Bananas
                   </button>
                   <button
                     type="button"
-                    onClick={() => void sendMitaMessage("Faça um resumo de competitividade.")}
+                    onClick={() => void sendLumiiMessage("Faça um resumo de competitividade.")}
                     className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] transition-all hover:bg-white/10"
                   >
                     Resumo Estratégico
@@ -1540,7 +1540,7 @@ export default function PrecosPage() {
               ))
             )}
 
-            {isMitaTyping ? (
+            {isLumiiTyping ? (
               <div className="flex justify-start animate-pulse">
                 <div className="flex items-center gap-2 rounded-2xl border border-emerald-400/10 bg-emerald-500/5 px-4 py-3 text-xs font-medium italic text-emerald-200">
                   <Activity size={14} className="animate-spin" />
@@ -1559,7 +1559,7 @@ export default function PrecosPage() {
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
-                  void sendMitaMessage(currentInput);
+                  void sendLumiiMessage(currentInput);
                 }
               }}
               placeholder="Pergunte à IA sobre os preços..."
@@ -1567,8 +1567,8 @@ export default function PrecosPage() {
             />
             <button
               type="button"
-              onClick={() => void sendMitaMessage(currentInput)}
-              disabled={isMitaTyping || !currentInput.trim()}
+              onClick={() => void sendLumiiMessage(currentInput)}
+              disabled={isLumiiTyping || !currentInput.trim()}
               className="rounded-xl bg-emerald-500 p-2 text-black transition-colors hover:bg-emerald-400 disabled:opacity-50"
             >
               <SendHorizonal size={18} />

@@ -105,10 +105,14 @@ function Nav() {
           </svg>
           Entrar
         </Link>
+        {/* TEMPORARIAMENTE DESATIVADO — remover aria-disabled/tabIndex/style overrides para reativar */}
         <Link
           href="/login/criar-conta"
+          aria-disabled="true"
+          tabIndex={-1}
+          title="Cadastros temporariamente pausados"
           className="flex items-center gap-1.5 rounded-xl border-none px-4 py-2 text-sm font-semibold text-[#04130b] transition-all hover:-translate-y-px"
-          style={{ background: "linear-gradient(135deg, #6ee7b7, #10b981)", boxShadow: "0 8px 24px rgba(16,185,129,0.30), inset 0 1px 0 rgba(255,255,255,0.30)" }}
+          style={{ background: "linear-gradient(135deg, #6ee7b7, #10b981)", boxShadow: "0 8px 24px rgba(16,185,129,0.30), inset 0 1px 0 rgba(255,255,255,0.30)", pointerEvents: "none", opacity: 0.5, cursor: "not-allowed" }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
@@ -155,10 +159,14 @@ function Hero() {
         </p>
 
         <div className="mb-14 flex flex-wrap items-center gap-3">
+          {/* TEMPORARIAMENTE DESATIVADO — remover aria-disabled/tabIndex/style overrides para reativar */}
           <Link
             href="/login/criar-conta"
+            aria-disabled="true"
+            tabIndex={-1}
+            title="Cadastros temporariamente pausados"
             className="inline-flex items-center gap-2.5 rounded-xl border-none px-6 py-4 text-[15px] font-semibold text-[#04130b] transition-all hover:-translate-y-px hover:shadow-2xl"
-            style={{ background: "linear-gradient(135deg, #6ee7b7, #10b981)", boxShadow: "0 12px 32px rgba(16,185,129,0.30), inset 0 1px 0 rgba(255,255,255,0.30)" }}
+            style={{ background: "linear-gradient(135deg, #6ee7b7, #10b981)", boxShadow: "0 12px 32px rgba(16,185,129,0.30), inset 0 1px 0 rgba(255,255,255,0.30)", pointerEvents: "none", opacity: 0.5, cursor: "not-allowed" }}
           >
             Começar agora
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
@@ -737,10 +745,14 @@ function Pricing() {
               ))}
             </div>
 
+            {/* TEMPORARIAMENTE DESATIVADO — remover aria-disabled/tabIndex/style overrides para reativar */}
             <Link
               href="/login/criar-conta"
+              aria-disabled="true"
+              tabIndex={-1}
+              title="Cadastros temporariamente pausados"
               className="flex w-full items-center justify-center gap-2 rounded-full py-4 text-base font-bold text-[#04130b] transition-all hover:-translate-y-px"
-              style={{ background: "linear-gradient(135deg, #6ee7b7 0%, #10b981 100%)", boxShadow: "0 0 40px rgba(16,185,129,0.30), inset 0 1px 0 rgba(255,255,255,0.30)" }}
+              style={{ background: "linear-gradient(135deg, #6ee7b7 0%, #10b981 100%)", boxShadow: "0 0 40px rgba(16,185,129,0.30), inset 0 1px 0 rgba(255,255,255,0.30)", pointerEvents: "none", opacity: 0.5, cursor: "not-allowed" }}
             >
               Começar agora
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
@@ -824,10 +836,14 @@ function Footer() {
                 Comece hoje mesmo. Sem taxa de setup, sem contrato longo.
               </p>
               <div className="relative flex flex-wrap items-center justify-center gap-3">
+                {/* TEMPORARIAMENTE DESATIVADO — remover aria-disabled/tabIndex/style overrides para reativar */}
                 <Link
                   href="/login/criar-conta"
+                  aria-disabled="true"
+                  tabIndex={-1}
+                  title="Cadastros temporariamente pausados"
                   className="inline-flex items-center gap-2 rounded-full px-8 py-4 text-base font-bold text-[#04130b] transition-all hover:-translate-y-px"
-                  style={{ background: "linear-gradient(135deg, #6ee7b7, #10b981)", boxShadow: "0 12px 32px rgba(16,185,129,0.30)" }}
+                  style={{ background: "linear-gradient(135deg, #6ee7b7, #10b981)", boxShadow: "0 12px 32px rgba(16,185,129,0.30)", pointerEvents: "none", opacity: 0.5, cursor: "not-allowed" }}
                 >
                   Criar conta grátis
                 </Link>

@@ -166,7 +166,7 @@ export function SearchBar({ placeholder, value, onChange }: { placeholder?: stri
   );
 }
 
-export function MitaBanner({ text, onChat }: any) {
+export function LumiiBanner({ text, onChat }: any) {
   return (
     <div style={{
       background: 'rgba(16,185,129,0.05)',

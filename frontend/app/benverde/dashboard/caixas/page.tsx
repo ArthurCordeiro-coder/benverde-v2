@@ -388,7 +388,7 @@ export default function CaixasPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header Mita */}
+      {/* Header Lumii */}
       <header className="flex flex-col items-start justify-between gap-4 rounded-3xl border border-white/5 bg-white/[0.02] p-6 shadow-sm backdrop-blur-md md:flex-row md:items-center">
         <div className="flex items-center gap-4">
           <div className="h-12 w-12 shrink-0 rounded-full bg-gradient-to-tr from-green-500 to-emerald-300 p-[2px]">

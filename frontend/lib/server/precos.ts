@@ -142,6 +142,31 @@ function findDateColumn(columns: string[]): string | null {
   return prefixedDateColumn;
 }
 
+// Caches the discovered date column name per table to avoid repeated schema queries.
+const dateColumnCache = new Map<string, string | null>();
+
+async function discoverDateColumn(tableName: string): Promise<string | null> {
+  const cached = dateColumnCache.get(tableName);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const parts = tableName.replace(/"/g, "").split(".");
+  const schema = parts.length > 1 ? parts[0] : "public";
+  const table = parts[parts.length - 1] ?? tableName;
+  try {
+    const colRows = await queryRows<{ column_name: string }>(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 ORDER BY ordinal_position`,
+      [schema, table],
+    );
+    const found = findDateColumn(colRows.map((r) => r.column_name)) ?? null;
+    dateColumnCache.set(tableName, found);
+    return found;
+  } catch {
+    dateColumnCache.set(tableName, null);
+    return null;
+  }
+}
+
 function getPricesTableName(): string {
   return process.env.PRECOS_TABLE?.trim() || "precos";
 }
@@ -191,27 +216,31 @@ async function loadDbDatasets(): Promise<Record<string, PriceRow[]>> {
     tableName = resolvedTableName;
 
     const qualifiedTableName = formatQualifiedIdentifier(tableName);
-    const rows = await queryRows<PriceRow>(`SELECT * FROM ${qualifiedTableName}`);
+
+    // Discover date column from schema (cached) so we can ORDER BY it.
+    const dateColumn = await discoverDateColumn(tableName);
+
+    const orderBy = dateColumn ? ` ORDER BY "${dateColumn.replace(/"/g, "")}" DESC` : "";
+    const sql = `SELECT * FROM ${qualifiedTableName}${orderBy} LIMIT 50000`;
+
+    let rows: PriceRow[];
+    try {
+      rows = await queryRows<PriceRow>(sql);
+    } catch {
+      rows = await queryRows<PriceRow>(`SELECT * FROM ${qualifiedTableName} LIMIT 50000`);
+    }
+
     if (rows.length === 0) {
       return {};
     }
 
     const columns = Object.keys(rows[0] ?? {});
-    const dateColumn = findDateColumn(columns);
-
-    console.warn("[DEBUG] Resolving DB columns...");
-    console.warn(`[DEBUG] Found Column: ${dateColumn}`);
-    if (rows.length > 0) {
-       console.warn("[DEBUG] Row 0 ALL keys:", columns);
-       console.warn("[DEBUG] First 5 raw date values:", rows.slice(0,5).map(r => r[dateColumn as string]));
-       const testParse = parsePriceDatasetDate(rows[0][dateColumn as string]);
-       console.warn("[DEBUG] Test Parse row 0 format:", testParse ? formatDateKey(testParse) : "NULL");
-    }
+    const dateCol = dateColumn ?? findDateColumn(columns);
 
     const grouped = new Map<string, { date: Date; rows: PriceRow[] }>();
 
     for (const row of rows) {
-      const rawDate = dateColumn ? row[dateColumn] : null;
+      const rawDate = dateCol ? row[dateCol] : null;
       const parsedDate = parsePriceDatasetDate(rawDate);
       if (!parsedDate) {
         continue;
@@ -589,29 +618,47 @@ export async function listPrecosConsolidados(): Promise<Array<Record<string, unk
     .filter(Boolean) as Array<Record<string, unknown>>;
 }
 
-export async function summarizePricesForPrompt(maxDays = 3): Promise<string> {
+export async function summarizePricesForPrompt(): Promise<string> {
   const overview = await getPriceOverview();
   if (!overview.latestDate) {
     return "Nenhum dado de precos disponivel.";
   }
 
+  const CHAR_LIMIT = 30000;
   const lines: string[] = [];
-  for (const dateOption of overview.dates.slice(0, maxDays)) {
-    lines.push(`## Precos em ${dateOption.label}`);
+  let totalProducts = 0;
+
+  for (const dateOption of overview.dates) {
     const snapshot = overview.snapshots[dateOption.key] ?? [];
-    if (snapshot.length === 0) {
-      lines.push("Sem itens consolidados.");
-      continue;
+    if (snapshot.length === 0) continue;
+
+    lines.push(`[${dateOption.label}]`);
+
+    for (const item of snapshot) {
+      const numericPrices = Object.entries(item.prices).filter(([, v]) => typeof v === "number");
+      if (numericPrices.length === 0) continue;
+
+      const avg = roundNumber(
+        numericPrices.reduce((s, [, v]) => s + Number(v), 0) / numericPrices.length,
+      );
+      const priceParts = numericPrices
+        .map(([market, v]) => `${market}=${Number(v).toFixed(2)}`)
+        .join(" | ");
+
+      lines.push(`${item.produto}: ${priceParts} | avg=${avg.toFixed(2)}`);
+      totalProducts++;
     }
 
-    for (const item of snapshot.slice(0, 25)) {
-      const marketSummary = Object.entries(item.prices)
-        .filter(([, value]) => typeof value === "number")
-        .map(([market, value]) => `${market}: R$ ${Number(value).toFixed(2)}`)
-        .join(" | ");
-      lines.push(`- ${item.produto}: ${marketSummary}`);
+    if (lines.join("\n").length >= CHAR_LIMIT) {
+      lines.push(`[limite de contexto — ${totalProducts} produtos incluidos]`);
+      break;
     }
   }
 
-  return lines.join("\n");
+  if (lines.length === 0) {
+    return "Nenhum dado de precos disponivel.";
+  }
+
+  const header = `mercados: ${overview.markets.join(", ")}`;
+  return `${header}\n${lines.join("\n")}`;
 }

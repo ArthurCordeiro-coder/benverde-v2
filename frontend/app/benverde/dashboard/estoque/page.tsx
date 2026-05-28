@@ -61,7 +61,7 @@ type ChatMessage = {
   content: string;
 };
 
-type MitaResponse = {
+type LumiiResponse = {
   answer?: string;
   history?: ChatMessage[];
 };
@@ -185,7 +185,7 @@ function bubbleClass(role: ChatMessage["role"]) {
 
 export default function EstoquePage() {
   const router = useRouter();
-  const mitaEndpoint = "/api/mita-ai/chat";
+  const lumiiEndpoint = "/api/mita-ai/chat";
 
   const [saldo, setSaldo] = useState(0);
   const [historico, setHistorico] = useState<HistoricoItem[]>([]);
@@ -194,12 +194,12 @@ export default function EstoquePage() {
   const [pageError, setPageError] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
 
-  const [showMitaMenu, setShowMitaMenu] = useState(false);
+  const [showLumiiMenu, setShowLumiiMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [isMitaTyping, setIsMitaTyping] = useState(false);
+  const [isLumiiTyping, setIsLumiiTyping] = useState(false);
   const [currentInput, setCurrentInput] = useState("");
 
   const [modalAberto, setModalAberto] = useState(false);
@@ -210,7 +210,7 @@ export default function EstoquePage() {
 
   const chatEndRef = useRef<HTMLDivElement | null>(null);
   const exportMenuRef = useRef<HTMLDivElement | null>(null);
-  const mitaMenuRef = useRef<HTMLDivElement | null>(null);
+  const lumiiMenuRef = useRef<HTMLDivElement | null>(null);
   const historySectionRef = useRef<HTMLDivElement | null>(null);
 
   const buscarEstoque = useCallback(async (mode: "initial" | "refresh" = "refresh") => {
@@ -252,15 +252,15 @@ export default function EstoquePage() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, isMitaTyping]);
+  }, [chatMessages, isLumiiTyping]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
         setShowExportMenu(false);
       }
-      if (mitaMenuRef.current && !mitaMenuRef.current.contains(event.target as Node)) {
-        setShowMitaMenu(false);
+      if (lumiiMenuRef.current && !lumiiMenuRef.current.contains(event.target as Node)) {
+        setShowLumiiMenu(false);
       }
     }
 
@@ -396,7 +396,7 @@ export default function EstoquePage() {
     link.click();
   };
 
-  const buildFallbackMitaResponse = useCallback(
+  const buildFallbackLumiiResponse = useCallback(
     (question: string) => {
       const normalizedQuestion = normalizeText(question);
 
@@ -424,24 +424,24 @@ export default function EstoquePage() {
     [stats],
   );
 
-  const sendMitaMessage = useCallback(
+  const sendLumiiMessage = useCallback(
     async (rawQuestion: string) => {
       const question = rawQuestion.trim();
-      if (!question || isMitaTyping) {
+      if (!question || isLumiiTyping) {
         return;
       }
 
       setIsChatOpen(true);
-      setShowMitaMenu(false);
+      setShowLumiiMenu(false);
       setCurrentInput("");
 
       const previousMessages = [...chatMessages];
       const optimisticMessages = [...previousMessages, { role: "user" as const, content: question }];
       setChatMessages(optimisticMessages);
-      setIsMitaTyping(true);
+      setIsLumiiTyping(true);
 
       try {
-        const response = await api.post<MitaResponse>(mitaEndpoint, {
+        const response = await api.post<LumiiResponse>(lumiiEndpoint, {
           message: question,
           history: previousMessages,
           scope: "estoque",
@@ -459,20 +459,20 @@ export default function EstoquePage() {
           const answer =
             typeof response.data?.answer === "string" && response.data.answer.trim()
               ? response.data.answer.trim()
-              : buildFallbackMitaResponse(question);
+              : buildFallbackLumiiResponse(question);
           setChatMessages([...optimisticMessages, { role: "assistant", content: answer }]);
         }
       } catch (error) {
-        console.error("Erro ao consultar Mita AI, usando resposta local:", error);
+        console.error("Erro ao consultar Lumii AI, usando resposta local:", error);
         setChatMessages([
           ...optimisticMessages,
-          { role: "assistant", content: buildFallbackMitaResponse(question) },
+          { role: "assistant", content: buildFallbackLumiiResponse(question) },
         ]);
       } finally {
-        setIsMitaTyping(false);
+        setIsLumiiTyping(false);
       }
     },
-    [buildFallbackMitaResponse, chatMessages, isMitaTyping, mitaEndpoint],
+    [buildFallbackLumiiResponse, chatMessages, isLumiiTyping, lumiiEndpoint],
   );
 
   const insightText =
@@ -687,7 +687,7 @@ export default function EstoquePage() {
                     type="button"
                     onClick={() => {
                       setShowExportMenu((prev) => !prev);
-                      setShowMitaMenu(false);
+                      setShowLumiiMenu(false);
                     }}
                     className={`flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-[10px] font-bold uppercase transition-all ${
                       showExportMenu
@@ -721,15 +721,15 @@ export default function EstoquePage() {
                   ) : null}
                 </div>
 
-                <div className="relative" ref={mitaMenuRef}>
+                <div className="relative" ref={lumiiMenuRef}>
                   <button
                     type="button"
                     onClick={() => {
-                      setShowMitaMenu((prev) => !prev);
+                      setShowLumiiMenu((prev) => !prev);
                       setShowExportMenu(false);
                     }}
                     className={`flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-[10px] font-bold uppercase transition-all ${
-                      showMitaMenu
+                      showLumiiMenu
                         ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.1)]"
                         : "border-white/10 bg-white/5 text-gray-400 hover:bg-emerald-500/10 hover:text-emerald-300"
                     }`}
@@ -738,7 +738,7 @@ export default function EstoquePage() {
                     Perguntar a Lumii
                   </button>
 
-                  {showMitaMenu ? (
+                  {showLumiiMenu ? (
                     <div className="mt-2 grid grid-cols-1 gap-2 animate-in fade-in slide-in-from-top-2 duration-300">
                       {MITA_QUESTIONS.map((question) => (
                         <button
@@ -746,8 +746,8 @@ export default function EstoquePage() {
                           type="button"
                           onClick={() => {
                             setIsChatOpen(true);
-                            setShowMitaMenu(false);
-                            void sendMitaMessage(question);
+                            setShowLumiiMenu(false);
+                            void sendLumiiMessage(question);
                           }}
                           className="group/q flex items-center justify-between gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-left transition-all hover:bg-emerald-500/20"
                         >
@@ -879,7 +879,7 @@ export default function EstoquePage() {
               ))
             )}
 
-            {isMitaTyping ? (
+            {isLumiiTyping ? (
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-400 animate-pulse">
                 <Bot size={14} />
                 Lumii está analisando...
@@ -896,7 +896,7 @@ export default function EstoquePage() {
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault();
-                  void sendMitaMessage(currentInput);
+                  void sendLumiiMessage(currentInput);
                 }
               }}
               placeholder="Dúvidas sobre o estoque..."
@@ -904,7 +904,7 @@ export default function EstoquePage() {
             />
             <button
               type="button"
-              onClick={() => void sendMitaMessage(currentInput)}
+              onClick={() => void sendLumiiMessage(currentInput)}
               className="rounded-xl bg-emerald-500 p-2 text-black transition-colors hover:bg-emerald-400 active:scale-95"
             >
               <SendHorizonal size={18} />

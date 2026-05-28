@@ -12,6 +12,7 @@ import {
   Banana,
   BarChart3,
   Check,
+  ChevronDown,
   Leaf,
   LogOut,
   MessageCircleMore,
@@ -57,7 +58,7 @@ type NavItemProps = {
   onClick?: () => void;
 };
 
-const navItems: Array<{ href: DashboardPath; label: string; icon: ReactNode }> = [
+const panelItems: Array<{ href: DashboardPath; label: string; icon: ReactNode }> = [
   { href: "/benverde/dashboard", label: "Painel Principal", icon: <BarChart3 size={18} /> },
   { href: "/benverde/dashboard/estoque", label: "Estoque de Bananas", icon: <Banana size={18} /> },
   { href: "/benverde/dashboard/caixas", label: "Caixas das Lojas", icon: <PackageSearch size={18} /> },
@@ -65,6 +66,12 @@ const navItems: Array<{ href: DashboardPath; label: string; icon: ReactNode }> =
   { href: "/benverde/dashboard/lojas", label: "Lojas", icon: <Store size={18} /> },
   { href: "/benverde/dashboard/drive", label: "Arquivos", icon: <LuArchive size={18} /> },
 ];
+
+const featuredItems: Array<{ href: DashboardPath; label: string; icon: ReactNode }> = [
+  { href: "/benverde/dashboard/mita-ai", label: "Lumii AI", icon: <MessageCircleMore size={18} /> },
+];
+
+const PAINEIS_STORAGE_KEY = "lumii_paineis_expanded";
 
 function getNavClass(active: boolean, isHighlight = false) {
   return `w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 font-medium text-sm ${active
@@ -122,7 +129,30 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
 
   const allowedDashboardPaths = getAllowedDashboardPaths(funcionalidade);
-  const visibleNavItems = navItems.filter((item) => allowedDashboardPaths.includes(item.href));
+  const visiblePanelItems = panelItems.filter((item) => allowedDashboardPaths.includes(item.href));
+  const visibleFeaturedItems = featuredItems.filter((item) => allowedDashboardPaths.includes(item.href));
+  const totalVisibleItems = visiblePanelItems.length + visibleFeaturedItems.length;
+
+  const [paneisExpanded, setPaneisExpanded] = useState(true);
+
+  // Load persisted preference after mount (avoids SSR hydration mismatch)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(PAINEIS_STORAGE_KEY);
+    if (stored !== null) {
+      setPaneisExpanded(stored === "true");
+    }
+  }, []);
+
+  const togglePaneis = () => {
+    setPaneisExpanded((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(PAINEIS_STORAGE_KEY, String(next));
+      }
+      return next;
+    });
+  };
 
   const carregarPendentes = async () => {
     if (!isAdmin) {
@@ -238,18 +268,54 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
           <nav className="flex-1 space-y-2 overflow-y-auto p-4">
             <p className="mb-2 mt-4 px-4 text-[10px] font-bold uppercase tracking-wider text-gray-500">
-              {visibleNavItems.length <= 1 ? "Painel Operacional" : "Painel Gerencial"}
+              {totalVisibleItems <= 1 ? "Painel Operacional" : "Painel Gerencial"}
             </p>
 
-            {visibleNavItems.map((item) => (
-              <NavItem
-                key={item.href}
-                href={item.href}
-                icon={item.icon}
-                label={item.label}
-                active={pathname === item.href}
-              />
-            ))}
+            {visiblePanelItems.length > 0 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={togglePaneis}
+                  aria-expanded={paneisExpanded}
+                  className="flex w-full items-center justify-between gap-2 rounded-2xl px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500 transition-colors hover:bg-white/5 hover:text-gray-300"
+                >
+                  <span>Painéis</span>
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 ${paneisExpanded ? "" : "-rotate-90"}`}
+                  />
+                </button>
+
+                {paneisExpanded ? (
+                  <div className="space-y-2">
+                    {visiblePanelItems.map((item) => (
+                      <NavItem
+                        key={item.href}
+                        href={item.href}
+                        icon={item.icon}
+                        label={item.label}
+                        active={pathname === item.href}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+
+            {visibleFeaturedItems.length > 0 ? (
+              <div className={visiblePanelItems.length > 0 ? "pt-2" : ""}>
+                {visibleFeaturedItems.map((item) => (
+                  <NavItem
+                    key={item.href}
+                    href={item.href}
+                    icon={item.icon}
+                    label={item.label}
+                    active={pathname === item.href}
+                    isHighlight
+                  />
+                ))}
+              </div>
+            ) : null}
 
             {isAdmin ? (
               <>

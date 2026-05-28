@@ -17,7 +17,7 @@ type ResponsesApiPayload = {
   }>;
 };
 
-export type MitaPdfItem = {
+export type LumiiPdfItem = {
   produto: string;
   quant: number;
   unidade: string;
@@ -26,7 +26,7 @@ export type MitaPdfItem = {
 };
 
 const XAI_BASE_URL = "https://api.x.ai/v1";
-const MITA_PDF_MODEL = "grok-4-1-fast-reasoning";
+const LUMII_PDF_MODEL = "grok-4-1-fast-reasoning";
 
 function getXaiApiKey(): string {
   const apiKey = process.env.XAI_API_KEY?.trim();
@@ -114,7 +114,7 @@ function extractJsonPayload(rawText: string): unknown {
   return null;
 }
 
-function normalizeMitaItems(payload: unknown): MitaPdfItem[] {
+function normalizeLumiiItems(payload: unknown): LumiiPdfItem[] {
   const rawItems =
     payload && typeof payload === "object" && "resultado" in payload
       ? (payload as { resultado?: unknown }).resultado
@@ -124,7 +124,7 @@ function normalizeMitaItems(payload: unknown): MitaPdfItem[] {
     return [];
   }
 
-  const merged = new Map<string, MitaPdfItem>();
+  const merged = new Map<string, LumiiPdfItem>();
 
   for (const rawItem of rawItems) {
     if (!rawItem || typeof rawItem !== "object") {
@@ -197,7 +197,7 @@ async function uploadFileToXai(file: File, apiKey: string): Promise<string> {
   const payload = (await response.json().catch(() => ({}))) as UploadResponse & { error?: { message?: string } };
   if (!response.ok || !payload.id) {
     const detail =
-      payload?.error?.message?.trim() || "Não foi possível enviar o PDF para a MITA-I.";
+      payload?.error?.message?.trim() || "Não foi possível enviar o PDF para a Lumii.";
     throw new HttpError(502, detail);
   }
 
@@ -214,14 +214,14 @@ async function deleteFileFromXai(fileId: string, apiKey: string): Promise<void> 
       cache: "no-store",
     });
   } catch {
-    console.error(`Falha ao remover arquivo temporário ${fileId} da MITA-I.`);
+    console.error(`Falha ao remover arquivo temporário ${fileId} da Lumii.`);
   }
 }
 
-export async function extractBananasFromPdfWithMita(file: File): Promise<{
+export async function extractBananasFromPdfWithLumii(file: File): Promise<{
   arquivo: string;
-  processamento: "mita-ai";
-  resultado: MitaPdfItem[];
+  processamento: "lumii";
+  resultado: LumiiPdfItem[];
 }> {
   if (!file.name.toLowerCase().endsWith(".pdf")) {
     badRequest("Envie um arquivo PDF válido.");
@@ -238,7 +238,7 @@ export async function extractBananasFromPdfWithMita(file: File): Promise<{
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: MITA_PDF_MODEL,
+        model: LUMII_PDF_MODEL,
         input: [
           {
             role: "user",
@@ -280,17 +280,17 @@ export async function extractBananasFromPdfWithMita(file: File): Promise<{
         typeof payload.error.message === "string" &&
         payload.error.message.trim()
           ? payload.error.message
-          : "Não foi possível processar o PDF com a MITA-I.";
+          : "Não foi possível processar o PDF com a Lumii.";
       throw new HttpError(502, detail);
     }
 
     const responseText = extractResponseText(payload);
     const jsonPayload = extractJsonPayload(responseText);
-    const resultado = normalizeMitaItems(jsonPayload);
+    const resultado = normalizeLumiiItems(jsonPayload);
 
     return {
       arquivo: file.name,
-      processamento: "mita-ai",
+      processamento: "lumii",
       resultado,
     };
   } finally {

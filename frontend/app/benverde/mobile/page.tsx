@@ -8,7 +8,7 @@ import { ScreenEstoque } from '@/components/mobile/screens/Estoque';
 import { ScreenPrecos } from '@/components/mobile/screens/Precos';
 import { ScreenLojas } from '@/components/mobile/screens/Lojas';
 import { ScreenLojaDetalhe } from '@/components/mobile/screens/LojaDetalhe';
-import { ScreenMita } from '@/components/mobile/screens/Mita';
+import { ScreenLumii } from '@/components/mobile/screens/Mita';
 import RegistroCaixas from '@/app/benverde/Caixas/page';
 
 const VALID_SCREENS = ['home', 'estoque', 'precos', 'lojas', 'loja-detalhe', 'mita', 'caixas'] as const;
@@ -81,7 +81,7 @@ function MobileApp() {
         onNav={handleNav}
         onGoEstoque={() => navTo('estoque')}
         onGoLojas={() => navTo('lojas')}
-        onGoMita={() => navTo('mita')}
+        onGoLumii={() => navTo('mita')}
       />;
       break;
     case 'estoque':
@@ -97,7 +97,7 @@ function MobileApp() {
       screenEl = <ScreenLojaDetalhe lojaData={selectedLoja} onBack={() => navTo('lojas', 'back')} onNav={handleNav} />;
       break;
     case 'mita':
-      screenEl = <ScreenMita onBack={() => navTo('home', 'back')} onNav={handleNav} />;
+      screenEl = <ScreenLumii onBack={() => navTo('home', 'back')} onNav={handleNav} />;
       break;
     case 'caixas':
       screenEl = (

@@ -101,6 +101,24 @@ export async function ensureDatabase(): Promise<void> {
           total INTEGER,
           entregue TEXT
         )`,
+        `CREATE TABLE IF NOT EXISTS lumii_conversations (
+          id TEXT PRIMARY KEY,
+          username TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+          title TEXT NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT now(),
+          updated_at TIMESTAMPTZ DEFAULT now()
+        )`,
+        `CREATE INDEX IF NOT EXISTS lumii_conversations_user_idx
+          ON lumii_conversations (username, updated_at DESC)`,
+        `CREATE TABLE IF NOT EXISTS lumii_messages (
+          id SERIAL PRIMARY KEY,
+          conversation_id TEXT NOT NULL REFERENCES lumii_conversations(id) ON DELETE CASCADE,
+          role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+          content TEXT NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT now()
+        )`,
+        `CREATE INDEX IF NOT EXISTS lumii_messages_conv_idx
+          ON lumii_messages (conversation_id, created_at ASC)`,
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT",
         "ALTER TABLE pending ADD COLUMN IF NOT EXISTS email TEXT",

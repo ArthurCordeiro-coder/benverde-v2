@@ -40,7 +40,7 @@ function formatQuantity(value: number, unit = 'kg'): string {
   return `${formatted} ${unit}`;
 }
 
-export function ScreenHome({ onNav, onGoEstoque, onGoLojas, onGoMita }: any) {
+export function ScreenHome({ onNav, onGoEstoque, onGoLojas, onGoLumii }: any) {
   const [open, setOpen] = useState({ estoque: false, metas: false });
   const toggle = (k: keyof typeof open) => setOpen(o => ({ ...o, [k]: !o[k] }));
 
@@ -189,9 +189,9 @@ export function ScreenHome({ onNav, onGoEstoque, onGoLojas, onGoMita }: any) {
       {/* Scrollable feed */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 8px' }} className="no-scrollbar">
 
-        {/* Mita proactive insight */}
+        {/* Lumii proactive insight */}
         <div style={{ marginBottom: 12 }}>
-          <UI.MitaBanner
+          <UI.LumiiBanner
             text={insightText}
             onChat={() => onNav('mita')}
           />
@@ -284,7 +284,7 @@ export function ScreenHome({ onNav, onGoEstoque, onGoLojas, onGoMita }: any) {
           </div>
         </UI.SectionBlock>
 
-        {/* Mita CTA */}
+        {/* Lumii CTA */}
         <div style={{
           marginTop: 4, background: '#0a1f12', border: `1px solid ${C.emeraldBorder}`,
           borderRadius: 20, padding: '14px 16px',

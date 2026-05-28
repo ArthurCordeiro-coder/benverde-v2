@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import dynamic from 'next/dynamic';
 import { C } from '@/lib/mobile/constants';
+
+const LumiiChart = dynamic(() => import('@/components/mita/MitaChart'), { ssr: false });
 import * as UI from '@/components/mobile/ui';
 import * as Icons from '@/components/mobile/icons';
 import api from '@/lib/api';
@@ -12,7 +15,7 @@ type ChatMessage = {
   content: string;
 };
 
-export function ScreenMita({ onBack, onNav }: any) {
+export function ScreenLumii({ onBack, onNav }: any) {
   const SUGGESTIONS = [
     'Como está o saldo de estoque hoje?',
     'Top 5 metas com maior progresso',
@@ -56,7 +59,7 @@ export function ScreenMita({ onBack, onNav }: any) {
         setMessages(m => [...m, { role: 'assistant', content: `Entendido! Estou analisando os dados sobre "${q}". No momento consigo detalhar estoque, metas, preços e operação por loja. Pode ser mais específico?` }]);
       }
     } catch (error) {
-      console.error('Erro Mita:', error);
+      console.error('Erro Lumii:', error);
       // Fallback on error
       setMessages(m => [...m, { role: 'assistant', content: 'Desculpa, tive um problema ao processar sua pergunta. Tente novamente em instantes.' }]);
     } finally {
@@ -150,7 +153,37 @@ export function ScreenMita({ onBack, onNav }: any) {
                       p: ({ children }) => <p style={{ margin: '0 0 12px', lineHeight: 1.6 }}>{children}</p>,
                       strong: ({ children }) => <strong style={{ color: C.green, fontWeight: 700 }}>{children}</strong>,
                       em: ({ children }) => <em style={{ color: 'rgba(74,222,128,0.7)', fontStyle: 'italic' }}>{children}</em>,
-                      code: ({ children }) => <code style={{ background: 'rgba(16,185,129,0.2)', color: C.green, borderRadius: 6, padding: '2px 6px', fontSize: 12, fontFamily: 'monospace' }}>{children}</code>,
+                      code: ({ className, children, ...props }) => {
+                        const match = /language-(\w+)/.exec(className || "");
+                        const codeText = String(children).replace(/\n$/, "");
+                        if (match && match[1] === "json") {
+                          try {
+                            const parsed = JSON.parse(codeText);
+                            if (parsed && (parsed.type === "chart" || parsed.type === "kpis")) {
+                              if (Array.isArray(parsed.data) && parsed.data.length > 0) {
+                                return <LumiiChart spec={parsed} />;
+                              }
+                            }
+                          } catch (e) {
+                            // Not a valid JSON, let it fall through
+                          }
+                        }
+                        return (
+                          <code
+                            style={{
+                              background: 'rgba(16,185,129,0.2)',
+                              color: C.green,
+                              borderRadius: 6,
+                              padding: '2px 6px',
+                              fontSize: 12,
+                              fontFamily: 'monospace',
+                            }}
+                            {...props}
+                          >
+                            {children}
+                          </code>
+                        );
+                      },
                       pre: ({ children }) => <pre style={{ background: 'rgba(16,185,129,0.08)', border: `1px solid ${C.emeraldBorder}`, borderRadius: 12, padding: '12px', overflowX: 'auto', margin: '12px 0', fontSize: 12, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{children}</pre>,
                       ul: ({ children }) => <ul style={{ paddingLeft: 22, margin: '8px 0 12px', listStyleType: 'disc' }}>{children}</ul>,
                       ol: ({ children }) => <ol style={{ paddingLeft: 22, margin: '8px 0 12px', listStyleType: 'decimal' }}>{children}</ol>,

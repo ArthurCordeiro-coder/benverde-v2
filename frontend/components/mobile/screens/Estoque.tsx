@@ -168,9 +168,9 @@ export function ScreenEstoque({ onBack, onNav }: any) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 12px' }} className="no-scrollbar">
-        {/* Mita insight */}
+        {/* Lumii insight */}
         <div style={{ marginBottom: 14 }}>
-          <UI.MitaBanner
+          <UI.LumiiBanner
             text={carregando ? 'Carregando análise...' : insightText}
             onChat={() => onNav('mita')}
           />
