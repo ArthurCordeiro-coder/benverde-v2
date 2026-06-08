@@ -3,7 +3,7 @@
 import { type ReactNode, useState } from "react";
 import { Banana, BarChart3, FileText, Leaf, Menu, X } from "lucide-react";
 import EstoqueRegistro from "./EstoqueRegistro";
-import EstoqueDashboard from "../dashboard/estoque/EstoqueDashboard";
+import EstoqueDashboard from "@/app/benverde/dashboard/estoque/EstoqueDashboard";
 
 type Aba = "registro" | "dashboard";
 
