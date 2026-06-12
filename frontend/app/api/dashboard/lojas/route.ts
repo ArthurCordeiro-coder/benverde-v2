@@ -10,8 +10,9 @@ export async function GET(request: Request) {
   try {
     await requireDashboardScope("lojas");
     const { searchParams } = new URL(request.url);
-    const mes = searchParams.get("mes");
-    return NextResponse.json(await getLojasData(mes || undefined));
+    const inicio = searchParams.get("inicio") || searchParams.get("mes");
+    const fim = searchParams.get("fim");
+    return NextResponse.json(await getLojasData(inicio || undefined, fim || undefined));
   } catch (error) {
     return toErrorResponse(error);
   }

@@ -4,23 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import api from "../../../lib/api";
+import Link from "next/link";
+import Image from "next/image";
+import iconImg from "../../icon.png";
 
 type ApiError = { response?: { data?: { detail?: string } } };
 
 /* ─── Brand mark ─── */
 function BrandMark({ size = 44 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden>
-      <defs>
-        <linearGradient id="reg-lg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#34d399" />
-          <stop offset="100%" stopColor="#10b981" />
-        </linearGradient>
-      </defs>
-      <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#reg-lg)" />
-      <path d="M16 14 L16 33 L31 33" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="32" cy="17" r="2.6" fill="#fff" />
-    </svg>
+    <Image
+      src={iconImg}
+      alt="lumii logo"
+      width={size}
+      height={size}
+      style={{ width: size, height: size, objectFit: "contain" }}
+    />
   );
 }
 
@@ -177,25 +176,25 @@ export default function CreateAccountPage() {
     <div
       className="relative flex min-h-screen flex-col px-8 py-8"
       style={{
-        background: "radial-gradient(circle at top, rgba(52,211,153,0.12), transparent 32%), linear-gradient(180deg, #07140e 0%, #0b1f15 48%, #06100b 100%)",
+        background: "radial-gradient(circle at top, rgba(32,10,94,0.15), transparent 32%), linear-gradient(180deg, #0c0525 0%, #150838 48%, #060214 100%)",
         fontFamily: "var(--lumii-font-sans)",
       }}
     >
-      <div className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 right-10 h-96 w-96 rounded-full bg-green-900/35 blur-3xl" />
+      <div className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-purple-400/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 right-10 h-96 w-96 rounded-full bg-purple-900/35 blur-3xl" />
 
       {/* Top bar */}
       <div className="relative flex items-center justify-between">
-        <a href="/" className="flex items-center gap-2.5 no-underline">
+        <Link href="/" className="flex items-center gap-2.5 no-underline">
           <BrandMark size={28} />
           <span className="text-base font-bold tracking-tight text-slate-100" style={{ letterSpacing: "-0.01em" }}>lumii</span>
-        </a>
+        </Link>
         <div className="flex items-center gap-4 text-[13px] text-slate-400">
           <span>Já tem conta?</span>
           <button
             type="button"
             onClick={() => router.push("/login")}
-            className="font-semibold text-emerald-300 transition-colors hover:text-emerald-200"
+            className="font-semibold text-purple-300 transition-colors hover:text-purple-200"
           >
             Entrar
           </button>

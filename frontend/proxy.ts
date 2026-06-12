@@ -11,54 +11,21 @@ import {
   verifySessionToken,
 } from "@/lib/server/session-token";
 
+// Rotas totalmente bloqueadas: ninguém acessa, nem digitando a URL direto.
+const BLOCKED_PATHS = ["/pagamento", "/login/criar-conta"];
+
 export async function proxy(request: NextRequest) {
-  const userAgent = request.headers.get("user-agent") || "";
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
   const pathname = request.nextUrl.pathname;
 
-  if (isMobile) {
-    if (
-      !pathname.startsWith("/benverde/mobile") &&
-      !pathname.startsWith("/api") &&
-      !pathname.startsWith("/_next") &&
-      !pathname.startsWith("/login") &&
-      !pathname.includes(".")
-    ) {
-      const MOBILE_SCREEN_MAP: Record<string, string> = {
-        "/benverde/Caixas": "caixas",
-        "/benverde/caixas": "caixas",
-        "/benverde/estoque": "estoque",
-        "/benverde/Estoque": "estoque",
-        "/precos": "precos",
-        "/Precos": "precos",
-        "/lojas": "lojas",
-        "/Lojas": "lojas",
-        "/mita": "mita",
-        "/Mita": "mita",
-      };
-      const url = request.nextUrl.clone();
-      url.pathname = "/benverde/mobile";
-      const mappedScreen = MOBILE_SCREEN_MAP[pathname];
-      if (mappedScreen) {
-        url.searchParams.set("screen", mappedScreen);
-        return NextResponse.redirect(url);
-      }
-      return NextResponse.rewrite(url);
-    }
-  } else {
-    if (pathname.startsWith("/benverde/mobile")) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      return NextResponse.redirect(url);
-    }
+  if (BLOCKED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+    return new NextResponse(null, { status: 404 });
   }
 
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   const isDashboardRoute = pathname.startsWith("/benverde/dashboard");
-  const isMobileRoute = pathname.startsWith("/benverde/mobile");
   const isPriceRoute = pathname === "/precos" || pathname.startsWith("/precos/") || pathname === "/Precos" || pathname.startsWith("/Precos/");
   const isCaixasRoute = pathname === "/benverde/Caixas" || pathname.startsWith("/benverde/Caixas/") || pathname === "/benverde/caixas" || pathname.startsWith("/benverde/caixas/");
-  const isProtectedRoute = isDashboardRoute || isPriceRoute || isMobileRoute || isCaixasRoute;
+  const isProtectedRoute = isDashboardRoute || isPriceRoute || isCaixasRoute;
   const isLegacyOperationalRoute =
     pathname === "/registro" ||
     pathname.startsWith("/registro/") ||

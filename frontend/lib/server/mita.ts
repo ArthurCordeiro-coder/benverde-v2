@@ -210,13 +210,11 @@ async function callXai(
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new HttpError(
-      502,
-      errorText
-        ? `Erro ao se comunicar com o modelo de IA: ${errorText}`
-        : "Erro ao se comunicar com o modelo de IA.",
-    );
+    // Log the upstream detail server-side, but never echo it to the client —
+    // it can carry API keys hints, internal ids or other provider internals.
+    const errorText = await response.text().catch(() => "");
+    console.error("[mita] xAI respondeu erro:", response.status, errorText);
+    throw new HttpError(502, "Erro ao se comunicar com o modelo de IA.");
   }
 
   return (await response.json()) as XaiResponse;

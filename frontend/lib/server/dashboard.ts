@@ -475,7 +475,7 @@ export async function getDashboardData(): Promise<{
   // Grouping by inferred category
   const movimentacao = categoriasProgresso(metas, faturamentoRows);
 
-  let comparativoPrecos: Array<{ data: string; interno: number; mercado: number }> = [];
+  const comparativoPrecos: Array<{ data: string; interno: number; mercado: number }> = [];
   let produtoComparativo = "-produto-";
 
   if (overview.dates && overview.dates.length > 0) {
@@ -488,8 +488,13 @@ export async function getDashboardData(): Promise<{
     );
 
     if (validProducts.length > 0) {
-      const randomIndex = Math.floor(Math.random() * validProducts.length);
-      const chosenProduct = validProducts[randomIndex].produto;
+      // Escolha determinística: produto com mais preços de mercado preenchidos
+      // (desempate alfabético), para o gráfico não mudar a cada refresh.
+      const countMarkets = (item: (typeof validProducts)[number]) =>
+        Object.keys(item.prices).filter((k) => k !== "Semar" && item.prices[k] !== null).length;
+      const chosenProduct = [...validProducts].sort(
+        (a, b) => countMarkets(b) - countMarkets(a) || a.produto.localeCompare(b.produto),
+      )[0].produto;
       produtoComparativo = chosenProduct;
 
       const historyDates = [...overview.dates].reverse();
@@ -550,7 +555,10 @@ export async function getDashboardData(): Promise<{
   };
 }
 
-function categoriasProgresso(metas: DashboardMetaItem[], faturamento: any[]) {
+function categoriasProgresso(
+  metas: DashboardMetaItem[],
+  faturamento: Array<{ produto: string; valor: number }>,
+) {
   const cats = ["Frutas", "Legumes", "Verduras"];
   return cats.map(cat => ({
     categoria: cat,
@@ -560,17 +568,34 @@ function categoriasProgresso(metas: DashboardMetaItem[], faturamento: any[]) {
   })).filter(c => c.valor > 0);
 }
 
-export async function getLojasData(mes?: string) {
+export async function getLojasData(inicio?: string, fim?: string) {
+  // Lista de meses disponíveis (mais recente primeiro) para alimentar os filtros.
+  const mesesRows = await queryRows<{ mes: string | null }>(
+    `SELECT DISTINCT TO_CHAR(data, 'YYYY-MM') AS mes
+       FROM cache_pedidos
+      WHERE data IS NOT NULL
+      ORDER BY mes DESC`
+  );
+  const meses = mesesRows.map(r => r.mes).filter((m): m is string => Boolean(m));
+
+  // Por padrão, filtra apenas o mês mais recente.
+  let inicioFiltro = inicio || fim || meses[0];
+  let fimFiltro = fim || inicio || meses[0];
+  // Garante ordem cronológica (inicio <= fim) independente da entrada.
+  if (inicioFiltro && fimFiltro && inicioFiltro > fimFiltro) {
+    [inicioFiltro, fimFiltro] = [fimFiltro, inicioFiltro];
+  }
+
   let query = `
      SELECT loja, produto, unidade, quant, valor_total
      FROM cache_pedidos
      WHERE loja IS NOT NULL AND produto IS NOT NULL AND quant > 0
   `;
-  const params: any[] = [];
+  const params: string[] = [];
 
-  if (mes) {
-    query += ` AND TO_CHAR(data, 'YYYY-MM') = $1`;
-    params.push(mes);
+  if (inicioFiltro && fimFiltro) {
+    params.push(inicioFiltro, fimFiltro);
+    query += ` AND TO_CHAR(data, 'YYYY-MM') BETWEEN $${params.length - 1} AND $${params.length}`;
   }
 
   const rows = await queryRows<{
@@ -685,6 +710,6 @@ export async function getLojasData(mes?: string) {
   }
 
   resultado.sort((a, b) => a.id.localeCompare(b.id));
-  return { lojas: resultado };
+  return { lojas: resultado, meses, inicio: inicioFiltro ?? null, fim: fimFiltro ?? null };
 }
 

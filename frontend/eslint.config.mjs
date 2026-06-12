@@ -5,7 +5,17 @@ const config = [
   ...nextCoreWebVitals,
   ...nextTypeScript,
   {
-    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"],
+    ignores: [
+      ".next/**",
+      "out/**",
+      "build/**",
+      "next-env.d.ts",
+      "_deadcode-backup/**",
+      // Scripts soltos de depuração (gitignored, fora do app)
+      "test-*.js",
+      "test-*.ts",
+      "scripts-tmp-*.mjs",
+    ],
   },
 ];
 

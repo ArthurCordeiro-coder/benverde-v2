@@ -22,13 +22,16 @@ export async function GET(req: NextRequest) {
 
     const client = getMpClient();
 
+    // NOTE: this endpoint is public (the checkout runs before the buyer has a
+    // benverde session). We must NOT echo the full Mercado Pago object back —
+    // it contains payer PII (e-mail, document) and would allow anyone to
+    // enumerate payment IDs. Only the minimal status flags are returned.
     if (type === "preapproval") {
       const pa = new PreApproval(client);
       const result = await pa.get({ id: id as string });
       return NextResponse.json({
         status: result.status,
         paid: result.status === "authorized",
-        raw: result,
       });
     }
 
@@ -37,7 +40,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       status: result.status,
       paid: result.status === "approved",
-      raw: result,
     });
   } catch (error) {
     console.error("[pagamento/status] error:", error);

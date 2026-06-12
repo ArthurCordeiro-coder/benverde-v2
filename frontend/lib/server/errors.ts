@@ -45,6 +45,9 @@ export function toErrorResponse(
     );
   }
 
-  const detail = error instanceof Error && error.message ? error.message : fallbackMessage;
-  return NextResponse.json({ detail }, { status: 500 });
+  // Unexpected errors must NOT leak internal details (DB messages, stack info,
+  // upstream API payloads) to the client. Log the real cause server-side and
+  // return a generic message.
+  console.error("[toErrorResponse] erro inesperado:", error);
+  return NextResponse.json({ detail: fallbackMessage }, { status: 500 });
 }

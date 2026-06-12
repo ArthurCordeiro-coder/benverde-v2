@@ -18,11 +18,8 @@ import {
 } from "recharts";
 import {
   TrendingUp,
-  TrendingDown,
   AlertTriangle,
   CheckCircle2,
-  DollarSign,
-  Package,
   Activity,
   ArrowUpRight,
   ArrowDownRight,
@@ -33,7 +30,7 @@ import {
 export interface ChartDataPoint {
   name?: string;
   label?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface KPIItem {
@@ -166,12 +163,22 @@ const styles = {
 
 // --- Custom Interactive Components ---
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+type TooltipPayloadItem = { name?: string; value?: number | string; color?: string };
+
+const CustomTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: TooltipPayloadItem[];
+  label?: string | number;
+}) => {
   if (active && payload && payload.length) {
     return (
       <div style={styles.tooltip}>
         <p style={styles.tooltipTitle}>{label}</p>
-        {payload.map((pld: any, index: number) => (
+        {payload.map((pld, index) => (
           <p key={index} style={{ ...styles.tooltipVal, color: pld.color || "#10b981" }}>
             {pld.name}: {typeof pld.value === "number" ? pld.value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : pld.value}
           </p>
@@ -186,6 +193,9 @@ export default function LumiiChart({ spec }: LumiiChartProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    // Marca a montagem para o recharts só medir o contêiner no cliente;
+    // padrão intencional de hidratação, não um efeito de sincronização.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 

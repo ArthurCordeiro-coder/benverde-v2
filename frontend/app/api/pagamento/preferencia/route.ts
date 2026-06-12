@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Preference } from "mercadopago";
 
-import { getMpClient, LUMII_PLAN, isFrequencyKey } from "@/lib/mercadopago";
+import { getMpClient, getCheckoutUrl, LUMII_PLAN, isFrequencyKey } from "@/lib/mercadopago";
 import { toErrorResponse, badRequest } from "@/lib/server/errors";
 
 /**
@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
 
     const plan = LUMII_PLAN[frequency];
     const origin = req.nextUrl.origin;
+    const useAutoReturn = origin.startsWith("https://");
 
     const preference = new Preference(getMpClient());
     const result = await preference.create({
@@ -42,9 +43,10 @@ export async function POST(req: NextRequest) {
           failure: `${origin}/pagamento?status=failure`,
           pending: `${origin}/pagamento?status=pending`,
         },
-        auto_return: "approved",
-        // Force "outros métodos" branch: exclude credit cards so the user
-        // sees Pix / Boleto / Saldo only in MP's checkout.
+        // `auto_return` exige back_urls HTTPS — o MP rejeita localhost.
+        ...(useAutoReturn ? { auto_return: "approved" as const } : {}),
+        // Força a aba "outros métodos": exclui cartões para o usuário ver
+        // apenas Pix / Boleto / Saldo no checkout do MP.
         payment_methods: {
           excluded_payment_types: [{ id: "credit_card" }, { id: "debit_card" }],
         },
@@ -54,6 +56,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       id: result.id,
+      checkoutUrl: getCheckoutUrl(result),
       initPoint: result.init_point,
       sandboxInitPoint: result.sandbox_init_point,
     });

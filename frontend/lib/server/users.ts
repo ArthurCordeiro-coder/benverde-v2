@@ -225,6 +225,70 @@ export async function rejectPendingUser(username: string): Promise<boolean> {
   return true;
 }
 
+export async function updateUserPasswordHash(
+  username: string,
+  senhaHash: string,
+): Promise<void> {
+  await execute("UPDATE users SET senha_hash = $2 WHERE username = $1", [username, senhaHash]);
+}
+
+async function gerarUsernameDisponivel(email: string): Promise<string> {
+  const base =
+    (email.split("@")[0] ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9_]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 20) || "user";
+
+  const candidate = base.length >= 3 ? base : `${base}_user`.slice(0, 20);
+  if (!(await usernameExists(candidate))) {
+    return candidate;
+  }
+
+  for (let suffix = 1; suffix < 1000; suffix += 1) {
+    const suffixStr = String(suffix);
+    const trimmed = `${base.slice(0, 20 - suffixStr.length)}${suffixStr}`;
+    if (!(await usernameExists(trimmed))) {
+      return trimmed;
+    }
+  }
+
+  return `user_${crypto.randomUUID().slice(0, 8)}`;
+}
+
+/**
+ * Cria (ou reaproveita) um usuário a partir de uma assinatura Lumii confirmada.
+ * Idempotente por e-mail: se já houver usuário com o mesmo e-mail, devolve o
+ * username existente em vez de duplicar.
+ */
+export async function criarUsuarioDeAssinatura(input: {
+  email: string;
+  salt: string;
+  senhaHash: string;
+  funcionalidade?: string;
+}): Promise<string> {
+  const email = input.email.trim();
+  const funcionalidade = input.funcionalidade?.trim() || "administracao geral";
+
+  const existing = await queryOne<{ username?: string }>(
+    "SELECT username FROM users WHERE lower(email) = lower($1) LIMIT 1",
+    [email],
+  );
+  if (existing?.username) {
+    return String(existing.username);
+  }
+
+  const username = await gerarUsernameDisponivel(email);
+  await execute(
+    `INSERT INTO users (
+      username, nome, email, salt, senha_hash, is_admin, criado_em, funcionalidade, role
+    ) VALUES ($1, $2, $3, $4, $5, FALSE, now(), $6, 'operacional')`,
+    [username, username, email, input.salt, input.senhaHash, funcionalidade],
+  );
+  return username;
+}
+
 export async function getLockout(username: string): Promise<LockoutRow | null> {
   const row = await queryOne<Record<string, unknown>>(
     "SELECT username, tentativas, bloqueado_ate FROM lockouts WHERE username = $1",

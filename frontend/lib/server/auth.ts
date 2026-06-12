@@ -18,6 +18,7 @@ import {
   pendingUsernameExists,
   toPublicUser,
   type PublicUser,
+  updateUserPasswordHash,
   upsertLockout,
   usernameExists,
 } from "@/lib/server/users";
@@ -34,11 +35,76 @@ const LOCKOUT_MAX_ATTEMPTS = 5;
 const LOCKOUT_WINDOW_MINUTES = 15;
 const encoder = new TextEncoder();
 
-async function sha256Hex(value: string): Promise<string> {
-  const hash = await crypto.subtle.digest("SHA-256", encoder.encode(value));
-  return Array.from(new Uint8Array(hash))
+// PBKDF2-HMAC-SHA256 com key-stretching (OWASP: >= 210k iterações).
+// Hashes novos são armazenados como `pbkdf2$<iteracoes>$<hashHex>`; o hash
+// SHA-256 legado (sem stretching) ainda é aceito no login e re-hasheado.
+const PBKDF2_ITERATIONS = 210_000;
+const PBKDF2_PREFIX = "pbkdf2";
+
+function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function constantTimeEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  let result = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    result |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return result === 0;
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", encoder.encode(value));
+  return toHex(new Uint8Array(hash));
+}
+
+async function pbkdf2Hex(salt: string, password: string, iterations: number): Promise<string> {
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"],
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt: encoder.encode(salt), iterations, hash: "SHA-256" },
+    keyMaterial,
+    256,
+  );
+  return toHex(new Uint8Array(bits));
+}
+
+/**
+ * Verifica a senha contra o hash armazenado, suportando o formato legado
+ * SHA-256. `needsRehash` indica que o valor guardado deve ser regravado no
+ * formato PBKDF2 atual (hash legado ou contagem de iterações desatualizada).
+ */
+export async function verifyPassword(
+  stored: string,
+  salt: string,
+  password: string,
+): Promise<{ ok: boolean; needsRehash: boolean }> {
+  if (stored.startsWith(`${PBKDF2_PREFIX}$`)) {
+    const [, iterationsRaw, expectedHash] = stored.split("$");
+    const iterations = Number(iterationsRaw);
+    if (!Number.isInteger(iterations) || iterations <= 0 || !expectedHash) {
+      return { ok: false, needsRehash: false };
+    }
+    const actual = await pbkdf2Hex(salt, password, iterations);
+    return {
+      ok: constantTimeEqual(actual, expectedHash),
+      needsRehash: iterations < PBKDF2_ITERATIONS,
+    };
+  }
+
+  // Formato legado: SHA-256(salt + senha), sem key-stretching.
+  const legacy = await sha256Hex(`${salt}${password}`);
+  return { ok: constantTimeEqual(legacy, stored), needsRehash: true };
 }
 
 function buildCookieOptions(maxAge: number) {
@@ -51,8 +117,10 @@ function buildCookieOptions(maxAge: number) {
   };
 }
 
+/** Gera o valor armazenado em `users.senha_hash` para credenciais novas. */
 export async function hashPassword(salt: string, password: string): Promise<string> {
-  return sha256Hex(`${salt}${password}`);
+  const hash = await pbkdf2Hex(salt, password, PBKDF2_ITERATIONS);
+  return `${PBKDF2_PREFIX}$${PBKDF2_ITERATIONS}$${hash}`;
 }
 
 export async function getUserFromToken(token: string | null | undefined): Promise<PublicUser | null> {
@@ -181,9 +249,18 @@ export async function loginWithPassword(input: {
     unauthorized(await registerFailedLogin(username), { "WWW-Authenticate": "Bearer" });
   }
 
-  const hashedPassword = await hashPassword(user.salt, password);
-  if (hashedPassword !== user.senha_hash) {
+  const { ok, needsRehash } = await verifyPassword(user.senha_hash, user.salt, password);
+  if (!ok) {
     unauthorized(await registerFailedLogin(username), { "WWW-Authenticate": "Bearer" });
+  }
+
+  // Migra hashes legados (SHA-256) para PBKDF2 de forma transparente no login.
+  if (needsRehash) {
+    try {
+      await updateUserPasswordHash(user.username, await hashPassword(user.salt, password));
+    } catch (error) {
+      console.error("[auth] Falha ao re-hashear senha do usuario:", error);
+    }
   }
 
   await upsertLockout(username, 0, null);

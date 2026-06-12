@@ -71,9 +71,9 @@ type Movimentacao = {
 
 type EstoqueResponse = { saldo: number; historico: Movimentacao[] };
 
-type UploadPdfResponse = {
+type UploadDocResponse = {
   arquivo?: string;
-  resultado?: Array<{ produto?: string; quant?: number }>;
+  resultado?: Array<{ produto?: string; quant?: number; loja?: string }>;
 };
 
 type Linha = {
@@ -96,6 +96,18 @@ type RegistroHoje = {
 };
 
 type ApiError = { response?: { status?: number; data?: { detail?: string } } };
+
+// CSV de pedido traz a loja como número ("5"); converte para o nome da lista
+// ("Loja 05 - GUAIANAZES"). Sem correspondência, cai em "Outra".
+const mapearLojaCsv = (loja: string): string => {
+  const valor = loja.trim();
+  if (/^\d+$/.test(valor)) {
+    const numero = valor.padStart(2, "0");
+    const encontrada = LOJAS_ESTOQUE.find(l => l.startsWith(`Loja ${numero} `));
+    if (encontrada) return encontrada;
+  }
+  return LOJAS_ESTOQUE.includes(valor) ? valor : "Outra";
+};
 
 const getErrorMessage = (error: unknown, fallback: string) => {
   const detail = (error as ApiError | undefined)?.response?.data?.detail;
@@ -209,33 +221,42 @@ export default function EstoqueRegistro() {
     setIsUploading(true);
     setFeedback(null);
 
+    const isCsv = file.name.toLowerCase().endsWith(".csv");
+
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const response = await api.post<UploadPdfResponse>("/api/estoque/upload-pdf", formData);
+      const response = await api.post<UploadDocResponse>(
+        isCsv ? "/api/estoque/upload-csv" : "/api/estoque/upload-pdf",
+        formData,
+      );
       const resultado = Array.isArray(response.data?.resultado) ? response.data.resultado : [];
 
       if (resultado.length === 0) {
-        setFeedback({ tone: "error", text: "O PDF foi lido, mas nenhuma linha válida de banana foi encontrada." });
+        setFeedback({ tone: "error", text: "O documento foi lido, mas nenhuma linha válida de banana foi encontrada." });
         return;
       }
 
-      const novasLinhas: Linha[] = resultado.map(item => ({
-        id: nextId(),
-        sel: false,
-        variedade: String(item.produto ?? VARIEDADES[0]).trim() || VARIEDADES[0],
-        quant: Number(item.quant ?? 0),
-        loja: "Entrada",
-        tipo: "entrada",
-      }));
+      const novasLinhas: Linha[] = resultado.map(item => {
+        const lojaOrigem = String(item.loja ?? "Entrada").trim() || "Entrada";
+        const isEntrada = lojaOrigem.toLowerCase() === "entrada";
+        return {
+          id: nextId(),
+          sel: false,
+          variedade: String(item.produto ?? VARIEDADES[0]).trim() || VARIEDADES[0],
+          quant: Number(item.quant ?? 0),
+          loja: isEntrada ? "Entrada" : mapearLojaCsv(lojaOrigem),
+          tipo: isEntrada ? "entrada" : "saida",
+        };
+      });
 
       const linhasPreenchidas = linhas.filter(l => l.quant > 0);
       const padding = Math.max(0, 5 - linhasPreenchidas.length - novasLinhas.length);
       setLinhas([...linhasPreenchidas, ...novasLinhas, ...gerarLinhasVazias(padding)]);
       setMostrarUpload(false);
-      setFeedback({ tone: "success", text: `${novasLinhas.length} linha(s) carregada(s) pelo PDF. Confira e salve.` });
+      setFeedback({ tone: "success", text: `${novasLinhas.length} linha(s) carregada(s) do documento. Confira e salve.` });
     } catch (error) {
-      setFeedback({ tone: "error", text: getErrorMessage(error, "Falha ao processar o arquivo PDF. Tente novamente.") });
+      setFeedback({ tone: "error", text: getErrorMessage(error, "Falha ao processar o arquivo. Tente novamente.") });
     } finally {
       setIsUploading(false);
       e.target.value = "";
@@ -334,14 +355,14 @@ export default function EstoqueRegistro() {
               {isUploading && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
                   <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-2" />
-                  <p className="text-sm font-semibold text-emerald-300">Processando PDF...</p>
+                  <p className="text-sm font-semibold text-emerald-300">Processando documento...</p>
                 </div>
               )}
               <UploadCloud className="mx-auto h-10 w-10 text-gray-400 mb-3" />
-              <p className="text-sm text-gray-300 mb-4">Selecione o PDF para extração automática</p>
+              <p className="text-sm text-gray-300 mb-4">Selecione o PDF (NF-e) ou CSV (pedido por loja) para extração automática</p>
               <input
                 type="file"
-                accept=".pdf"
+                accept=".pdf,.csv"
                 onChange={e => void handleFileUpload(e)}
                 disabled={isUploading}
                 className="block w-full text-sm text-gray-400 file:mr-4 file:rounded-full file:border-0 file:bg-emerald-500/20 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-emerald-300 hover:file:bg-emerald-500/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"

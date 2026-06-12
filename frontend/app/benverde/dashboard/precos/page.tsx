@@ -11,8 +11,8 @@ import {
   isRecord,
   normalizeDashboardText,
 } from "@/lib/dashboard/client";
-import html2canvas from "html2canvas";
-import * as XLSX from "xlsx";
+import { exportNodeToPng } from "@/lib/export";
+import { GlassCard } from "@/components/ui/GlassCard";
 import {
   Activity,
   AlertCircle,
@@ -34,13 +34,11 @@ import {
   Tags,
   Target,
   TrendingDown,
-  TrendingUp,
   X,
   Zap,
   type LucideIcon,
 } from "lucide-react";
 import {
-  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -104,14 +102,6 @@ type SortConfig = {
 
 type StatTrend = "up" | "down" | "neutral";
 
-type GlassCardProps = {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: ReactNode;
-  trend: StatTrend;
-};
-
 type RowStatus = {
   label: string;
   className: string;
@@ -150,24 +140,6 @@ const STATUS_CLASSNAMES = {
   perdendo: "border border-red-500/20 bg-red-500/10 text-red-300",
   semCotacao: "border border-white/10 bg-white/5 text-gray-400",
 } as const;
-
-function GlassCard({ title, value, subtitle, icon, trend }: GlassCardProps) {
-  return (
-    <div className="relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition-all hover:bg-white/[0.05]">
-      <div className="mb-4 flex items-start justify-between">
-        <div className="rounded-2xl border border-white/5 bg-white/5 p-3 shadow-inner">{icon}</div>
-        {trend === "up" ? <TrendingUp size={20} className="text-green-400" /> : null}
-        {trend === "down" ? <TrendingDown size={20} className="text-red-400" /> : null}
-        {trend === "neutral" ? <Activity size={20} className="text-blue-400" /> : null}
-      </div>
-      <div>
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">{title}</p>
-        <h3 className="mb-2 text-3xl font-bold tracking-tight text-white">{value}</h3>
-        <p className="text-xs font-medium text-gray-400">{subtitle}</p>
-      </div>
-    </div>
-  );
-}
 
 function normalizeText(value: string): string {
   return normalizeDashboardText(value);
@@ -716,45 +688,15 @@ export default function PrecosPage() {
     [markets],
   );
 
-  const exportRows = useMemo(
-    () =>
-      visibleRows.map((row) => ({
-        Produto: row.produto,
-        "Preço Semar": row.prices.Semar ?? "",
-        "Melhor Concorrente": row.bestCompetitor ?? "",
-        "Preço Concorrente": row.bestCompetitorPrice ?? "",
-        Média: row.averagePrice ?? "",
-        Status: getRowStatus(row).label,
-      })),
-    [visibleRows],
-  );
-
-  const exportTable = () => {
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Preços Concorrentes");
-    XLSX.writeFile(
-      workbook,
-      `precos-concorrentes-${selectedDate === GENERAL_KEY ? "geral" : selectedDate}.xlsx`,
-    );
-  };
-
   const exportGraph = async () => {
     if (!chartSectionRef.current) {
       return;
     }
 
-    const canvas = await html2canvas(chartSectionRef.current, {
-      backgroundColor: "#07130d",
-      scale: 2,
-      useCORS: true,
-      logging: false,
-    });
-
-    const link = document.createElement("a");
-    link.download = `grafico-precos-banana-${selectedDate === GENERAL_KEY ? "geral" : selectedDate}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    await exportNodeToPng(
+      chartSectionRef.current,
+      `grafico-precos-banana-${selectedDate === GENERAL_KEY ? "geral" : selectedDate}.png`,
+    );
   };
 
   const buildFallbackLumiiResponse = useCallback(
@@ -988,6 +930,7 @@ export default function PrecosPage() {
           subtitle="Produtos com menor preço."
           icon={<Zap className="text-yellow-400" size={24} />}
           trend="up"
+          uppercaseTitle
         />
         <GlassCard
           title="Melhor Competidor"
@@ -995,6 +938,7 @@ export default function PrecosPage() {
           subtitle={`Líder em ${stats.competitorPerc} dos itens.`}
           icon={<Target className="text-blue-400" size={24} />}
           trend="neutral"
+          uppercaseTitle
         />
         <GlassCard
           title="Variação Recente"
@@ -1002,6 +946,7 @@ export default function PrecosPage() {
           subtitle="Inflação média da cesta Semar."
           icon={<Activity className="text-emerald-400" size={24} />}
           trend={stats.trend}
+          uppercaseTitle
         />
       </div>
 
@@ -1108,7 +1053,7 @@ export default function PrecosPage() {
           ref={tableSectionRef}
           className="overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.02] shadow-2xl backdrop-blur-md"
         >
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left text-sm">
               <thead className="bg-[#0f5922] text-white">
                 <tr>
@@ -1273,11 +1218,74 @@ export default function PrecosPage() {
             </table>
           </div>
 
+          {/* Cards — celular */}
+          <div className="space-y-3 p-4 md:hidden">
+            {isLoading ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-8 text-center text-sm text-gray-400">
+                Carregando preços...
+              </div>
+            ) : visibleRows.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-8 text-center text-sm text-gray-400">
+                Nenhum produto encontrado para esse filtro.
+              </div>
+            ) : (
+              visibleRows.map((row) => {
+                const rowStatus = getRowStatus(row);
+                const isBanana = normalizeText(row.produto).includes("BANANA");
+                return (
+                  <div
+                    key={`card-${selectedDate}-${row.produto}`}
+                    className={`rounded-2xl border p-4 ${
+                      isBanana ? "border-yellow-500/20 bg-yellow-500/[0.04]" : "border-white/10 bg-white/[0.03]"
+                    }`}
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        {isBanana ? <Banana size={14} className="text-yellow-400" /> : null}
+                        <p className={`font-semibold ${isBanana ? "text-yellow-50" : "text-white"}`}>{row.produto}</p>
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase ${rowStatus.className}`}>
+                        {rowStatus.label}
+                      </span>
+                    </div>
+
+                    <dl className="space-y-1.5">
+                      {markets.map((market) => (
+                        <div key={market} className="flex items-center justify-between gap-3">
+                          <dt className="text-xs text-gray-400">{market}</dt>
+                          <dd className="tabular-nums text-sm">
+                            {row.prices[market] !== null && row.prices[market] !== undefined ? (
+                              <span className={market === "Semar" ? "font-medium text-white" : "text-gray-300"}>
+                                {formatCurrency(row.prices[market])}
+                              </span>
+                            ) : (
+                              <span className="text-gray-500">-</span>
+                            )}
+                          </dd>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between gap-3 border-t border-white/5 pt-1.5">
+                        <dt className="text-xs text-gray-400">Melhor Concorrente</dt>
+                        <dd className="text-sm text-white">{row.bestCompetitor || "-"}</dd>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <dt className="text-xs text-gray-400">Média</dt>
+                        <dd className="tabular-nums text-sm text-gray-300">
+                          {row.averagePrice !== null ? formatCurrency(row.averagePrice) : "-"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
           <div className="flex flex-col gap-4 border-t border-white/10 bg-black/20 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   const rows: { produto_buscado: string; estabelecimento: string; preco: number }[] = [];
                   const items = snapshots[selectedDate] ?? [];
                   for (const item of items) {
@@ -1292,6 +1300,7 @@ export default function PrecosPage() {
                       }
                     }
                   }
+                  const XLSX = await import("xlsx");
                   const worksheet = XLSX.utils.json_to_sheet(rows, {
                     header: ["produto_buscado", "estabelecimento", "preco"],
                   });
@@ -1442,14 +1451,14 @@ export default function PrecosPage() {
       <button
         type="button"
         onClick={() => setIsChatOpen((current) => !current)}
-        className="fixed bottom-8 right-8 z-[110] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-[0_8px_32px_rgba(16,185,129,0.4)] transition-all hover:scale-110"
+        className="fixed bottom-6 right-4 z-[110] flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-[0_8px_32px_rgba(16,185,129,0.4)] transition-all hover:scale-110 lg:bottom-8 lg:right-8 lg:h-16 lg:w-16"
       >
         <div className="animate-ping-3 absolute inset-0 rounded-full bg-green-400/20" />
         {isChatOpen ? <X size={28} className="relative z-10" /> : <Bot size={32} className="relative z-10" />}
       </button>
 
       {isChatOpen ? (
-        <div className="fixed bottom-28 right-8 z-[100] flex h-[550px] w-[400px] flex-col overflow-hidden rounded-[32px] border border-white/15 bg-[#07130d]/95 shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom-8 duration-300">
+        <div className="fixed bottom-24 right-4 z-[100] flex h-[70vh] max-h-[550px] w-[calc(100vw-2rem)] max-w-[400px] flex-col overflow-hidden rounded-[32px] border border-white/15 bg-[#07130d]/95 shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom-8 duration-300 lg:bottom-28 lg:right-8 lg:h-[550px] lg:w-[400px]">
           <header className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-emerald-500/10 to-transparent p-6">
             <div className="flex items-center gap-3">
               <div className="rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-2 text-emerald-200">

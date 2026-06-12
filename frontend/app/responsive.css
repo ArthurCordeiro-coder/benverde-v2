@@ -1,0 +1,201 @@
+/* ─── Lumii responsive.css ─────────────────────────────────────────────────── */
+/* Breakpoints: tablet ≤1024px | mobile ≤768px | small ≤480px                  */
+/* Desktop (>1024px) é idêntico — nenhuma regra aqui altera o layout acima de  */
+/* 1024px.                                                                       */
+
+/* ─── Mobile menu — always in DOM, toggled via data-open ─── */
+
+.lumii-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.lumii-mobile-menu {
+  display: none;             /* invisible on desktop */
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 150;
+  background: rgba(8, 3, 26, 0.97);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  overflow-y: auto;
+  flex-direction: column;
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ════════════════════════════════════════════════════════════
+   TABLET — ≤ 1024 px
+════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+
+  /* NAV */
+  #lumii-nav { padding-left: 20px !important; padding-right: 20px !important; }
+  .lumii-nav-links { display: none !important; }
+  .lumii-nav-ctas  { display: none !important; }
+  .lumii-hamburger { display: flex !important; }
+
+  /* Mobile menu reveal */
+  .lumii-mobile-menu { display: flex; }
+  .lumii-mobile-menu[data-open="false"] {
+    opacity: 0;
+    transform: translateY(-10px);
+    pointer-events: none;
+  }
+  .lumii-mobile-menu[data-open="true"] {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* HERO */
+  .lumii-hero-section {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+    padding-top: 48px !important;
+  }
+  .lumii-hero-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .lumii-hero-actions > a,
+  .lumii-hero-actions > button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  .lumii-hero-stats {
+    flex-direction: column !important;
+    gap: 16px !important;
+  }
+
+  /* DASHBOARD PREVIEW — rolagem horizontal */
+  #solucoes { padding-left: 20px !important; padding-right: 20px !important; }
+  .lumii-dash-scrollbox {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .lumii-dash-scrollbox > div { min-width: 600px; }
+
+  /* LUMII-IA */
+  #lumii-ia {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+    padding-top: 60px !important;
+    padding-bottom: 60px !important;
+  }
+
+  /* SOLUTIONS / RESOURCES */
+  #recursos { padding-left: 20px !important; padding-right: 20px !important; }
+
+  /* KEY FEATURES */
+  .lumii-features-section {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+  .lumii-features-grid { grid-template-columns: 1fr !important; }
+
+  /* ROADMAP */
+  #roadmap { padding-left: 20px !important; padding-right: 20px !important; }
+  .lumii-roadmap-rail { display: none !important; }
+  .lumii-roadmap-grid {
+    grid-template-columns: 1fr !important;
+    gap: 28px !important;
+  }
+
+  /* PRICING */
+  #preco { padding-left: 20px !important; padding-right: 20px !important; }
+  .lumii-pricing-card { padding: 32px 24px !important; }
+  .lumii-pricing-features { grid-template-columns: 1fr !important; }
+
+  /* TESTIMONIALS */
+  .lumii-testimonials-section {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+
+  /* CTA STRIP */
+  #contato { padding-left: 20px !important; padding-right: 20px !important; }
+  .lumii-cta-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .lumii-cta-actions > a,
+  .lumii-cta-actions > button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* FOOTER */
+  .lumii-footer { padding-left: 20px !important; padding-right: 20px !important; }
+  .lumii-footer-inner {
+    flex-direction: column !important;
+    gap: 20px !important;
+    align-items: flex-start !important;
+  }
+
+  /* ── AUTH ────────────────────────────────────────────────── */
+  #lumii-auth-card {
+    grid-template-columns: 1fr !important;
+    padding: 32px 24px 28px !important;
+    min-height: auto !important;
+    gap: 0 !important;
+  }
+  #lumii-auth-left { display: none !important; }
+  #lumii-auth-footer {
+    flex-direction: column !important;
+    gap: 8px !important;
+    align-items: flex-start !important;
+  }
+
+  /* ── PAGAMENTO ───────────────────────────────────────────── */
+  .lumii-pay-page { padding: 24px 16px 0 !important; }
+  /* Reduz fonte do título da página */
+  .lumii-pay-page h1[style] { font-size: 22px !important; }
+  .lumii-pay-grid {
+    grid-template-columns: 1fr !important;
+    gap: 24px !important;
+  }
+  /* Move order summary to top */
+  .lumii-pay-summary {
+    order: -1 !important;
+    position: static !important;
+    top: auto !important;
+  }
+  .lumii-pay-left { order: 1 !important; }
+
+  .lumii-pay-mpband {
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+  }
+  .lumii-pay-mpband-trust {
+    margin-left: 0 !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE — ≤ 768 px
+════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Solutions cards: 2-col (at sm) → 1-col */
+  .lumii-solutions-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   SMALL — ≤ 480 px
+════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  /* Pagamento billing fields */
+  .lumii-pay-fieldrow {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .lumii-pay-step2body { padding-left: 0 !important; }
+
+  /* Pricing card */
+  .lumii-pricing-card { padding: 24px 16px !important; }
+
+  /* Auth card */
+  #lumii-auth-card { padding: 24px 16px 20px !important; }
+}

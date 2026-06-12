@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Plus, X, Send, ChevronDown, Sparkles, Bot, LoaderCircle, FileText, Trash2, MessageSquare } from "lucide-react";
+import { Plus, X, Send, ChevronDown, Sparkles, Bot, FileText, Trash2, MessageSquare } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import dynamic from "next/dynamic";
@@ -43,6 +43,9 @@ interface ConversationDetail {
   messages: Array<{ id: number; role: "user" | "assistant"; content: string; created_at: string }>;
 }
 
+// Mapa de estilos que mistura objetos CSS e fábricas de estilo por estado,
+// por isso o `any` é intencional aqui.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const aiStyles: Record<string, any> = {
   layout: {
     display: "flex",
@@ -56,9 +59,11 @@ const aiStyles: Record<string, any> = {
     display: "flex",
     flexDirection: "column",
     gap: 12,
-    padding: "8px 0",
-    borderRight: "1px solid rgba(255,255,255,0.05)",
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingLeft: 0,
     paddingRight: 12,
+    borderRight: "1px solid rgba(255,255,255,0.05)",
   },
   sidebarHeader: {
     display: "flex",
@@ -137,11 +142,13 @@ const aiStyles: Record<string, any> = {
     display: "flex",
     flexDirection: "column",
     minWidth: 0,
+    minHeight: 0,
   },
   page: {
     display: "flex",
     flexDirection: "column",
     flex: 1,
+    minHeight: 0,
     background: "transparent",
     fontFamily: "inherit",
   },
@@ -188,6 +195,7 @@ const aiStyles: Record<string, any> = {
   },
   thread: {
     flex: 1,
+    minHeight: 0,
     overflowY: "auto",
     padding: "24px 0",
     display: "flex",
@@ -551,8 +559,20 @@ export default function LumiiAiPage() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [convDrawerOpen, setConvDrawerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
+
+  // Detecta viewport mobile (drawer de conversas em vez de sidebar fixa)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   // Auto-scroll to bottom of conversation thread
   useEffect(() => {
@@ -729,21 +749,64 @@ export default function LumiiAiPage() {
   };
 
   const prompts = [
-    "Compare meus 10 SKUs mais vendidos com Carrefour e Atacadão",
+    "Quais foram os protudos com maior variação de preço ontem?",
     "Quais produtos estão perdendo margem essa semana?",
     "Resumo das cotações de ontem por loja",
     "Sugira reajuste de preço para banana, tomate e cenoura",
   ];
 
   return (
-    <div style={aiStyles.layout} data-screen-label="Lumii AI">
+    <div
+      style={{
+        ...aiStyles.layout,
+        gap: isMobile ? 0 : 16,
+        // No mobile, preenche exatamente a área visível: só a thread rola.
+        ...(isMobile ? { height: "100%", minHeight: 0 } : {}),
+      }}
+      data-screen-label="Lumii AI"
+    >
+      {/* Backdrop do drawer de conversas (mobile) */}
+      {isMobile && convDrawerOpen ? (
+        <div
+          onClick={() => setConvDrawerOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)" }}
+          aria-hidden="true"
+        />
+      ) : null}
+
       {/* Sidebar with conversation list */}
-      <aside style={aiStyles.sidebar}>
+      <aside
+        style={
+          isMobile
+            ? {
+                ...aiStyles.sidebar,
+                position: "fixed",
+                top: 0,
+                bottom: 0,
+                left: 0,
+                width: 280,
+                maxWidth: "85vw",
+                zIndex: 50,
+                background: "#0a130d",
+                borderRight: "1px solid rgba(255,255,255,0.10)",
+                paddingTop: 16,
+                paddingBottom: 16,
+                paddingLeft: 12,
+                paddingRight: 12,
+                transform: convDrawerOpen ? "translateX(0)" : "translateX(-100%)",
+                transition: "transform .3s ease",
+              }
+            : aiStyles.sidebar
+        }
+      >
         <div style={aiStyles.sidebarHeader}>
           <span style={aiStyles.sidebarTitle}>Conversas</span>
           <button
             type="button"
-            onClick={startNewConversation}
+            onClick={() => {
+              setConvDrawerOpen(false);
+              startNewConversation();
+            }}
             style={aiStyles.newConvBtn}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = "rgba(16,185,129,0.16)";
@@ -765,7 +828,10 @@ export default function LumiiAiPage() {
                 <button
                   key={conv.id}
                   type="button"
-                  onClick={() => void loadConversation(conv.id)}
+                  onClick={() => {
+                    setConvDrawerOpen(false);
+                    void loadConversation(conv.id);
+                  }}
                   style={aiStyles.convItem(active)}
                   onMouseEnter={(e) => {
                     if (!active) {
@@ -813,44 +879,113 @@ export default function LumiiAiPage() {
       <div style={aiStyles.mainCol}>
         <div style={aiStyles.page}>
       {/* Page Header */}
-      <div style={aiStyles.head}>
+      <div
+        style={{
+          ...aiStyles.head,
+          flexDirection: isMobile ? "column" : "row",
+          alignItems: isMobile ? "stretch" : "center",
+          flexShrink: 0,
+          gap: isMobile ? 10 : 16,
+          padding: isMobile ? "2px 0 10px" : "8px 0px 20px",
+        }}
+      >
+        {isMobile ? (
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setConvDrawerOpen(true)}
+              style={{
+                flex: 1,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                padding: "8px 12px",
+                borderRadius: 10,
+                border: "1px solid rgba(255,255,255,0.10)",
+                background: "rgba(255,255,255,0.04)",
+                color: "#cbd5e1",
+                fontWeight: 600,
+                fontSize: 12.5,
+                cursor: "pointer",
+              }}
+            >
+              <MessageSquare size={14} /> Conversas
+            </button>
+            <button
+              type="button"
+              onClick={startNewConversation}
+              style={{
+                flex: 1,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                padding: "8px 12px",
+                borderRadius: 10,
+                border: "1px solid rgba(16,185,129,0.30)",
+                background: "rgba(16,185,129,0.08)",
+                color: "#6ee7b7",
+                fontWeight: 600,
+                fontSize: 12.5,
+                cursor: "pointer",
+              }}
+            >
+              <Plus size={14} /> Nova
+            </button>
+          </div>
+        ) : null}
         <div style={{ flex: 1 }}>
-          <div style={aiStyles.overline}>Preços Concorrentes · IA</div>
-          <h1 style={{ ...aiStyles.title, marginTop: 6, display: "flex", alignItems: "center", gap: 12 }}>
+          {!isMobile ? <div style={aiStyles.overline}>Preços Concorrentes · IA</div> : null}
+          <h1
+            style={{
+              ...aiStyles.title,
+              marginTop: isMobile ? 0 : 6,
+              fontSize: isMobile ? 17 : 24,
+              display: "flex",
+              alignItems: "center",
+              gap: isMobile ? 8 : 12,
+            }}
+          >
             Lumii AI
             <span style={aiStyles.badge}>Online</span>
           </h1>
-          <div style={aiStyles.sub}>
-            Converse com a Lumii sobre preços, margens e metas de estoque. Anexe planilhas de cotações para análises.
-          </div>
+          {!isMobile ? (
+            <div style={aiStyles.sub}>
+              Converse com a Lumii sobre preços, margens e metas de estoque. Anexe planilhas de cotações para análises.
+            </div>
+          ) : null}
         </div>
-        <button
-          type="button"
-          onClick={startNewConversation}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "10px 16px",
-            borderRadius: 14,
-            border: "1px solid rgba(16,185,129,0.30)",
-            background: "rgba(16,185,129,0.08)",
-            color: "#6ee7b7",
-            fontWeight: 600,
-            fontSize: 13.5,
-            cursor: "pointer",
-            transition: "all .2s",
-            outline: "none",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(16,185,129,0.16)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "rgba(16,185,129,0.08)";
-          }}
-        >
-          <Plus size={14} /> Nova conversa
-        </button>
+        {!isMobile ? (
+          <button
+            type="button"
+            onClick={startNewConversation}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              padding: "10px 16px",
+              borderRadius: 14,
+              border: "1px solid rgba(16,185,129,0.30)",
+              background: "rgba(16,185,129,0.08)",
+              color: "#6ee7b7",
+              fontWeight: 600,
+              fontSize: 13.5,
+              cursor: "pointer",
+              transition: "all .2s",
+              outline: "none",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(16,185,129,0.16)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(16,185,129,0.08)";
+            }}
+          >
+            <Plus size={14} /> Nova conversa
+          </button>
+        ) : null}
       </div>
 
       {/* Chat Thread */}
@@ -880,7 +1015,7 @@ export default function LumiiAiPage() {
                   Estou pronta para analisar planilhas de preços, comparar cotações concorrentes e propor reajustes estratégicos.
                 </div>
               </div>
-              <div style={aiStyles.promptGrid}>
+              <div style={{ ...aiStyles.promptGrid, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
                 {prompts.map((p) => (
                   <button
                     key={p}
@@ -926,7 +1061,13 @@ export default function LumiiAiPage() {
       </div>
 
       {/* Composer Input Wrap */}
-      <div style={aiStyles.composerWrap}>
+      <div
+        style={{
+          ...aiStyles.composerWrap,
+          flexShrink: 0,
+          ...(isMobile ? { padding: "8px 0 6px" } : {}),
+        }}
+      >
         <div style={aiStyles.composerInner}>
           <div style={{ ...aiStyles.composer, ...(focused ? aiStyles.composerFocused : {}) }}>
             {attachments.length > 0 && (
@@ -965,7 +1106,10 @@ export default function LumiiAiPage() {
               </div>
             )}
             <textarea
-              style={aiStyles.composerTextarea}
+              style={{
+                ...aiStyles.composerTextarea,
+                ...(isMobile ? { minHeight: 40, padding: "10px 14px 4px", fontSize: 14 } : {}),
+              }}
               placeholder="Pergunte sobre preços, margens de SKUs ou dados operacionais..."
               value={text}
               onChange={(e) => setText(e.target.value)}
@@ -979,7 +1123,7 @@ export default function LumiiAiPage() {
               }}
               rows={1}
             />
-            <div style={aiStyles.composerToolbar}>
+            <div style={{ ...aiStyles.composerToolbar, ...(isMobile ? { padding: "2px 10px 8px" } : {}) }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <input
                   ref={fileInputRef}
@@ -1016,7 +1160,7 @@ export default function LumiiAiPage() {
               </div>
             </div>
           </div>
-          <div style={{ marginTop: 8, fontSize: 11, color: "#475569", textAlign: "center" }}>
+          <div style={{ marginTop: isMobile ? 4 : 8, fontSize: isMobile ? 10 : 11, color: "#475569", textAlign: "center" }}>
             A Lumii pode cometer erros de cálculo. Verifique recomendações antes de aplicá-las aos preços.
           </div>
         </div>

@@ -1,0 +1,179 @@
+/* ============================================================
+   Lumii — Preços Concorrentes (new design)
+   Ported from the claude.ai/design handoff bundle.
+   Everything is scoped under .lumii-precos-root so the indigo
+   canvas + Lumii tokens never leak into the rest of the app.
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap");
+
+.lumii-precos-root {
+  /* ---------- COLORS ---------- */
+  --lumii-bg: #08031a;
+  --lumii-bg-1: #0c0525;
+  --lumii-bg-2: #150838;
+  --lumii-bg-3: #060214;
+
+  --lumii-surface: rgba(255, 255, 255, 0.03);
+  --lumii-surface-2: rgba(255, 255, 255, 0.06);
+  --lumii-surface-3: rgba(255, 255, 255, 0.08);
+
+  --lumii-border: rgba(255, 255, 255, 0.08);
+  --lumii-border-2: rgba(255, 255, 255, 0.14);
+  --lumii-border-3: rgba(255, 255, 255, 0.20);
+
+  /* Brand teal — functional/action accent */
+  --lumii-primary: #2ec4b6;
+  --lumii-primary-400: #5fd9cd;
+  --lumii-primary-300: #6fe0d4;
+  --lumii-glow: #6fe0d4;
+
+  /* Yellow signature accent (logo identity / primary CTA) */
+  --lumii-accent: #ffe566;
+  --lumii-accent-500: #f5d030;
+  --lumii-on-accent: #0c0525;
+
+  /* Violet (brand canvas / eyebrow / secondary tints) */
+  --lumii-violet: #6247c7;
+  --lumii-violet-300: #a78bfa;
+  --lumii-violet-200: #c4b5fd;
+
+  /* Foreground / text */
+  --lumii-fg: #f1f5f9;
+  --lumii-fg-1: #e2e8f0;
+  --lumii-fg-muted: #94a3b8;
+  --lumii-fg-subtle: #64748b;
+  --lumii-fg-disabled: #475569;
+
+  /* Semantic */
+  --lumii-success: #ffe566;
+  --lumii-warning: #fbbf24;
+  --lumii-danger: #f87171;
+  --lumii-info: #a78bfa;
+
+  /* ---------- TYPE ---------- */
+  --lumii-font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  --lumii-font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+
+  /* Canvas */
+  min-height: 100vh;
+  color: var(--lumii-fg);
+  font-family: var(--lumii-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background:
+    radial-gradient(circle at 50% -8%, rgba(98, 71, 199, 0.22), transparent 42%),
+    radial-gradient(circle at 88% 6%, rgba(46, 196, 182, 0.08), transparent 34%),
+    linear-gradient(180deg, #0c0525 0%, #150838 48%, #060214 100%);
+  background-attachment: fixed;
+}
+
+.lumii-precos-root * { box-sizing: border-box; }
+.lumii-precos-root button { font-family: inherit; }
+
+/* Slider thumb (teal ring) */
+.lumii-precos-root input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #2ec4b6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 8px rgba(46, 196, 182, 0.45);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.lumii-precos-root input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #2ec4b6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 8px rgba(46, 196, 182, 0.45);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.lumii-precos-root input[type="number"]::-webkit-inner-spin-button,
+.lumii-precos-root input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.lumii-precos-root input[type="number"] { -moz-appearance: textfield; }
+
+/* Scrollbars inside the app */
+.lumii-precos-root ::-webkit-scrollbar { width: 10px; height: 10px; }
+.lumii-precos-root ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+}
+.lumii-precos-root ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.14); }
+.lumii-precos-root ::-webkit-scrollbar-track { background: transparent; }
+
+/* Typing indicator dots (Lumii AI) */
+@keyframes lumii-dot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.7); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* ===================================================================
+   RESPONSIVE — mobile (< 760px). Inline styles win on specificity,
+   so layout-changing rules use !important. Components opt in via
+   data-r-* attributes (which only exist inside this app).
+   =================================================================== */
+@media (max-width: 760px) {
+  [data-r-main]         { padding: 12px 14px 24px !important; height: auto !important; min-height: 0 !important; overflow-y: visible !important; }
+  [data-r-mobile-only]  { display: flex !important; }
+  [data-r-desktop-only] { display: none !important; }
+
+  [data-r-grid-2],
+  [data-r-grid-3],
+  [data-r-grid-4]       { grid-template-columns: 1fr !important; }
+  [data-r-grid-kpi]     { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  [data-r-grid-store]   { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+
+  [data-r-stack]        { grid-template-columns: 1fr !important; display: grid !important; gap: 10px !important; }
+  [data-r-stack] > *    { width: 100% !important; }
+  [data-r-topbar]       { flex-direction: column !important; align-items: stretch !important; gap: 14px !important; }
+  [data-r-topbar] > *   { width: 100% !important; }
+
+  [data-r-drawer]       { width: 100vw !important; }
+
+  [data-r-cta-block]    { width: 100% !important; justify-content: center !important; }
+
+  [data-r-greet]        { font-size: 28px !important; }
+  [data-r-greet-row]    { gap: 12px !important; }
+  [data-r-hero]         { padding-top: 32px !important; gap: 22px !important; }
+  [data-r-composer]     { border-radius: 18px !important; }
+  [data-r-composer-textarea] { font-size: 15px !important; padding: 16px 16px 8px !important; }
+
+  [data-r-ai-page]      { height: auto !important; min-height: calc(100dvh - 140px) !important; margin: 0 !important; }
+  [data-r-chat-head]    { flex-direction: column !important; align-items: stretch !important; gap: 10px !important; }
+  [data-r-chat-head] > * { width: 100% !important; }
+  [data-r-msg-text]     { font-size: 14px !important; }
+
+  [data-r-table-scroll] { max-height: none !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  [data-r-table-scroll] table { min-width: 760px !important; }
+  [data-r-table-toolbar] { display: grid !important; grid-template-columns: 1fr !important; gap: 10px !important; }
+  [data-r-table-toolbar] > * { width: 100% !important; }
+
+  [data-r-conta-card]   { padding: 18px !important; }
+  [data-r-conta-card-head] { flex-wrap: wrap !important; gap: 10px !important; }
+  [data-r-seggroup]     { width: 100% !important; }
+  [data-r-seggroup] > * { flex: 1 !important; justify-content: center !important; }
+
+  [data-r-hide-mobile]  { display: none !important; }
+
+  [data-r-popover]      { position: fixed !important; left: 12px !important; right: 12px !important; top: 50% !important; transform: translateY(-50%) !important; bottom: auto !important; min-width: 0 !important; max-width: none !important; width: auto !important; max-height: 80vh !important; overflow-y: auto !important; }
+  [data-r-daterange]    { flex-direction: column !important; }
+  [data-r-daterange-shortcuts] { width: 100% !important; border-right: none !important; border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important; flex-direction: row !important; flex-wrap: wrap !important; gap: 6px !important; }
+  [data-r-daterange-shortcuts] > div { width: 100% !important; }
+}
+
+@media (min-width: 761px) {
+  [data-r-mobile-only] { display: none !important; }
+}
+
+[data-r-drawer] { padding-bottom: env(safe-area-inset-bottom); }

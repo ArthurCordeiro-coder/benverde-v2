@@ -9,8 +9,8 @@ import {
   getApiErrorMessage,
   isRecord,
 } from "@/lib/dashboard/client";
-import * as XLSX from "xlsx";
-import html2canvas from "html2canvas";
+import { exportNodeToPng, exportRowsToXlsx } from "@/lib/export";
+import { GlassCard } from "@/components/ui/GlassCard";
 import {
   Banana,
   Check,
@@ -40,15 +40,6 @@ type CaixaRegistro = {
   caixas_bananas: number;
   total: number;
   entregue: "sim" | "nao";
-};
-
-type GlassCardProps = {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: React.ReactNode;
-  trend?: "up" | "neutral";
-  iconColor?: string;
 };
 
 type Feedback = {
@@ -84,35 +75,6 @@ function sanitizeCaixaRegistro(raw: unknown): CaixaRegistro | null {
     total: Math.trunc(coerceNumber(raw.total)),
     entregue: normalizeEntregue(raw.entregue),
   };
-}
-
-function GlassCard({
-  title,
-  value,
-  subtitle,
-  icon,
-  trend,
-  iconColor = "text-emerald-400",
-}: GlassCardProps) {
-  return (
-    <div className="group relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition-all hover:bg-white/[0.05]">
-      <div className="pointer-events-none absolute left-0 top-0 h-full w-full bg-gradient-to-br from-white/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-      <div className="mb-4 flex items-start justify-between">
-        <div className={`rounded-2xl border border-white/5 bg-white/5 p-3 shadow-inner ${iconColor}`}>
-          {icon}
-        </div>
-        {trend === "up" && <TrendingUp size={20} className="text-green-400" />}
-        {trend === "neutral" && (
-          <TrendingUp size={20} className="text-gray-500 opacity-30" />
-        )}
-      </div>
-      <div>
-        <p className="mb-1 text-sm font-medium text-gray-400">{title}</p>
-        <h3 className="mb-2 text-3xl font-bold tracking-tight text-white">{value}</h3>
-        <p className="text-xs font-medium text-gray-500">{subtitle}</p>
-      </div>
-    </div>
-  );
 }
 
 export default function CaixasPage() {
@@ -295,7 +257,7 @@ export default function CaixasPage() {
     });
   }, [registros, filterData, filterLoja, filterStatus]);
 
-  const exportarExcel = () => {
+  const exportarExcel = async () => {
     const dataParaExcel = filteredRows.map((row) => ({
       Data: formatarData(row.data),
       Loja: row.loja ?? "-",
@@ -310,18 +272,10 @@ export default function CaixasPage() {
       Status: row.entregue === "sim" ? "Entregue" : "Não entregue",
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(dataParaExcel);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Caixas das Lojas");
-
-    // Ajusta largura das colunas automaticamente
-    const colWidths = Object.keys(dataParaExcel[0] ?? {}).map((key) => ({
-      wch: Math.max(key.length, 12),
-    }));
-    worksheet["!cols"] = colWidths;
-
     const dataHoje = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
-    XLSX.writeFile(workbook, `caixas-lojas-${dataHoje}.xlsx`);
+    await exportRowsToXlsx(dataParaExcel, "Caixas das Lojas", `caixas-lojas-${dataHoje}.xlsx`, {
+      autoWidth: true,
+    });
     setIsExportOpen(false);
   };
 
@@ -329,21 +283,12 @@ export default function CaixasPage() {
     if (!tableSectionRef.current) return;
     setIsExportOpen(false);
 
-    // Pequeno delay para o dropdown fechar antes de capturar
-    await new Promise((resolve) => setTimeout(resolve, 150));
-
-    const canvas = await html2canvas(tableSectionRef.current, {
-      backgroundColor: "#0b1f15",
-      scale: 2,
-      useCORS: true,
-      logging: false,
-    });
-
-    const link = document.createElement("a");
     const dataHoje = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
-    link.download = `caixas-lojas-${dataHoje}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    // Pequeno delay para o dropdown fechar antes de capturar
+    await exportNodeToPng(tableSectionRef.current, `caixas-lojas-${dataHoje}.png`, {
+      backgroundColor: "#0b1f15",
+      delayMs: 150,
+    });
   };
 
   const formatarData = (valor?: string | null) => {
@@ -360,7 +305,7 @@ export default function CaixasPage() {
 
     setSalvando(true);
     try {
-      const res = await api.post("/api/caixas", {
+      const res = await api.post<{ id?: number }>("/api/caixas", {
         loja: loja.trim(),
         data,
         total: qtd,
@@ -446,7 +391,7 @@ export default function CaixasPage() {
           subtitle="Caixas plásticas Benverde."
           icon={<PackageSearch size={24} />}
           trend="up"
-          iconColor="text-blue-400"
+          iconClassName="text-blue-400"
         />
         <GlassCard
           title="Caixas CCJ"
@@ -454,7 +399,7 @@ export default function CaixasPage() {
           subtitle="Aguardando retorno."
           icon={<Store size={24} />}
           trend="neutral"
-          iconColor="text-amber-500"
+          iconClassName="text-amber-500"
         />
         <GlassCard
           title="Caixas Bananas"
@@ -462,7 +407,7 @@ export default function CaixasPage() {
           subtitle="Modelos específicos."
           icon={<Banana size={24} />}
           trend="neutral"
-          iconColor="text-yellow-400"
+          iconClassName="text-yellow-400"
         />
         <GlassCard
           title="Maior Concentração"
@@ -470,7 +415,7 @@ export default function CaixasPage() {
           subtitle={`${metrics.topStore[1]} caixas nesta loja.`}
           icon={<TrendingUp size={24} />}
           trend="up"
-          iconColor="text-emerald-400"
+          iconClassName="text-emerald-400"
         />
       </div>
 
@@ -582,8 +527,8 @@ export default function CaixasPage() {
           </div>
         </div>
 
-        {/* Tabela */}
-        <div className="overflow-x-auto">
+        {/* Tabela — tablet e desktop */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-white/5 bg-white/[0.02]">
@@ -702,6 +647,85 @@ export default function CaixasPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Cards — celular */}
+        <div className="space-y-3 p-4 md:hidden">
+          {isLoading ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-8 text-center text-sm text-gray-500">
+              Carregando registros...
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-8 text-center text-sm text-gray-500">
+              Nenhum registro encontrado.
+            </div>
+          ) : (
+            filteredRows.map((row) => (
+              <div key={row.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-gray-100">{row.loja ?? "-"}</div>
+                    {row.n_loja != null && (
+                      <div className="text-[10px] font-medium text-gray-500">Loja Nº {row.n_loja}</div>
+                    )}
+                    <div className="mt-1 font-mono text-xs text-gray-400">{formatarData(row.data)}</div>
+                  </div>
+                  {sessionCreatedIds.includes(row.id) && (
+                    <button
+                      onClick={() => setConfirmingDelete(row.id)}
+                      className="rounded-lg p-2 text-red-300 transition hover:bg-red-500/10 hover:text-red-200"
+                      aria-label="Apagar registro"
+                      title="Apagar registro"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] py-2">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-gray-500">Benverde</div>
+                    <div className="text-sm font-medium text-gray-200">{row.caixas_benverde ?? 0}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] py-2">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-gray-500">CCJ</div>
+                    <div className="text-sm font-medium text-gray-200">{row.caixas_ccj ?? 0}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] py-2">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-gray-500">Bananas</div>
+                    <div className="text-sm font-medium text-gray-200">{row.caixas_bananas ?? 0}</div>
+                  </div>
+                  <div className="rounded-xl border border-green-500/20 bg-green-500/5 py-2">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-gray-500">Total</div>
+                    <div className="text-sm font-bold text-green-400">{row.total ?? 0}</div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void toggleStatus(row)}
+                  disabled={updatingStatusId === row.id}
+                  className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border px-4 py-2 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
+                    row.entregue === "sim"
+                      ? "border-green-500/30 bg-green-500/10 text-green-300 hover:bg-green-500/20"
+                      : "border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
+                >
+                  {updatingStatusId === row.id ? (
+                    "Atualizando..."
+                  ) : row.entregue === "sim" ? (
+                    <>
+                      <Check size={12} /> Entregue
+                    </>
+                  ) : (
+                    <>
+                      <X size={12} /> Não entregue
+                    </>
+                  )}
+                </button>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Footer da Tabela */}

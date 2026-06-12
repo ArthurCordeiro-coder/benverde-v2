@@ -9,6 +9,7 @@ type QueryParam = string | number | boolean | Date | null;
 type NeonClient = ReturnType<typeof neon>;
 
 let client: NeonClient | null = null;
+let readonlyClient: NeonClient | null = null;
 let schemaReadyPromise: Promise<void> | null = null;
 
 function getClient(): NeonClient {
@@ -23,6 +24,35 @@ function getClient(): NeonClient {
 
   client = neon(databaseUrl);
   return client;
+}
+
+/**
+ * Connection used to run AI-generated SQL (the Lumii sandbox). When
+ * DATABASE_URL_READONLY is set, it should point to a Postgres role with only
+ * `GRANT SELECT` on the allowed tables and a `statement_timeout` — so even if
+ * the regex sandbox is bypassed, the database itself rejects writes and
+ * reads of sensitive tables. Falls back to the main connection if unset.
+ */
+function getReadonlyClient(): NeonClient {
+  if (readonlyClient) {
+    return readonlyClient;
+  }
+
+  const readonlyUrl = process.env.DATABASE_URL_READONLY?.trim();
+  if (!readonlyUrl) {
+    return getClient();
+  }
+
+  readonlyClient = neon(readonlyUrl);
+  return readonlyClient;
+}
+
+export async function queryRowsReadonly<T = Record<string, unknown>>(
+  query: string,
+  params: QueryParam[] = [],
+): Promise<T[]> {
+  await ensureDatabase();
+  return (await getReadonlyClient().query(query, params)) as T[];
 }
 
 async function runStatement(statement: string): Promise<void> {
@@ -119,6 +149,24 @@ export async function ensureDatabase(): Promise<void> {
         )`,
         `CREATE INDEX IF NOT EXISTS lumii_messages_conv_idx
           ON lumii_messages (conversation_id, created_at ASC)`,
+        `CREATE TABLE IF NOT EXISTS lumii_assinaturas (
+          id TEXT PRIMARY KEY,
+          email TEXT NOT NULL,
+          salt TEXT NOT NULL,
+          senha_hash TEXT NOT NULL,
+          plano TEXT NOT NULL,
+          metodo TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pendente',
+          mp_id TEXT,
+          username TEXT,
+          periodo_fim TIMESTAMPTZ,
+          created_at TIMESTAMPTZ DEFAULT now(),
+          updated_at TIMESTAMPTZ DEFAULT now()
+        )`,
+        `CREATE INDEX IF NOT EXISTS lumii_assinaturas_email_idx
+          ON lumii_assinaturas (lower(email))`,
+        `CREATE INDEX IF NOT EXISTS lumii_assinaturas_mp_id_idx
+          ON lumii_assinaturas (mp_id)`,
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT",
         "ALTER TABLE pending ADD COLUMN IF NOT EXISTS email TEXT",

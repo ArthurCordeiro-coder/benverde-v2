@@ -204,10 +204,12 @@ export async function POST(request: Request) {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        const detail =
-          (err as { error?: { message?: string } })?.error?.message?.trim() ||
-          `Erro ${res.status} ao comunicar com a IA.`;
-        return NextResponse.json({ detail }, { status: 502 });
+        // Log upstream detail server-side; return a generic message to the client.
+        console.error("[estoque/correcao] xAI respondeu erro:", res.status, err);
+        return NextResponse.json(
+          { detail: "Erro ao comunicar com a IA." },
+          { status: 502 },
+        );
       }
 
       const data = await res.json() as {

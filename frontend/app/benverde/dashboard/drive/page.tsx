@@ -179,9 +179,16 @@ function PreviewModal({
 }) {
   const [data, setData] = useState<PreviewData>({ type: "loading" });
 
+  // Reinicia o preview quando o arquivo muda (ajuste de estado em render,
+  // padrão recomendado em react.dev em vez de setState síncrono no effect).
+  const [prevFileId, setPrevFileId] = useState(file.id);
+  if (prevFileId !== file.id) {
+    setPrevFileId(file.id);
+    setData({ type: "loading" });
+  }
+
   useEffect(() => {
     let cancelled = false;
-    setData({ type: "loading" });
     fetch(`/api/drive/preview?fileId=${file.id}&name=${encodeURIComponent(file.name)}`)
       .then((res) => res.json())
       .then((json) => {
@@ -311,6 +318,16 @@ export default function ArquivosPage() {
 
   const currentFolder = history[history.length - 1];
 
+  // Ao navegar de pasta, volta ao estado "carregando" ainda durante o render
+  // (padrão recomendado em react.dev em vez de setState síncrono no effect).
+  const [prevFolderId, setPrevFolderId] = useState(currentFolder.id);
+  if (prevFolderId !== currentFolder.id) {
+    setPrevFolderId(currentFolder.id);
+    setLoading(true);
+    setLoadError(null);
+    setSelected(new Set());
+  }
+
   const showToast = (msg: string, color?: string) => {
     setToast({ msg, color });
     setTimeout(() => setToast(null), 2200);
@@ -319,9 +336,6 @@ export default function ArquivosPage() {
   /* ------------------ carregar do Drive ------------------ */
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setLoadError(null);
-    setSelected(new Set());
 
     const params = currentFolder.id !== rootFolderId
       ? `?folderId=${encodeURIComponent(currentFolder.id)}`
@@ -349,7 +363,7 @@ export default function ArquivosPage() {
 
   /* ------------------ derivações ------------------ */
   const visible = useMemo(() => {
-    let out = files.filter((f) => {
+    const out = files.filter((f) => {
       if (search && !f.name.toLowerCase().includes(search.toLowerCase())) return false;
       if (filterType === "all") return true;
       if (filterType === "pdf") return f.type === "pdf";
@@ -581,7 +595,8 @@ export default function ArquivosPage() {
       {!loading && !loadError && (
         viewMode === "list" ? (
           <div className="bg-[#111413] border border-white/5 rounded-2xl overflow-hidden shadow-2xl shadow-black/20">
-            <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left border-collapse">
               <thead>
                 <tr className="bg-white/[0.02] border-b border-white/5">
                   <th className="px-6 py-4 w-12 text-center">
@@ -698,6 +713,7 @@ export default function ArquivosPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-4">

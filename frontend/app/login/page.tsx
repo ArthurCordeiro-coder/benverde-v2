@@ -4,6 +4,9 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import api from "@/lib/api";
+import Link from "next/link";
+import Image from "next/image";
+import iconImg from "../icon.png";
 
 type ApiError = { request?: unknown; response?: { data?: { detail?: string } } };
 type LoginResponse = { user?: { funcionalidade?: string } };
@@ -19,17 +22,13 @@ function getRedirectPath(funcionalidade?: string) {
 /* ─── Brand mark ─── */
 function BrandMark({ size = 44 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 48 48" fill="none" aria-hidden>
-      <defs>
-        <linearGradient id="auth-lg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#34d399" />
-          <stop offset="100%" stopColor="#10b981" />
-        </linearGradient>
-      </defs>
-      <rect x="2" y="2" width="44" height="44" rx="13" fill="url(#auth-lg)" />
-      <path d="M16 14 L16 33 L31 33" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <circle cx="32" cy="17" r="2.6" fill="#fff" />
-    </svg>
+    <Image
+      src={iconImg}
+      alt="lumii logo"
+      width={size}
+      height={size}
+      style={{ width: size, height: size, objectFit: "contain" }}
+    />
   );
 }
 
@@ -141,7 +140,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const advanceToPassword = () => {
-    if (!email.trim()) { setError("Informe seu e-mail ou usuário."); return; }
+    if (!email.trim()) { setError("Informe seu usuário."); return; }
     setError("");
     setDirection("right");
     setStep("password");
@@ -176,20 +175,20 @@ export default function LoginPage() {
     <div
       className="relative flex min-h-screen flex-col px-8 py-8"
       style={{
-        background: "radial-gradient(circle at top, rgba(52,211,153,0.12), transparent 32%), linear-gradient(180deg, #07140e 0%, #0b1f15 48%, #06100b 100%)",
+        background: "radial-gradient(circle at top, rgba(32,10,94,0.15), transparent 32%), linear-gradient(180deg, #0c0525 0%, #150838 48%, #060214 100%)",
         fontFamily: "var(--lumii-font-sans)",
       }}
     >
       {/* Ambient blobs */}
-      <div className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-emerald-400/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 right-10 h-96 w-96 rounded-full bg-green-900/35 blur-3xl" />
+      <div className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-purple-400/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 right-10 h-96 w-96 rounded-full bg-purple-900/35 blur-3xl" />
 
       {/* Top bar */}
       <div className="relative flex items-center justify-between">
-        <a href="/" className="flex items-center gap-2.5 no-underline">
+        <Link href="/" className="flex items-center gap-2.5 no-underline">
           <BrandMark size={28} />
           <span className="text-base font-bold tracking-tight text-slate-100" style={{ letterSpacing: "-0.01em" }}>lumii</span>
-        </a>
+        </Link>
         <div className="flex items-center gap-4 text-[13px] text-slate-400">
           <span>Não tem conta?</span>
           {/* TEMPORARIAMENTE DESATIVADO — remover disabled + style overrides para reativar */}
@@ -198,7 +197,7 @@ export default function LoginPage() {
             disabled
             title="Cadastros temporariamente pausados"
             onClick={() => router.push("/login/criar-conta")}
-            className="font-semibold text-emerald-300 transition-colors hover:text-emerald-200"
+            className="font-semibold text-purple-300 transition-colors hover:text-purple-200"
             style={{ opacity: 0.5, cursor: "not-allowed" }}
           >
             Criar conta
@@ -224,9 +223,10 @@ export default function LoginPage() {
             gridTemplateColumns: "minmax(260px, 1fr) minmax(360px, 1fr)",
             gap: 56,
           }}
+          id="lumii-auth-card"
         >
           {/* Left column — animated title */}
-          <div className="flex flex-col justify-center pr-2">
+          <div id="lumii-auth-left" className="flex flex-col justify-center pr-2">
             <BrandMark size={44} />
             <div className="mt-7">
               <h1
@@ -266,7 +266,7 @@ export default function LoginPage() {
               <form onSubmit={step === "email" ? (e) => { e.preventDefault(); advanceToPassword(); } : handleLogin}>
                 <StepPanel active={step === "email"} direction={direction}>
                   <FloatInput
-                    label="E-mail ou usuário"
+                    label="Usuário"
                     value={email}
                     onChange={setEmail}
                     autoFocus={step === "email"}
@@ -304,7 +304,7 @@ export default function LoginPage() {
                     disabled
                     title="Cadastros temporariamente pausados"
                     onClick={() => router.push("/login/criar-conta")}
-                    className="text-[13px] font-semibold text-emerald-300 transition-colors hover:text-emerald-200"
+                    className="text-[13px] font-semibold text-purple-300 transition-colors hover:text-purple-200"
                     style={{ background: "none", border: "none", cursor: "not-allowed", fontFamily: "inherit", opacity: 0.5 }}
                   >
                     Criar conta
@@ -314,11 +314,11 @@ export default function LoginPage() {
                     type={step === "email" ? "button" : "submit"}
                     onClick={step === "email" ? advanceToPassword : undefined}
                     disabled={loading}
-                    className="inline-flex h-11 min-w-[116px] items-center justify-center gap-2 rounded-full px-7 text-[14px] font-semibold text-[#03110a] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-11 min-w-[116px] items-center justify-center gap-2 rounded-full px-7 text-[14px] font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-50"
                     style={{ background: "var(--lumii-primary-500)", boxShadow: "0 0 24px rgba(16,185,129,0.18)", fontFamily: "inherit" }}
                   >
                     {loading ? (
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#03110a]/30 border-t-[#03110a]" />
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                     ) : (
                       <>
                         {step === "email" ? "Avançar" : "Entrar"}
@@ -334,7 +334,7 @@ export default function LoginPage() {
       </div>
 
       {/* Footer */}
-      <div className="relative flex items-center justify-between text-[12px] text-slate-600 px-2">
+      <div id="lumii-auth-footer" className="relative flex items-center justify-between text-[12px] text-slate-600 px-2">
         <span>Português (Brasil)</span>
         <div className="flex gap-5">
           <span className="cursor-default">Ajuda</span>

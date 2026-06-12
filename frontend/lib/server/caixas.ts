@@ -1,7 +1,7 @@
 import "server-only";
 
 import { badRequest } from "@/lib/server/errors";
-import { execute, queryRows } from "@/lib/server/db";
+import { queryRows } from "@/lib/server/db";
 import { parseDateValue } from "@/lib/server/normalization";
 
 export type CaixaRegistro = {
@@ -56,7 +56,7 @@ export async function getCaixas(mes?: string): Promise<CaixaRegistro[]> {
             ccj_mercadoria, ccj_retirada, caixas_bananas, total, entregue
      FROM caixas_lojas
   `;
-  const params: any[] = [];
+  const params: string[] = [];
 
   if (mes) {
     query += ` WHERE TO_CHAR(data, 'YYYY-MM') = $1`;

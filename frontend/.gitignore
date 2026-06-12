@@ -1,2 +1,13 @@
 .vercel
 .env*.local
+
+# Logs e artefatos de desenvolvimento — podem conter dados sensíveis logados
+*.log
+dev-server.log
+
+# Scripts e arquivos de teste/diagnóstico temporários
+test-db.js
+test-db-lojas.ts
+test-dates.ts
+test-overview.ts
+scripts-tmp-*.mjs

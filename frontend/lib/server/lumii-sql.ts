@@ -1,6 +1,6 @@
 import "server-only";
 
-import { queryRows } from "@/lib/server/db";
+import { queryRowsReadonly } from "@/lib/server/db";
 
 /**
  * Tabelas permitidas para o agente Lumii executar SELECT.
@@ -76,9 +76,9 @@ function validateAllowedTables(sql: string, allowed: readonly string[]): void {
     // Pure expression like SELECT 1 — fine.
     return;
   }
-  const denied = tables.filter(
-    (t) => !allowed.includes(t) && !t.startsWith("information_schema"),
-  );
+  // Only the explicit whitelist is allowed. information_schema / pg_catalog and
+  // any other table are denied — they would leak schema/credential metadata.
+  const denied = tables.filter((t) => !allowed.includes(t));
   if (denied.length > 0) {
     throw new Error(
       `Tabelas não permitidas: ${denied.join(", ")}. Permitidas: ${allowed.join(", ")}.`,
@@ -124,7 +124,7 @@ export async function executeSafeQuery(
 
   const finalSql = applyRowLimit(cleaned);
 
-  const rows = await queryRows<Record<string, unknown>>(finalSql);
+  const rows = await queryRowsReadonly<Record<string, unknown>>(finalSql);
   return {
     rows: serializeRows(rows),
     rowCount: rows.length,

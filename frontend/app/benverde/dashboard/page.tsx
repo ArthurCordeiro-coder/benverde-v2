@@ -12,21 +12,17 @@ import {
   isRecord,
   normalizeDashboardText,
 } from "@/lib/dashboard/client";
-import html2canvas from "html2canvas";
-import * as XLSX from "xlsx";
+import { exportNodeToPng, exportRowsToXlsx } from "@/lib/export";
+import { GlassCard } from "@/components/ui/GlassCard";
 import {
   AlertCircle,
   Banana,
   BarChart3,
   Bot,
-  ChevronsUpDown,
-  ChevronDown,
   ChevronRight,
-  ChevronUp,
   Download,
   Edit2,
   FileSpreadsheet,
-  Filter,
   Image as ImageIcon,
   Leaf,
   Loader2,
@@ -79,14 +75,6 @@ type DashboardMeta = {
 type DashboardResponse = {
   summary?: Partial<DashboardSummary>;
   metas?: Array<Record<string, unknown>>;
-};
-
-type GlassCardProps = {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: ReactNode;
-  trend: "up" | "down" | "neutral";
 };
 
 type SortableKey = "produto" | "meta" | "pedido" | "progresso" | "status";
@@ -145,25 +133,6 @@ function sanitizeDashboardSummary(raw: unknown): DashboardSummary {
     mediaEntrega: coerceNumber(summary.mediaEntrega, 0),
     pedidosImportados: coerceNumber(summary.pedidosImportados, 0),
   };
-}
-
-function GlassCard({ title, value, subtitle, icon, trend }: GlassCardProps) {
-  return (
-    <div className="relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition-all hover:bg-white/[0.05]">
-      <div className="mb-4 flex items-start justify-between">
-        <div className="rounded-2xl border border-white/5 bg-white/5 p-3 shadow-inner">{icon}</div>
-        {trend === "up" ? <TrendingUp size={20} className="text-green-400" /> : null}
-        {trend === "down" ? (
-          <TrendingUp size={20} className="rotate-180 transform text-red-400" />
-        ) : null}
-      </div>
-      <div>
-        <p className="mb-1 text-sm font-medium text-gray-400">{title}</p>
-        <h3 className="mb-2 text-3xl font-bold tracking-tight text-white">{value}</h3>
-        <p className="text-xs font-medium text-gray-500">{subtitle}</p>
-      </div>
-    </div>
-  );
 }
 
 function normalizeText(value: string): string {
@@ -289,6 +258,7 @@ async function parseMetasFile(file: File): Promise<ImportedMeta[]> {
   }
 
   const buffer = await file.arrayBuffer();
+  const XLSX = await import("xlsx");
   const workbook = XLSX.read(buffer, { type: "array" });
   const preferredSheet =
     workbook.SheetNames.find((sheetName) => normalizeText(sheetName).includes("META")) ??
@@ -400,129 +370,13 @@ function bubbleClass(role: ChatMessage["role"]) {
     : "bg-white/10 border border-white/10 text-white";
 }
 
-// --- TIPAGENS DOS DADOS ---
-
-interface Faturamento {
-  produto: string;
-  quant: number;
-  valor: number;
-}
-
-interface LojaCompra {
-  loja: string;
-  valor: number;
-}
-
-interface ValorUnitario {
-  produto: string;
-  valor: number;
-}
-
-interface CaixaLoja {
-  loja: string;
-  total: number;
-  status: 'Entregue' | 'Pendente';
-}
-
-interface TipoCaixa {
-  nome: string;
-  valor: number;
-}
-
-interface Meta {
-  produto: string;
-  meta: number;
-  real: number;
-  percentual: number;
-}
-
-interface Movimentacao {
-  categoria: string;
-  entrada: number;
-  saida: number;
-}
-
-interface Estabelecimento {
-  est: string;
-  cat: string;
-  precoMedio: number;
-}
-
-interface ComparativoPreco {
-  data: string;
-  interno: number;
-  mercado: number;
-}
-
-const CORES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
-
 // --- TIPAGENS DE COMPONENTES ---
-
-interface CardProps {
-  title: string;
-  icon: any;
-  children: ReactNode;
-  className?: string;
-}
 
 interface ColumnDef<T> {
   header: string;
   accessor: (row: T) => ReactNode;
   align?: 'left' | 'center' | 'right';
 }
-
-interface SimpleTableProps<T> {
-  columns: ColumnDef<T>[];
-  data: T[];
-}
-
-// --- COMPONENTES DE UI ---
-
-const Card: React.FC<CardProps> = ({ title, icon: Icon, children, className = "" }) => (
-  <div className={`bg-white rounded-2xl border border-slate-200 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] overflow-hidden flex flex-col ${className}`}>
-    <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3 bg-white">
-      <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
-        <Icon size={20} strokeWidth={2.5} />
-      </div>
-      <h3 className="font-semibold text-slate-800 text-lg">{title}</h3>
-    </div>
-    <div className="p-6 flex-1 flex flex-col justify-center">
-      {children}
-    </div>
-  </div>
-);
-
-function SimpleTable<T>({ columns, data }: SimpleTableProps<T>) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm text-left">
-        <thead className="text-xs text-slate-500 bg-slate-50/80 uppercase rounded-t-lg border-b border-slate-200">
-          <tr>
-            {columns.map((col, i) => (
-              <th key={i} className={`px-4 py-3 font-semibold ${col.align === 'right' ? 'text-right' : ''}`}>
-                {col.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {data.map((row, i) => (
-            <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
-              {columns.map((col, j) => (
-                <td key={j} className={`px-4 py-3 text-slate-700 ${col.align === 'right' ? 'text-right' : ''}`}>
-                  {col.accessor(row)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-const formatarMoeda = (valor: number): string => `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const formatarNumero = (valor: number): string => valor.toLocaleString('pt-BR');
 
 // --- DASHBOARD PRINCIPAL ---
 
@@ -541,15 +395,14 @@ export default function DashboardHome() {
   const [summary, setSummary] = useState<DashboardSummary>(EMPTY_SUMMARY);
   const [metas, setMetas] = useState<DashboardMeta[]>([]);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
-  const [isRefreshingDashboard, setIsRefreshingDashboard] = useState(false);
+  const [, setIsRefreshingDashboard] = useState(false);
   const [dashboardError, setDashboardError] = useState("");
 
-  const [sortConfig, setSortConfig] = useState<SortConfig>({
+  const [sortConfig] = useState<SortConfig>({
     key: null,
     direction: "ascending",
   });
-  const [filters, setFilters] = useState<FiltersState>({});
-  const [activeFilter, setActiveFilter] = useState<SortableKey | null>(null);
+  const [filters] = useState<FiltersState>({});
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showLumiiMenu, setShowLumiiMenu] = useState(false);
   const [lumiiSubmenu, setLumiiSubmenu] = useState<"evolucao" | null>(null);
@@ -702,67 +555,6 @@ export default function DashboardHome() {
     });
   }, [metas]);
 
-  const getUniqueValues = useCallback(
-    (key: SortableKey) =>
-      Array.from(new Set(metas.map((item) => getFilterComparable(item, key)))).sort((left, right) =>
-        typeof left === "string" && typeof right === "string"
-          ? left.localeCompare(right, "pt-BR")
-          : Number(left) - Number(right),
-      ),
-    [metas],
-  );
-
-  const requestSort = (key: SortableKey) => {
-    setSortConfig((current) => ({
-      key,
-      direction:
-        current.key === key && current.direction === "ascending" ? "descending" : "ascending",
-    }));
-  };
-
-  const toggleFilterOption = (key: SortableKey, value: FilterValue) => {
-    setFilters((current) => {
-      const activeValues = current[key] ?? [];
-      const updatedValues = activeValues.includes(value)
-        ? activeValues.filter((item) => item !== value)
-        : [...activeValues, value];
-
-      return {
-        ...current,
-        [key]: updatedValues.length > 0 ? updatedValues : undefined,
-      };
-    });
-  };
-
-  const persistMetas = useCallback(
-    async (nextMetas: DashboardMeta[], successText: string) => {
-      setIsSavingMetas(true);
-      setMetasFeedback(null);
-
-      try {
-        await api.put("/api/dashboard/metas", {
-          items: nextMetas.map((item) => ({
-            produto: item.produto,
-            categoria: item.categoria,
-            meta: item.meta,
-          })),
-        });
-
-        await loadDashboardData("refresh");
-        setMetasFeedback({ tone: "success", text: successText });
-      } catch (error: unknown) {
-        console.error("Erro ao salvar metas:", error);
-        setMetasFeedback({
-          tone: "error",
-          text: getApiErrorMessage(error, "Não foi possível salvar as metas."),
-        });
-      } finally {
-        setIsSavingMetas(false);
-      }
-    },
-    [loadDashboardData],
-  );
-
   const resetForm = () => {
     setFormId(null);
     setFormProduto("");
@@ -901,12 +693,13 @@ export default function DashboardHome() {
     }
   };
 
-  const exportTableToExcel = () => {
+  const exportTableToExcel = async () => {
     const exportRows = getExportRows(filteredAndSortedData);
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Resumo e Metas");
-    XLSX.writeFile(workbook, `dashboard-benverde-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    await exportRowsToXlsx(
+      exportRows,
+      "Resumo e Metas",
+      `dashboard-benverde-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
     setShowExportMenu(false);
   };
 
@@ -916,19 +709,11 @@ export default function DashboardHome() {
     }
 
     setShowExportMenu(false);
-    await new Promise((resolve) => window.setTimeout(resolve, 120));
-
-    const canvas = await html2canvas(tableSectionRef.current, {
-      backgroundColor: "#07130d",
-      scale: 2,
-      useCORS: true,
-      logging: false,
-    });
-
-    const link = document.createElement("a");
-    link.download = `dashboard-benverde-${new Date().toISOString().slice(0, 10)}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    await exportNodeToPng(
+      tableSectionRef.current,
+      `dashboard-benverde-${new Date().toISOString().slice(0, 10)}.png`,
+      { delayMs: 120 },
+    );
   };
 
   const buildFallbackLumiiResponse = useCallback(
@@ -1275,7 +1060,8 @@ export default function DashboardHome() {
           <Tags size={18} className="text-emerald-400" />
           Tabela de Metas
         </h3>
-        <div className="overflow-x-auto">
+        {/* Tabela — tablet e desktop */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-sm text-left">
             <thead className="text-[10px] text-gray-500 bg-white/[0.02] uppercase tracking-widest border-b border-white/5">
               <tr>
@@ -1307,19 +1093,41 @@ export default function DashboardHome() {
             </tbody>
           </table>
         </div>
+
+        {/* Cards — celular */}
+        <div className="space-y-3 md:hidden">
+          {filteredAndSortedData.length === 0 ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-8 text-center text-sm text-gray-500">
+              Nenhuma meta encontrada.
+            </div>
+          ) : (
+            filteredAndSortedData.map((row, i) => (
+              <div key={i} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <dl className="space-y-2">
+                  {metasColumns.map((col, j) => (
+                    <div key={j} className="flex items-start justify-between gap-3">
+                      <dt className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{col.header}</dt>
+                      <dd className="text-right text-sm">{col.accessor(row)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       <button
         type="button"
         onClick={() => setIsChatOpen((current) => !current)}
-        className="group fixed bottom-8 right-8 z-[110] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-[0_8px_32px_rgba(16,185,129,0.4)] transition-all hover:scale-110 hover:shadow-[0_12px_40px_rgba(16,185,129,0.5)] active:scale-95"
+        className="group fixed bottom-6 right-4 z-[110] flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-[0_8px_32px_rgba(16,185,129,0.4)] transition-all hover:scale-110 hover:shadow-[0_12px_40px_rgba(16,185,129,0.5)] active:scale-95 lg:bottom-8 lg:right-8 lg:h-16 lg:w-16"
       >
         <div className="animate-ping-3 absolute inset-0 rounded-full bg-green-400/20" />
         {isChatOpen ? <X size={28} className="relative z-10" /> : <Bot size={32} className="relative z-10" />}
       </button>
 
       {isChatOpen ? (
-        <div className="fixed bottom-28 right-8 z-[100] flex h-[600px] w-[calc(100vw-2rem)] max-w-[450px] flex-col overflow-hidden rounded-[32px] border border-white/15 bg-[#07130d]/95 shadow-[0_24px_70px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
+        <div className="fixed bottom-24 right-4 z-[100] flex h-[70vh] max-h-[600px] w-[calc(100vw-2rem)] max-w-[450px] flex-col overflow-hidden rounded-[32px] border border-white/15 bg-[#07130d]/95 shadow-[0_24px_70px_rgba(0,0,0,0.5)] backdrop-blur-2xl lg:bottom-28 lg:right-8 lg:h-[600px]">
           <header className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-emerald-500/10 to-transparent p-6">
             <div className="flex items-center gap-3">
               <div className="rounded-2xl border border-emerald-300/20 bg-emerald-500/10 p-2 text-emerald-200">

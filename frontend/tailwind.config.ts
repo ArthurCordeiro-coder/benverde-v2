@@ -1,3 +1,4 @@
+import typography from "@tailwindcss/typography";
 import type { Config } from "tailwindcss";
 
 const config: Config = {
@@ -6,14 +7,14 @@ const config: Config = {
     extend: {
       colors: {
         benverde: {
-          base: "#0b1f15",
-          dark: "#07140e",
-          accent: "#34d399",
+          base: "#150838",
+          dark: "#0c0525",
+          accent: "#200a5e",
         },
       },
     },
   },
-  plugins: [require("@tailwindcss/typography")],
+  plugins: [typography],
 };
 
 export default config;

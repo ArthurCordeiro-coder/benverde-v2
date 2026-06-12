@@ -11,10 +11,9 @@ import {
   isRecord,
   normalizeDashboardText,
 } from "@/lib/dashboard/client";
-import html2canvas from "html2canvas";
-import * as XLSX from "xlsx";
+import { exportNodeToPng, exportRowsToXlsx } from "@/lib/export";
+import { GlassCard } from "@/components/ui/GlassCard";
 import {
-  Activity,
   ArrowDownRight,
   ArrowUpRight,
   Banana,
@@ -38,7 +37,6 @@ import {
 import { useRouter } from "next/navigation";
 import {
   type FormEvent,
-  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -71,15 +69,6 @@ type Feedback = {
   text: string;
 } | null;
 
-type GlassCardProps = {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: ReactNode;
-  trend: "up" | "down" | "neutral";
-  colorClass?: string;
-};
-
 type ProdutoRanking = {
   nome: string;
   saldo: number;
@@ -90,33 +79,6 @@ const MITA_QUESTIONS = [
   "Como está a tendência de saída semanal?",
   "Houve bonificações nesta última carga?",
 ];
-
-function GlassCard({
-  title,
-  value,
-  subtitle,
-  icon,
-  trend,
-  colorClass = "text-emerald-400",
-}: GlassCardProps) {
-  return (
-    <div className="group relative flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-6 shadow-[0_8px_32px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition-all hover:bg-white/[0.05]">
-      <div className="mb-4 flex items-start justify-between">
-        <div className={`rounded-2xl border border-white/5 bg-white/5 p-3 shadow-inner ${colorClass}`}>
-          {icon}
-        </div>
-        {trend === "up" ? <ArrowUpRight size={20} className="text-green-400" /> : null}
-        {trend === "down" ? <ArrowDownRight size={20} className="text-red-400" /> : null}
-        {trend === "neutral" ? <Activity size={20} className="text-blue-400" /> : null}
-      </div>
-      <div>
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">{title}</p>
-        <h3 className="mb-2 text-3xl font-bold tracking-tight text-white">{value}</h3>
-        <p className="text-xs font-medium text-gray-400">{subtitle}</p>
-      </div>
-    </div>
-  );
-}
 
 function normalizeText(value: string): string {
   return normalizeDashboardText(value);
@@ -367,11 +329,12 @@ export default function EstoqueDashboard() {
     }
   };
 
-  const exportarExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Estoque de Bananas");
-    XLSX.writeFile(workbook, `estoque-bananas-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const exportarExcel = async () => {
+    await exportRowsToXlsx(
+      exportRows,
+      "Estoque de Bananas",
+      `estoque-bananas-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
     setShowExportMenu(false);
   };
 
@@ -381,19 +344,11 @@ export default function EstoqueDashboard() {
     }
 
     setShowExportMenu(false);
-    await new Promise((resolve) => window.setTimeout(resolve, 120));
-
-    const canvas = await html2canvas(historySectionRef.current, {
-      backgroundColor: "#07130d",
-      scale: 2,
-      useCORS: true,
-      logging: false,
-    });
-
-    const link = document.createElement("a");
-    link.download = `estoque-bananas-${new Date().toISOString().slice(0, 10)}.png`;
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    await exportNodeToPng(
+      historySectionRef.current,
+      `estoque-bananas-${new Date().toISOString().slice(0, 10)}.png`,
+      { delayMs: 120 },
+    );
   };
 
   const buildFallbackLumiiResponse = useCallback(
@@ -546,24 +501,27 @@ export default function EstoqueDashboard() {
           value={carregando ? "Carregando..." : formatQuantity(stats.saldoAtual)}
           subtitle="Volume total consolidado."
           icon={<Box size={24} />}
-          colorClass="text-yellow-400"
+          iconClassName="text-yellow-400"
           trend={stats.saldoAtual >= 0 ? "up" : "down"}
+          uppercaseTitle
         />
         <GlassCard
           title="Saídas Recentes"
           value={carregando ? "Carregando..." : formatQuantity(stats.totalSaidas)}
           subtitle="Fluxo acumulado das saídas registradas."
           icon={<ShoppingCart size={24} />}
-          colorClass="text-orange-400"
+          iconClassName="text-orange-400"
           trend="neutral"
+          uppercaseTitle
         />
         <GlassCard
           title="Variedade Líder"
           value={stats.topVariedade.nome.split(" ").pop() ?? stats.topVariedade.nome}
           subtitle={`${formatQuantity(stats.topVariedade.saldo)} disponíveis.`}
           icon={<Banana size={24} />}
-          colorClass="text-emerald-400"
+          iconClassName="text-emerald-400"
           trend="up"
+          uppercaseTitle
         />
       </div>
 
