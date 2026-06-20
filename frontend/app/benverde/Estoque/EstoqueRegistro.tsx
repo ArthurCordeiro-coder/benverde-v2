@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import {
   Banana,
   Bot,
+  Cpu,
   FileText,
   History,
   UploadCloud,
@@ -221,7 +222,8 @@ export default function EstoqueRegistro() {
     setIsUploading(true);
     setFeedback(null);
 
-    const isCsv = file.name.toLowerCase().endsWith(".csv");
+    const name = file.name.toLowerCase();
+    const isCsv = name.endsWith(".csv") || name.endsWith(".xls") || name.endsWith(".xlsx");
 
     try {
       const formData = new FormData();
@@ -323,12 +325,21 @@ export default function EstoqueRegistro() {
             </h1>
             <p className="text-sm text-gray-400 mt-1">Registro manual de entradas e saídas e extração de NFe.</p>
           </div>
-          <button
-            onClick={() => router.push("/benverde/Estoque/correcao")}
-            className="flex shrink-0 items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-300 transition-all hover:bg-emerald-500/20"
-          >
-            <Bot size={16} /> Assistente
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={() => router.push("/benverde/processamento")}
+              title="Processamento completo de PDFs no seu navegador (todos os produtos)"
+              className="flex items-center gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-2.5 text-sm font-semibold text-yellow-300 transition-all hover:bg-yellow-500/20"
+            >
+              <Cpu size={16} /> Processar PDFs
+            </button>
+            <button
+              onClick={() => router.push("/benverde/Estoque/correcao")}
+              className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-300 transition-all hover:bg-emerald-500/20"
+            >
+              <Bot size={16} /> Assistente
+            </button>
+          </div>
         </div>
 
         {feedback && (
@@ -359,10 +370,10 @@ export default function EstoqueRegistro() {
                 </div>
               )}
               <UploadCloud className="mx-auto h-10 w-10 text-gray-400 mb-3" />
-              <p className="text-sm text-gray-300 mb-4">Selecione o PDF (NF-e) ou CSV (pedido por loja) para extração automática</p>
+              <p className="text-sm text-gray-300 mb-4">Selecione o PDF (NF-e), CSV ou XLS/XLSX (pedido Semar) para extração automática</p>
               <input
                 type="file"
-                accept=".pdf,.csv"
+                accept=".pdf,.csv,.xls,.xlsx"
                 onChange={e => void handleFileUpload(e)}
                 disabled={isUploading}
                 className="block w-full text-sm text-gray-400 file:mr-4 file:rounded-full file:border-0 file:bg-emerald-500/20 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-emerald-300 hover:file:bg-emerald-500/30 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
