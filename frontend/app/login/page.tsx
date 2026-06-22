@@ -16,6 +16,7 @@ function getRedirectPath(funcionalidade?: string) {
   if (n === "busca de precos") return "/Precos";
   if (n === "registro de estoque") return "/benverde/Estoque";
   if (n === "registro de caixas") return "/benverde/Caixas";
+  if (n === "processamento de pdf") return "/benverde/processamento";
   return "/benverde/dashboard";
 }
 

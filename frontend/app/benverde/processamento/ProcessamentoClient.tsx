@@ -15,6 +15,7 @@ import {
 import api from "@/lib/api";
 import { carregarRegistrosUpload } from "./_lib/parser";
 import { extrairPaginas } from "./_lib/pdf-text";
+import { extrairPdfsDeZip } from "./_lib/zip";
 import type { RegistroPedido } from "./_lib/types";
 
 type LinhaExtraida = RegistroPedido & { _id: number; sel: boolean };
@@ -60,14 +61,48 @@ export default function ProcessamentoClient() {
 
   const handleFiles = async (lista: FileList | null) => {
     if (!lista || lista.length === 0) return;
-    const arquivos = Array.from(lista).filter((f) => f.name.toLowerCase().endsWith(".pdf"));
-    if (arquivos.length === 0) {
-      setFeedback({ tone: "error", text: "Selecione ao menos um arquivo PDF." });
+    const entrada = Array.from(lista);
+    const temEntradaValida = entrada.some((f) => {
+      const nome = f.name.toLowerCase();
+      return nome.endsWith(".pdf") || nome.endsWith(".zip");
+    });
+    if (!temEntradaValida) {
+      setFeedback({ tone: "error", text: "Selecione arquivos PDF ou um ZIP com PDFs dentro." });
       return;
     }
 
     setIsProcessing(true);
     setFeedback(null);
+
+    // Expande os .zip em PDFs (no navegador) antes de processar.
+    const arquivos: File[] = [];
+    const errosZip: string[] = [];
+    for (const f of entrada) {
+      const nome = f.name.toLowerCase();
+      if (nome.endsWith(".zip")) {
+        try {
+          const internos = await extrairPdfsDeZip(f);
+          if (internos.length === 0) errosZip.push(`${f.name}: nenhum PDF encontrado dentro do ZIP.`);
+          arquivos.push(...internos);
+        } catch {
+          errosZip.push(`${f.name}: não foi possível abrir o ZIP.`);
+        }
+      } else if (nome.endsWith(".pdf")) {
+        arquivos.push(f);
+      }
+    }
+
+    if (arquivos.length === 0) {
+      setIsProcessing(false);
+      setFeedback({
+        tone: "error",
+        text: errosZip.length
+          ? errosZip.join(" ")
+          : "Nenhum PDF para processar.",
+      });
+      return;
+    }
+
     setProgresso(
       arquivos.map((f) => ({ nome: f.name, estado: "processando", itens: 0 })),
     );
@@ -230,11 +265,12 @@ export default function ProcessamentoClient() {
           )}
           <UploadCloud className="mx-auto mb-3 h-10 w-10 text-gray-400" />
           <p className="mb-4 text-sm text-gray-300">
-            Selecione um ou mais PDFs (NF-e/DANFE ou pedido Semar) para extração automática
+            Selecione um ou mais PDFs — ou um arquivo ZIP com vários PDFs dentro (NF-e/DANFE ou
+            pedido Semar) para extração automática
           </p>
           <input
             type="file"
-            accept=".pdf"
+            accept=".pdf,.zip"
             multiple
             disabled={isProcessing}
             onChange={(e) => {

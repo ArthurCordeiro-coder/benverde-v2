@@ -38,6 +38,11 @@ const RESTRICTED_SCOPE_BY_FUNCIONALIDADE: Record<string, DashboardScope[]> = {
   "registro de estoque": ["estoque"],
   "registro de caixas": ["caixas"],
   "busca de precos": ["precos"],
+  // "P. de PDF": operador que só processa PDFs. Usa o escopo "estoque" porque a
+  // rota /api/pedidos (gravação em cache_pedidos) é protegida por esse escopo.
+  // O redirecionamento de login (app/login/page.tsx) leva direto a
+  // /benverde/processamento.
+  "processamento de pdf": ["estoque"],
 };
 
 const DRIVE_ALLOWED_FUNCIONALIDADES = new Set(["administracao geral"]);
