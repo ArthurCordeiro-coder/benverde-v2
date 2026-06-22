@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff } from "lucide-react";
 import api from "../../../lib/api";
 import Link from "next/link";
 import Image from "next/image";
@@ -105,6 +105,15 @@ const SUBTITLES: Record<Step, string> = {
   credentials: "Defina seus dados de acesso",
 };
 
+// Funções disponíveis no cadastro. O usuário fica pendente de aprovação de um
+// administrador. "administracao geral" (admin) não é exposta aqui por segurança.
+const FUNCOES: Array<{ value: string; label: string }> = [
+  { value: "busca de precos", label: "Busca de preços" },
+  { value: "registro de estoque", label: "Registro de estoque" },
+  { value: "registro de caixas", label: "Registro de caixas" },
+  { value: "processamento de pdf", label: "Processamento de PDF" },
+];
+
 export default function CreateAccountPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("identity");
@@ -117,9 +126,11 @@ export default function CreateAccountPage() {
   const [confirmSenha, setConfirmSenha] = useState("");
   const [showSenha, setShowSenha] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [funcao, setFuncao] = useState("");
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const direction = STEP_ORDER.indexOf(step) >= STEP_ORDER.indexOf(prevStep) ? "right" : "left";
 
@@ -145,6 +156,7 @@ export default function CreateAccountPage() {
   /* Step 2 → 3: actually register */
   const submitCredentials = async () => {
     if (!email.trim()) { setError("Informe seu e-mail."); return; }
+    if (!funcao) { setError("Selecione a função no sistema."); return; }
     if (senha.length < 6) { setError("A senha precisa ter ao menos 6 caracteres."); return; }
     if (senha !== confirmSenha) { setError("As senhas não coincidem."); return; }
 
@@ -155,9 +167,12 @@ export default function CreateAccountPage() {
         nome: nome.trim(),
         email: email.trim(),
         password: senha,
-        funcionalidade: "busca de precos",
+        funcionalidade: funcao,
       });
-      router.push("/pagamento");
+      // Sem cobrança: o cadastro fica pendente de aprovação de um administrador.
+      // Mostra a confirmação e retorna para a home do site.
+      setSubmitted(true);
+      window.setTimeout(() => router.push("/"), 5000);
     } catch (err: unknown) {
       const detail = (err as ApiError)?.response?.data?.detail;
       setError(typeof detail === "string" ? detail : "Não foi possível concluir o cadastro.");
@@ -258,8 +273,32 @@ export default function CreateAccountPage() {
           {/* Right column — form */}
           <div className="relative flex flex-col">
             <div className="relative flex flex-1 flex-col justify-center" style={{ minHeight: 280 }}>
+              {/* Sucesso: cadastro enviado, aguardando aprovação de admin */}
+              {submitted && (
+                <div
+                  key="sucesso"
+                  className="flex flex-col items-center gap-4 text-center"
+                  style={{ animation: "lumii-fade-up 0.35s cubic-bezier(0.16,1,0.3,1) both" }}
+                >
+                  <CheckCircle2 size={56} className="text-emerald-400" />
+                  <h2 className="text-2xl font-semibold text-slate-100">Cadastro enviado!</h2>
+                  <p className="max-w-sm text-[15px] leading-relaxed text-slate-400">
+                    Um administrador está aprovando seu acesso. Assim que for liberado, você poderá
+                    entrar normalmente.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => router.push("/")}
+                    className="mt-2 inline-flex h-11 items-center justify-center rounded-full px-7 text-[14px] font-semibold text-[#03110a] transition-all"
+                    style={{ background: "var(--lumii-primary-500)", boxShadow: "0 0 24px rgba(16,185,129,0.18)", fontFamily: "inherit" }}
+                  >
+                    Voltar ao início
+                  </button>
+                </div>
+              )}
+
               {/* Step 1: Identity */}
-              {step === "identity" && (
+              {!submitted && step === "identity" && (
                 <div
                   key="identity"
                   className="flex flex-col gap-3.5"
@@ -278,13 +317,60 @@ export default function CreateAccountPage() {
               )}
 
               {/* Step 2: Credentials */}
-              {step === "credentials" && (
+              {!submitted && step === "credentials" && (
                 <div
                   key="credentials"
                   className="flex flex-col gap-3.5"
                   style={{ animation: "lumii-slide-in 0.25s cubic-bezier(0.4,0,0.2,1) both" }}
                 >
                   <FloatInput label="E-mail" value={email} onChange={setEmail} type="email" autoFocus name="email" autoComplete="email" />
+                  <div className="flex flex-col gap-1.5">
+                    <label
+                      htmlFor="funcao"
+                      className="pl-1"
+                      style={{ fontSize: 11, letterSpacing: "0.02em", color: "var(--lumii-fg-muted)", fontFamily: "var(--lumii-font-sans)" }}
+                    >
+                      Função no sistema
+                    </label>
+                    <div
+                      className="relative h-14"
+                      style={{
+                        borderRadius: 14,
+                        border: `1px solid ${funcao ? "var(--lumii-primary-300)" : "var(--lumii-border-2)"}`,
+                        background: "rgba(255,255,255,0.02)",
+                      }}
+                    >
+                      <select
+                        id="funcao"
+                        value={funcao}
+                        onChange={(e) => setFuncao(e.target.value)}
+                        className="absolute inset-0 h-full w-full cursor-pointer appearance-none border-none bg-transparent outline-none"
+                        style={{
+                          color: funcao ? "var(--lumii-fg)" : "var(--lumii-fg-muted)",
+                          fontSize: 15,
+                          padding: "0 44px 0 18px",
+                          fontFamily: "var(--lumii-font-sans)",
+                        }}
+                      >
+                        <option value="" disabled style={{ color: "#0c0525" }}>
+                          Selecione a função
+                        </option>
+                        {FUNCOES.map((f) => (
+                          <option key={f.value} value={f.value} style={{ color: "#0c0525" }}>
+                            {f.label}
+                          </option>
+                        ))}
+                      </select>
+                      <div
+                        className="pointer-events-none absolute bottom-0 right-4 top-0 flex items-center"
+                        style={{ color: "var(--lumii-fg-muted)" }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
                   <FloatInput
                     label="Senha"
                     value={senha}

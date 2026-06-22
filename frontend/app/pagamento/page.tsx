@@ -104,13 +104,6 @@ const IconLock = ({ size = 14 }: { size?: number }) => (
     <path d="M8 11V8a4 4 0 0 1 8 0v3" />
   </svg>
 );
-const IconCreditCard = ({ size = 22 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="6" width="18" height="13" rx="2" />
-    <line x1="3" y1="11" x2="21" y2="11" /><line x1="7" y1="16" x2="11" y2="16" />
-  </svg>
-);
 const IconArrowLeft = ({ size = 18 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -170,7 +163,6 @@ const formatCpf = (s: string) => {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
 };
 const formatCep = (s: string) => { const d = s.replace(/\D/g, "").slice(0, 8); return d.length <= 5 ? d : `${d.slice(0, 5)}-${d.slice(5)}`; };
-const isBillingValid = (b: BillingData) => b.cpf.replace(/\D/g, "").length === 11 && b.cep.replace(/\D/g, "").length === 8 && !!b.rua && !!b.num && !!b.cidade && !!b.uf;
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -430,9 +422,9 @@ function FrequencyPicker({ value, onChange }: { value: FreqKey; onChange: (k: Fr
 
 // ─── Order Summary ────────────────────────────────────────────────────────────
 
-function OrderSummary({ canFinalize, onFinalize, frequency, setFrequency, method }: {
-  canFinalize: boolean; onFinalize: () => void; frequency: FreqKey;
-  setFrequency: (k: FreqKey) => void; method: Method;
+function OrderSummary({ frequency, setFrequency }: {
+  frequency: FreqKey;
+  setFrequency: (k: FreqKey) => void;
 }) {
   const plan = FREQ_PLANS[frequency];
   const features = [
@@ -441,7 +433,6 @@ function OrderSummary({ canFinalize, onFinalize, frequency, setFrequency, method
     { icon: <IconFilter size={14} />, text: "Filtros temáticos personalizáveis" },
     { icon: <IconCheckCircle size={14} />, text: "Status competitivo a cada cotação" },
   ];
-  const ctaLabel = method === "other" ? "Continuar para Mercado Pago" : "Confirmar assinatura";
 
   return (
     <aside style={sy.summary} className="lumii-pay-summary">
@@ -474,18 +465,6 @@ function OrderSummary({ canFinalize, onFinalize, frequency, setFrequency, method
         <span style={sy.lineLabelBig}>A pagar hoje</span>
         <span style={sy.lineValueBig}>{fmtBRL(plan.price)}</span>
       </div>
-      <button type="button" style={sy.primaryBtn(canFinalize)} onClick={onFinalize} disabled={!canFinalize}
-        onMouseEnter={e => { if (canFinalize) (e.currentTarget as HTMLElement).style.transform = "translateY(-1px)"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = "translateY(0)"; }}>
-        {ctaLabel}
-        {method === "other" && (
-          <span style={{ marginLeft: 8, display: "inline-flex", verticalAlign: "middle" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M7 17L17 7" /><polyline points="8 7 17 7 17 16" />
-            </svg>
-          </span>
-        )}
-      </button>
       <div style={sy.mpTrustFooter}>
         <div style={sy.mpTrustRow}>
           <span style={sy.mpTrustIcon}><IconLock size={12} /></span>
@@ -511,95 +490,9 @@ function OrderSummary({ canFinalize, onFinalize, frequency, setFrequency, method
   );
 }
 
-// ─── Card form ────────────────────────────────────────────────────────────────
+// ─── Unified payment panel (cartão + Pix + Boleto + Saldo no mesmo checkout) ──
 
-function CardForm({ frequency }: {
-  frequency: FreqKey;
-}) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const passwordOk = password.length >= 6;
-  const valid = emailOk && passwordOk && !busy;
-
-  // Cria o cadastro pendente + a assinatura recorrente no backend e redireciona
-  // para a URL de checkout que ele devolve (sandbox em teste, produção em prod —
-  // a decisão é do servidor, conforme as credenciais).
-  const submit = async () => {
-    if (!valid) return;
-    setError(null);
-    setBusy(true);
-    try {
-      const res = await fetch("/api/pagamento/assinar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password, frequency, method: "card" }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.checkoutUrl) throw new Error(data?.detail || "Falha ao iniciar a assinatura.");
-      window.location.href = data.checkoutUrl;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div>
-      <div style={sy.bricksMount}>
-        <span style={sy.bricksLabel}>
-          <span style={{ width: 6, height: 6, borderRadius: 9999, background: "#7dd3fc", boxShadow: "0 0 6px #7dd3fc" }} />
-          Mercado Pago · Subscriptions
-        </span>
-        <p style={{ fontSize: 12.5, color: "#cbd5e1", lineHeight: 1.55, margin: "4px 0 14px 0" }}>
-          O Mercado Pago coleta os dados do cartão na próxima tela, valida o cartão
-          e ativa a cobrança recorrente conforme o plano selecionado. Os dados nunca
-          passam pelos servidores da Lumii.
-        </p>
-        <div style={sy.fieldGroup}>
-          <Field label="E-mail" value={email} onChange={setEmail} type="email" inputMode="email" />
-          <Field label="Crie uma senha (mín. 6 caracteres)" value={password} onChange={setPassword} type="password" valid={password.length === 0 || passwordOk} />
-        </div>
-        <div style={{ fontSize: 11, color: "#64748b", marginTop: 4, paddingLeft: 4 }}>
-          Sua conta Lumii é criada com este e-mail e senha e liberada assim que o pagamento for confirmado.
-        </div>
-      </div>
-
-      {error && (
-        <div style={{
-          padding: "10px 14px", borderRadius: 10, marginBottom: 12,
-          background: "rgba(248,113,113,0.10)", border: "1px solid rgba(248,113,113,0.30)",
-          color: "#fca5a5", fontSize: 12.5, lineHeight: 1.5
-        }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: "#94a3b8", marginBottom: 12 }}>
-        <span style={{ color: "#7dd3fc", display: "flex" }}><IconLock size={12} /></span>
-        Os dados do cartão ficam no ambiente seguro da Mercado Pago.
-      </div>
-
-      <button type="button" style={sy.primaryBtn(valid)} disabled={!valid} onClick={submit}>
-        {busy ? "Redirecionando…" : "Continuar para Mercado Pago"}
-        {!busy && (
-          <span style={{ marginLeft: 8, display: "inline-flex", verticalAlign: "middle" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M7 17L17 7" /><polyline points="8 7 17 7 17 16" />
-            </svg>
-          </span>
-        )}
-      </button>
-    </div>
-  );
-}
-
-// ─── Other methods panel ──────────────────────────────────────────────────────
-
-function OtherMethodsPanel({ frequency }: { frequency: FreqKey }) {
+function UnifiedPaymentPanel({ frequency }: { frequency: FreqKey }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -635,22 +528,25 @@ function OtherMethodsPanel({ frequency }: { frequency: FreqKey }) {
         <span style={{ fontSize: 12.5, color: "#cbd5e1", fontWeight: 600 }}>Checkout Mercado Pago</span>
       </div>
       <div style={sy.redirectMethods}>
+        <span style={sy.redirectChip}><VisaMark /></span>
+        <span style={sy.redirectChip}><MastercardMark /></span>
+        <span style={sy.redirectChip}><EloMark /></span>
         <span style={sy.redirectChip}><PixMark size={14} /> Pix</span>
         <span style={sy.redirectChip}>
-          <span style={{ color: "#cbd5e1", display: "flex" }}><BoletoMark size={14} /></span> Boleto bancário
+          <span style={{ color: "#cbd5e1", display: "flex" }}><BoletoMark size={14} /></span> Boleto
         </span>
         <span style={sy.redirectChip}>
-          <span style={{ color: "#cbd5e1", display: "flex" }}><WalletMark size={14} /></span> Saldo Mercado Pago
+          <span style={{ color: "#cbd5e1", display: "flex" }}><WalletMark size={14} /></span> Saldo
         </span>
       </div>
       <p style={sy.redirectNote}>
-        Você será redirecionado para o ambiente seguro da Mercado Pago para concluir o pagamento.
-        Após a confirmação, retornaremos automaticamente à Lumii para finalizar o cadastro da sua assinatura.
+        Você será redirecionado para o ambiente seguro do Mercado Pago, onde poderá pagar com
+        cartão, Pix, boleto ou saldo. Após a confirmação, retornaremos automaticamente à Lumii
+        para finalizar o cadastro da sua assinatura.
       </p>
       <p style={{ ...sy.redirectNote, fontSize: 11.5, color: "#64748b" }}>
-        <strong style={{ color: "#94a3b8" }}>Observação:</strong> Pix e Boleto cobram o primeiro ciclo.
-        Para automatizar as próximas renovações, cadastre um cartão depois — você pode fazer isso em{" "}
-        Configurações &gt; Assinatura.
+        <strong style={{ color: "#94a3b8" }}>Observação:</strong> a cobrança é única, referente
+        ao ciclo selecionado.
       </p>
       <div style={{ ...sy.fieldGroup, marginTop: 4 }}>
         <Field label="E-mail" value={email} onChange={setEmail} type="email" inputMode="email" />
@@ -775,17 +671,15 @@ function PagamentoInner() {
   const returnStatus = searchParams.get("status") ?? searchParams.get("collection_status");
   const returningFromMp = !!(returnPaymentId || returnSubId);
 
-  const [method, setMethod] = useState<Method>(
-    returnSubId ? "card" : returnPaymentId ? "other" : "card",
-  );
+  // Fluxo único de Checkout Pro (pagamento). `card` só aparece no retorno de um
+  // preapproval legado, preservado para a tela de sucesso.
+  const [method] = useState<Method>(returnSubId ? "card" : "other");
   const [step, setStep] = useState<StepNum>(returningFromMp ? 3 : 1);
   const [billing, setBilling] = useState<BillingData>({ cpf: "", cep: "", rua: "", num: "", bairro: "", cidade: "", uf: "" });
   const [frequency, setFrequency] = useState<FreqKey>("monthly");
   const [subscriptionId] = useState<string | null>(returnSubId);
   const [paymentId] = useState<string | null>(returnPaymentId);
   const [mpStatus, setMpStatus] = useState<string | null>(returnStatus);
-
-  const canFinalize = step === 2 && isBillingValid(billing);
 
   // No retorno do MP, confirma o status real via API (a fonte de verdade do
   // acesso é o webhook; isto é só para a tela de sucesso).
@@ -865,11 +759,22 @@ function PagamentoInner() {
                   </div>
                 </div>
 
-                {/* Step 1 — payment method */}
+                {/* Step 1 — billing address */}
+                <div style={sy.step}>
+                  <div style={sy.stepHeader}>
+                    <span style={sy.stepNum(step >= 2 ? "active" : "pending")}>1</span>
+                    <span style={sy.stepTitle(step >= 2 ? "active" : "pending")}>Endereço de cobrança</span>
+                  </div>
+                  {step >= 2 && <BillingForm billing={billing} setBilling={setBilling} />}
+                </div>
+
+                <div style={sy.divider} />
+
+                {/* Step 2 — payment method */}
                 <div style={sy.step}>
                   <div style={sy.stepHeader}>
                     <span style={sy.stepNum(step > 1 ? "done" : "active")}>
-                      {step > 1 ? <IconCheck size={13} strokeWidth={3} /> : "1"}
+                      {step > 1 ? <IconCheck size={13} strokeWidth={3} /> : "2"}
                     </span>
                     <span style={sy.stepTitle(step > 1 ? "done" : "active")}>Forma de pagamento</span>
                     {step > 1 && (
@@ -879,73 +784,18 @@ function PagamentoInner() {
 
                   {step === 1 && (
                     <div style={sy.pathStack}>
-                      {/* Card path */}
-                      <div style={sy.pathCard(method === "card")}>
-                        <button type="button" style={sy.pathHead} onClick={() => setMethod("card")}>
-                          <span style={sy.pathRadio(method === "card")}>
-                            <span style={sy.pathRadioDot(method === "card")} />
-                          </span>
-                          <span style={sy.pathHeadInfo}>
-                            <span style={sy.pathTitle}>Cartão de crédito</span>
-                            <span style={sy.pathSub}>Cobrança recorrente automática · renovação sem interrupções</span>
-                          </span>
-                          <span style={sy.pathHeadBrands}>
-                            <VisaMark /><MastercardMark /><EloMark />
-                          </span>
-                        </button>
-                        {method === "card" && (
-                          <div style={sy.pathBody}>
-                            <CardForm frequency={frequency} />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Other methods path */}
-                      <div style={sy.pathCard(method === "other")}>
-                        <button type="button" style={sy.pathHead} onClick={() => setMethod("other")}>
-                          <span style={sy.pathRadio(method === "other")}>
-                            <span style={sy.pathRadioDot(method === "other")} />
-                          </span>
-                          <span style={sy.pathHeadInfo}>
-                            <span style={sy.pathTitle}>Outros métodos</span>
-                            <span style={sy.pathSub}>Pix · Boleto · Saldo Mercado Pago — pagamento via Mercado Pago</span>
-                          </span>
-                          <span style={sy.pathHeadBrands}>
-                            <span style={{ color: "#32bcad", display: "flex" }}><PixMark size={18} /></span>
-                            <span style={{ color: "#cbd5e1", display: "flex" }}><BoletoMark size={18} /></span>
-                            <span style={{ color: "#cbd5e1", display: "flex" }}><WalletMark size={18} /></span>
-                          </span>
-                        </button>
-                        {method === "other" && (
-                          <div style={sy.pathBody}>
-                            <OtherMethodsPanel frequency={frequency} />
-                          </div>
-                        )}
-                      </div>
+                      <UnifiedPaymentPanel frequency={frequency} />
                     </div>
                   )}
 
                   {step > 1 && (
                     <div style={{ paddingLeft: 38, color: "#94a3b8", fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ color: "#6247c7", display: "flex" }}>
-                        {method === "card" ? <IconCreditCard size={16} /> : <MercadoPagoLogo height={18} />}
+                        <MercadoPagoLogo height={18} />
                       </span>
-                      {method === "card"
-                        ? "Cartão de crédito •••• 4242 · cobrança recorrente"
-                        : "Pagamento via Mercado Pago (Pix / Boleto / Saldo)"}
+                      Pagamento via Mercado Pago (cartão / Pix / Boleto / Saldo)
                     </div>
                   )}
-                </div>
-
-                <div style={sy.divider} />
-
-                {/* Step 2 — billing address */}
-                <div style={sy.step}>
-                  <div style={sy.stepHeader}>
-                    <span style={sy.stepNum(step >= 2 ? "active" : "pending")}>2</span>
-                    <span style={sy.stepTitle(step >= 2 ? "active" : "pending")}>Endereço de cobrança</span>
-                  </div>
-                  {step >= 2 && <BillingForm billing={billing} setBilling={setBilling} />}
                 </div>
               </>
             )}
@@ -953,11 +803,8 @@ function PagamentoInner() {
 
           {/* Right column — order summary */}
           <OrderSummary
-            canFinalize={canFinalize}
-            onFinalize={() => canFinalize && setStep(3)}
             frequency={frequency}
             setFrequency={setFrequency}
-            method={method}
           />
         </div>
       </div>

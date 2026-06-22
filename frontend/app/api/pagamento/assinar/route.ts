@@ -4,9 +4,7 @@ import { Preference } from "mercadopago";
 import {
   getMpClient,
   getCheckoutUrl,
-  getPreapprovalPlanId,
   isFrequencyKey,
-  isTestMode,
   LUMII_PLAN,
 } from "@/lib/mercadopago";
 import { hashPassword } from "@/lib/server/auth";
@@ -25,9 +23,10 @@ function randomHex(bytes = 16): string {
 /**
  * Inicia a assinatura da Lumii a partir do checkout público:
  *  1. cria o cadastro pendente (e-mail + senha) gravando o hash;
- *  2. cria, no Mercado Pago, um preapproval (cartão, recorrente) ou uma
- *     preferência (Pix/Boleto, ciclo único), carregando `external_reference`
- *     com o id do cadastro pendente para reconciliar no webhook;
+ *  2. cria, no Mercado Pago, uma única preferência de Checkout Pro com TODOS
+ *     os métodos disponíveis (cartão + Pix + Boleto + Saldo), carregando
+ *     `external_reference` com o id do cadastro pendente para reconciliar no
+ *     webhook. Cobrança única do ciclo selecionado;
  *  3. devolve `{ checkoutUrl }` para o frontend redirecionar.
  *
  * O acesso só é liberado quando o webhook confirma o pagamento.
@@ -38,17 +37,14 @@ export async function POST(req: NextRequest) {
     const email = String(payload.email ?? "").trim();
     const password = String(payload.password ?? "");
     const frequency = payload.frequency;
-    const method = String(payload.method ?? "card");
 
     if (!EMAIL_REGEX.test(email)) badRequest("E-mail inválido.");
     if (password.length < 6) badRequest("Senha deve ter pelo menos 6 caracteres.");
     if (!isFrequencyKey(frequency)) badRequest(`Frequência inválida: ${String(frequency)}`);
-    if (method !== "card" && method !== "other") badRequest("Método de pagamento inválido.");
 
     const plan = LUMII_PLAN[frequency];
     const origin = req.nextUrl.origin;
     const useAutoReturn = origin.startsWith("https://");
-    const metodo = method === "card" ? "preapproval" : "payment";
 
     const salt = randomHex(32);
     const senhaHash = await hashPassword(salt, password);
@@ -57,32 +53,13 @@ export async function POST(req: NextRequest) {
       salt,
       senhaHash,
       plano: frequency,
-      metodo,
+      metodo: "payment",
     });
 
-    // ── Cartão → assinatura recorrente (plano associado, checkout hospedado) ──
-    // A API /preapproval exige `card_token_id`, então NÃO dá para criar a
-    // assinatura no servidor sem o cartão. Redirecionamos para o checkout de
-    // assinaturas do MP, que coleta o cartão e cria a assinatura. A
-    // reconciliação acontece no webhook pelo e-mail do pagador (o checkout
-    // hospedado não repassa o external_reference).
-    if (method === "card") {
-      const planId = getPreapprovalPlanId(frequency);
-      if (!planId) {
-        serviceUnavailable(
-          `Plano de assinatura "${frequency}" não configurado. Defina MP_PREAPPROVAL_PLAN_${frequency.toUpperCase()}.`,
-        );
-      }
-
-      const base = isTestMode()
-        ? "https://sandbox.mercadopago.com.br"
-        : "https://www.mercadopago.com.br";
-      const checkoutUrl = `${base}/subscriptions/checkout?preapproval_plan_id=${encodeURIComponent(planId)}`;
-
-      return NextResponse.json({ checkoutUrl, externalReference: externalRef });
-    }
-
-    // ── Pix / Boleto / Saldo → Checkout Pro (pagamento único do ciclo) ──
+    // ── Checkout Pro único: cartão + Pix + Boleto + Saldo no mesmo checkout ──
+    // Cobrança única do ciclo selecionado. Sem `excluded_payment_types`, o MP
+    // oferece todos os métodos juntos. O `external_reference` reconcilia o
+    // cadastro pendente no webhook (fonte de verdade do acesso).
     const preference = new Preference(getMpClient());
     const result = await preference.create({
       body: {
@@ -104,9 +81,6 @@ export async function POST(req: NextRequest) {
           pending: `${origin}/pagamento?status=pending`,
         },
         ...(useAutoReturn ? { auto_return: "approved" as const } : {}),
-        payment_methods: {
-          excluded_payment_types: [{ id: "credit_card" }, { id: "debit_card" }],
-        },
         statement_descriptor: "LUMII",
       },
     });

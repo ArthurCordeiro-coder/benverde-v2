@@ -12,7 +12,7 @@ import {
 } from "@/lib/server/session-token";
 
 // Rotas totalmente bloqueadas: ninguém acessa, nem digitando a URL direto.
-const BLOCKED_PATHS = ["/pagamento", "/login/criar-conta"];
+const BLOCKED_PATHS: string[] = [];
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
